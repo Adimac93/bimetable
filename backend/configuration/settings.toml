@@ -1,0 +1,8 @@
+[app]
+host = "127.0.0.1"
+port = 3001
+origin = "http://localhost:3000"
+
+[postgres]
+database_url = "postgresql://postgres:@localhost:5432/bimetable"
+is_migrating = false
