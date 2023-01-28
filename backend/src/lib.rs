@@ -1,20 +1,15 @@
 pub mod config;
 pub mod modules;
 
-use crate::config::Settings;
-use crate::modules::database::get_postgres_pool;
-
+use crate::modules::Modules;
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::{Extension, Router};
-use sqlx::PgPool;
 
-pub async fn app(config: Settings) -> Router {
-    let pgpool = get_postgres_pool(config.postgres).await;
-
+pub async fn app(modules: Modules) -> Router {
     Router::new()
         .route("/", get(handler))
-        .layer(Extension(pgpool))
+        .layer(Extension(modules.pool))
 }
 
 async fn handler() -> impl IntoResponse {

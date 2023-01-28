@@ -1,5 +1,5 @@
 use bimetable::app;
-use bimetable::config::get_config;
+use bimetable::modules::Modules;
 use dotenv::dotenv;
 use std::net::SocketAddr;
 use tracing::info;
@@ -15,17 +15,13 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let modules = Modules::load_from_settings().await;
+
     info!("Starting server");
-
-    let config = get_config().expect("Failed to read configuration");
-    info!("Configuration loaded");
-
-    let addr = config.app.get_addr();
-
-    info!("Listening on {}", addr);
-    axum::Server::bind(&addr)
+    info!("Listening on {}", modules.core.addr);
+    axum::Server::bind(&modules.core.addr)
         .serve(
-            app(config)
+            app(modules)
                 .await
                 .into_make_service_with_connect_info::<SocketAddr>(),
         )
