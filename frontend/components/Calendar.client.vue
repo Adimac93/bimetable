@@ -37,7 +37,7 @@ type CalendarSpace = dayjs.Dayjs | {
 
 const weekdays = dayjs.weekdaysMin(true);
 
-const monthStart = ref(dayjs("2000-02-03").date(1));
+const monthStart = ref(dayjs().date(1));
 const daysInMonth = computed(() => monthStart.value.daysInMonth());
 const days = computed(() => {
     const days: CalendarSpace[][] = [];
