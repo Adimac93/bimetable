@@ -21,7 +21,7 @@
                     <template v-if="'offset' in day">
                         <td v-if="day.offset" :colspan="day.offset"></td>
                     </template>
-                    <td v-else>{{ day.date() }}</td>
+                    <td v-else :class="{ highlight: today.isSame(day, 'day') }">{{ day.date() }}</td>
                 </template>
             </tr>
         </tbody>
@@ -37,6 +37,7 @@ type CalendarSpace = dayjs.Dayjs | {
 
 const weekdays = dayjs.weekdaysMin(true);
 
+const today = dayjs();
 const monthStart = ref(dayjs().date(1));
 const daysInMonth = computed(() => monthStart.value.daysInMonth());
 const days = computed(() => {
@@ -72,5 +73,9 @@ function changeMonth(offset: number) {
     display: flex;
     flex-flow: row nowrap;
     justify-content: space-between;
+}
+
+.highlight {
+    background-color: aquamarine;
 }
 </style>
