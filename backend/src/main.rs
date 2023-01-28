@@ -1,9 +1,9 @@
-use std::net::SocketAddr;
-use dotenv::dotenv;
-use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use bimetable::app;
 use bimetable::config::get_config;
+use dotenv::dotenv;
+use std::net::SocketAddr;
+use tracing::info;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {

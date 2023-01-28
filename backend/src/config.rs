@@ -60,8 +60,8 @@ pub trait ConnectionPrep {
     fn get_database_url(&self) -> Option<String>;
     fn env_database_url() -> Option<String>;
     fn get_connection_string(&self) -> String
-        where
-            Self: ToString,
+    where
+        Self: ToString,
     {
         let info = format!("url for {}", self.to_string());
         if let Some(url) = self.compose_database_url() {
