@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use tracing::{error, info};
 
 pub mod database;
+pub mod extractors;
 
 pub struct Core {
     pub addr: SocketAddr,

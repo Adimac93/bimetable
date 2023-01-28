@@ -1,5 +1,8 @@
+pub mod app_errors;
 pub mod config;
 pub mod modules;
+pub mod routes;
+pub mod utils;
 
 use crate::modules::Modules;
 use axum::response::{Html, IntoResponse};
