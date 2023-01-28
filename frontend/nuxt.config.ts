@@ -1,4 +1,9 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-export default defineNuxtConfig({
+import settings from "./configuration/settings.json";
 
+export default defineNuxtConfig({
+    // these may be overwritten by env vars
+    appConfig: {
+        apiURL: settings.apiURL
+    }
 })
