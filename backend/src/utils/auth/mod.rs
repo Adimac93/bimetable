@@ -1,7 +1,7 @@
 pub mod additions;
 pub mod errors;
 pub mod models;
-use crate::modules::extractors::jwt::TokenExtractors;
+use crate::modules::extractors::jwt::TokenSecrets;
 use crate::utils::auth::errors::AuthError::WrongLoginOrPassword;
 use anyhow::Context;
 use argon2::verify_encoded;
@@ -68,17 +68,20 @@ pub async fn verify_user_credentials<'c>(
 pub async fn generate_token_cookies(
     user_id: Uuid,
     login: &str,
-    ext: &TokenExtractors,
+    secrets: TokenSecrets,
     jar: CookieJar,
 ) -> Result<CookieJar, AuthError> {
-    let access_cookie =
-        generate_jwt_in_cookie(Claims::new(user_id, login, Claims::JWT_EXPIRATION), ext).await?;
+    let access_cookie = generate_jwt_in_cookie(
+        Claims::new(user_id, login, Claims::JWT_EXPIRATION),
+        &secrets.access.0,
+    )
+    .await?;
 
     trace!("Access JWT: {access_cookie:#?}");
 
     let refresh_cookie = generate_jwt_in_cookie(
         RefreshClaims::new(user_id, login, RefreshClaims::JWT_EXPIRATION),
-        ext,
+        &secrets.refresh.0,
     )
     .await?;
 
@@ -89,10 +92,9 @@ pub async fn generate_token_cookies(
 
 async fn generate_jwt_in_cookie<'a, T: AuthToken<'a>>(
     payload: T,
-    ext: &TokenExtractors,
+    secret: &SecretString,
 ) -> Result<Cookie<'a>, AuthError> {
-    // let access_token = Token::generate_jwt(Claims, &Token::get_jwt_key(ext))?;
-    let token = payload.generate_jwt(&T::get_jwt_key(ext))?;
+    let token = payload.generate_jwt(secret)?;
     let access_cookie = T::generate_cookie(token);
     trace!("Access JWT: {access_cookie:#?}");
 

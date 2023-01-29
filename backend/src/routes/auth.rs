@@ -1,4 +1,5 @@
-use crate::modules::AuthState;
+use crate::modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets};
+use crate::modules::AppState;
 use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
 use crate::{app_errors::AppError, utils::auth::*};
@@ -10,10 +11,11 @@ use axum_extra::extract::CookieJar;
 use jsonwebtoken::Validation;
 use secrecy::SecretString;
 use serde_json::{json, Value};
+use sqlx::PgPool;
 use time::Duration;
 use tracing::debug;
 
-pub fn router() -> Router<AuthState> {
+pub fn router() -> Router<AppState> {
     Router::new()
         .route("/register", post(post_register_user))
         .route("/login", post(post_login_user))
@@ -24,7 +26,7 @@ pub fn router() -> Router<AuthState> {
 
 #[debug_handler]
 async fn post_register_user(
-    State(state): State<AuthState>,
+    State(state): State<AppState>,
     jar: CookieJar,
     Json(register_credentials): extract::Json<RegisterCredentials>,
 ) -> Result<CookieJar, AppError> {
@@ -38,7 +40,7 @@ async fn post_register_user(
 
     let login_credentials =
         LoginCredentials::new(&register_credentials.login, &register_credentials.password);
-    let jar = generate_token_cookies(user_id, &login_credentials.login, &state.jwt, jar).await?;
+    let jar = generate_token_cookies(user_id, &login_credentials.login, state.jwt, jar).await?;
 
     debug!(
         "User {} ({}) registered successfully",
@@ -49,7 +51,7 @@ async fn post_register_user(
 }
 
 async fn post_login_user(
-    State(state): State<AuthState>,
+    State(state): State<AppState>,
     jar: CookieJar,
     Json(login_credentials): extract::Json<LoginCredentials>,
 ) -> Result<CookieJar, AppError> {
@@ -63,7 +65,7 @@ async fn post_login_user(
     )
     .await?;
 
-    let jar = generate_token_cookies(user_id, &login_credentials.login, &state.jwt, jar).await?;
+    let jar = generate_token_cookies(user_id, &login_credentials.login, state.jwt, jar).await?;
 
     debug!(
         "User {} ({}) logged in successfully",
@@ -73,12 +75,13 @@ async fn post_login_user(
     Ok(jar)
 }
 
-async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
+#[debug_handler]
+async fn protected_zone(state: State<AppState>, claims: Claims) -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "user id": claims.user_id })))
 }
 
 async fn post_user_logout(
-    State(_state): State<AuthState>,
+    State(_state): State<AppState>,
     jar: CookieJar,
 ) -> Result<CookieJar, AppError> {
     let mut validation = Validation::default();
@@ -125,14 +128,14 @@ fn remove_cookie(name: &str) -> Cookie {
 
 #[debug_handler]
 async fn post_refresh_user_token(
-    State(state): State<AuthState>,
-    refresh_claims: RefreshClaims,
+    State(state): State<AppState>,
     jar: CookieJar,
+    refresh_claims: RefreshClaims,
 ) -> Result<CookieJar, AppError> {
     let jar = generate_token_cookies(
         refresh_claims.user_id,
         &refresh_claims.login,
-        &state.jwt,
+        state.jwt,
         jar,
     )
     .await?;

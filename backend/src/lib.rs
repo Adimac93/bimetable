@@ -11,7 +11,6 @@ use modules::AuthState;
 pub async fn app(state: AppState) -> Router {
     Router::new()
         .nest("/auth", routes::auth::router())
-        .with_state(AuthState::from_ref(&state))
         .nest("/ex", routes::example::router())
         .with_state(state)
 }

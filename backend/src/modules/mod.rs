@@ -1,6 +1,6 @@
 use self::{
     database::get_postgres_pool,
-    extractors::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenExtractors},
+    extractors::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets},
 };
 use crate::config::get_config;
 use axum::extract::FromRef;
@@ -26,7 +26,7 @@ impl Core {
 pub struct Modules {
     pub pool: PgPool,
     pub core: Core,
-    pub jwt: TokenExtractors,
+    pub jwt: TokenSecrets,
 }
 
 impl Modules {
@@ -43,7 +43,7 @@ impl Modules {
         Self {
             pool,
             core: Core::new(addr, origin),
-            jwt: TokenExtractors::from_settings(settings.jwt),
+            jwt: TokenSecrets::from_settings(settings.jwt),
         }
     }
 
@@ -57,7 +57,7 @@ impl Modules {
         Self {
             pool,
             core: Core::new(addr, origin),
-            jwt: TokenExtractors::new(JwtAccessSecret(access), JwtRefreshSecret(refresh)),
+            jwt: TokenSecrets::new(JwtAccessSecret(access), JwtRefreshSecret(refresh)),
         }
     }
 
@@ -69,7 +69,7 @@ impl Modules {
 #[derive(Clone, FromRef)]
 pub struct AppState {
     pub pool: PgPool,
-    pub jwt: TokenExtractors,
+    pub jwt: TokenSecrets,
 }
 
 impl AppState {
@@ -77,21 +77,6 @@ impl AppState {
         Self {
             pool: modules.pool,
             jwt: modules.jwt,
-        }
-    }
-}
-
-#[derive(Clone, FromRef)]
-pub struct AuthState {
-    pub pool: PgPool,
-    pub jwt: TokenExtractors,
-}
-
-impl FromRef<AppState> for AuthState {
-    fn from_ref(val: &AppState) -> Self {
-        Self {
-            pool: val.pool.clone(),
-            jwt: val.jwt.clone(),
         }
     }
 }

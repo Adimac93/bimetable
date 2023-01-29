@@ -1,19 +1,20 @@
 use crate::config::JwtSettings;
+use axum::extract::FromRef;
 use secrecy::Secret;
 
-#[derive(Clone)]
+#[derive(Clone, FromRef)]
 pub struct JwtAccessSecret(pub Secret<String>);
 
-#[derive(Clone)]
+#[derive(Clone, FromRef)]
 pub struct JwtRefreshSecret(pub Secret<String>);
 
-#[derive(Clone)]
-pub struct TokenExtractors {
+#[derive(Clone, FromRef)]
+pub struct TokenSecrets {
     pub access: JwtAccessSecret,
     pub refresh: JwtRefreshSecret,
 }
 
-impl TokenExtractors {
+impl TokenSecrets {
     pub fn new(access: JwtAccessSecret, refresh: JwtRefreshSecret) -> Self {
         Self { access, refresh }
     }

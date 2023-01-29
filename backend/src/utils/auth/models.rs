@@ -1,12 +1,11 @@
 use crate::{
-    modules::{
-        extractors::jwt::{JwtAccessSecret, JwtRefreshSecret},
-        AuthState,
-    },
-    utils::auth::{errors::*, TokenExtractors},
+    modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret},
+    utils::auth::{errors::*, TokenSecrets},
 };
 
+use crate::modules::AppState;
 use anyhow::Context;
+use axum::extract::FromRequest;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
@@ -14,7 +13,7 @@ use axum_extra::extract::{
 };
 use http::request::Parts;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, Secret, SecretString};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::Duration;
@@ -44,10 +43,11 @@ where
         )
         .context("Failed to encrypt token")?)
     }
-    fn get_jwt_key(ext: &TokenExtractors) -> Secret<String>;
+
     fn get_jwt_cookie(jar: &CookieJar) -> Result<Cookie<'s>, AuthError> {
         jar.get(Self::NAME).ok_or(AuthError::InvalidToken).cloned()
     }
+
     fn decode_jwt(token: &str, key: Secret<String>) -> Result<Self, AuthError> {
         // decode token - validation setup
         let mut validation = Validation::default();
@@ -69,22 +69,12 @@ where
 impl<'s> AuthToken<'s> for Claims {
     const NAME: &'s str = "jwt";
     const JWT_EXPIRATION: Duration = Duration::seconds(15);
-
-    fn get_jwt_key(ext: &TokenExtractors) -> Secret<String> {
-        let JwtAccessSecret(jwt_key) = ext.access.clone();
-        jwt_key
-    }
 }
 
 #[async_trait]
 impl<'s> AuthToken<'s> for RefreshClaims {
     const NAME: &'s str = "refresh-jwt";
     const JWT_EXPIRATION: Duration = Duration::days(7);
-
-    fn get_jwt_key(ext: &TokenExtractors) -> Secret<String> {
-        let JwtRefreshSecret(jwt_key) = ext.refresh.clone();
-        jwt_key
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -107,14 +97,14 @@ impl Claims {
 }
 
 #[async_trait]
-impl FromRequestParts<AuthState> for Claims {
+impl FromRequestParts<AppState> for Claims {
     type Rejection = AuthError;
 
     async fn from_request_parts(
         req: &mut Parts,
-        state: &AuthState,
+        state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        verify_token::<Self>(req, state).await
+        verify_token::<Self>(req, &state.jwt.access.0).await
     }
 }
 
@@ -138,23 +128,21 @@ impl RefreshClaims {
 }
 
 #[async_trait]
-impl FromRequestParts<AuthState> for RefreshClaims {
+impl FromRequestParts<AppState> for RefreshClaims {
     type Rejection = AuthError;
 
     async fn from_request_parts(
         req: &mut Parts,
-        state: &AuthState,
+        state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        verify_token::<Self>(req, state).await
+        verify_token::<Self>(req, &state.jwt.refresh.0).await
     }
 }
 
-async fn verify_token<'t, T>(req: &mut Parts, state: &AuthState) -> Result<T, AuthError>
+async fn verify_token<'t, T>(req: &mut Parts, secret: &Secret<String>) -> Result<T, AuthError>
 where
     T: AuthToken<'t>,
 {
-    let jwt_key = T::get_jwt_key(&state.jwt);
-
     // get extensions - CookieJar
     let jar = req
         .extract::<CookieJar>()
@@ -163,7 +151,7 @@ where
 
     let cookie = T::get_jwt_cookie(&jar)?;
 
-    let claims = T::decode_jwt(cookie.value(), jwt_key)?;
+    let claims = T::decode_jwt(cookie.value(), secret.to_owned())?;
 
     Ok(claims)
 }
