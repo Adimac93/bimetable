@@ -1,5 +1,6 @@
 use self::database::get_postgres_pool;
 use crate::config::get_config;
+use axum::extract::FromRef;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use tracing::{error, info};
@@ -45,5 +46,20 @@ impl Modules {
             pool,
             core: Core::new(addr, origin),
         }
+    }
+
+    pub fn state(self) -> AppState {
+        AppState::new(self)
+    }
+}
+
+#[derive(Clone, FromRef)]
+pub struct AppState {
+    pub pool: PgPool,
+}
+
+impl AppState {
+    fn new(modules: Modules) -> Self {
+        Self { pool: modules.pool }
     }
 }

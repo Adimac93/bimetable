@@ -4,17 +4,11 @@ pub mod modules;
 pub mod routes;
 pub mod utils;
 
-use crate::modules::Modules;
-use axum::response::{Html, IntoResponse};
-use axum::routing::get;
-use axum::{Extension, Router};
+use crate::modules::AppState;
+use axum::Router;
 
-pub async fn app(modules: Modules) -> Router {
+pub async fn app(state: AppState) -> Router {
     Router::new()
-        .route("/", get(handler))
-        .layer(Extension(modules.pool))
-}
-
-async fn handler() -> impl IntoResponse {
-    Html("Hello")
+        .nest("/ex", routes::example::router())
+        .with_state(state)
 }
