@@ -73,13 +73,7 @@ async fn registration_missing_credential_2(db: PgPool) {
 
 #[sqlx::test(fixtures("users"))]
 async fn registration_missing_credential_3(db: PgPool) {
-    let res = try_register_user(
-        &db,
-        "  ",
-        SecretString::new("   ".to_string()),
-        "Chad",
-    )
-    .await;
+    let res = try_register_user(&db, "  ", SecretString::new("   ".to_string()), "Chad").await;
 
     match res {
         Err(AuthError::MissingCredential) => (),
@@ -202,7 +196,8 @@ async fn login_health_check(db: PgPool) {
 #[sqlx::test(fixtures("users"))]
 async fn login_missing_credential_0(db: PgPool) {
     let mut conn = db.acquire().await.unwrap();
-    let res = verify_user_credentials(&mut conn, "hubhub", SecretString::new("   ".to_string())).await;
+    let res =
+        verify_user_credentials(&mut conn, "hubhub", SecretString::new("   ".to_string())).await;
 
     match res {
         Err(AuthError::MissingCredential) => (),

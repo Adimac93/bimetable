@@ -4,10 +4,7 @@ use crate::utils::auth::models::*;
 use crate::{app_errors::AppError, utils::auth::*};
 use axum::extract::State;
 use axum::{debug_handler, extract, http::StatusCode, Json};
-use axum::{
-    routing::post,
-    Router,
-};
+use axum::{routing::post, Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
 use jsonwebtoken::Validation;
@@ -132,8 +129,13 @@ async fn post_refresh_user_token(
     refresh_claims: RefreshClaims,
     jar: CookieJar,
 ) -> Result<CookieJar, AppError> {
-    let jar =
-        generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, &state.jwt, jar).await?;
+    let jar = generate_token_cookies(
+        refresh_claims.user_id,
+        &refresh_claims.login,
+        &state.jwt,
+        jar,
+    )
+    .await?;
 
     // refresh_claims.add_token_to_blacklist(&pool).await?;
 

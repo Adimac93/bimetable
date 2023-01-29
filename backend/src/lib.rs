@@ -5,7 +5,7 @@ pub mod routes;
 pub mod utils;
 
 use crate::modules::AppState;
-use axum::{Router, extract::FromRef};
+use axum::{extract::FromRef, Router};
 use modules::AuthState;
 
 pub async fn app(state: AppState) -> Router {

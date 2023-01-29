@@ -1,4 +1,7 @@
-use self::{database::get_postgres_pool, extractors::jwt::{TokenExtractors, JwtAccessSecret, JwtRefreshSecret}};
+use self::{
+    database::get_postgres_pool,
+    extractors::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenExtractors},
+};
 use crate::config::get_config;
 use axum::extract::FromRef;
 use secrecy::Secret;
@@ -44,7 +47,13 @@ impl Modules {
         }
     }
 
-    pub fn use_custom(pool: PgPool, addr: SocketAddr, origin: String, access: Secret<String>, refresh: Secret<String>) -> Self {
+    pub fn use_custom(
+        pool: PgPool,
+        addr: SocketAddr,
+        origin: String,
+        access: Secret<String>,
+        refresh: Secret<String>,
+    ) -> Self {
         Self {
             pool,
             core: Core::new(addr, origin),

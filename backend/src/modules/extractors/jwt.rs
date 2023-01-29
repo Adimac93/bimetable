@@ -15,10 +15,7 @@ pub struct TokenExtractors {
 
 impl TokenExtractors {
     pub fn new(access: JwtAccessSecret, refresh: JwtRefreshSecret) -> Self {
-        Self {
-            access,
-            refresh,
-        }
+        Self { access, refresh }
     }
 
     pub fn from_settings(settings: JwtSettings) -> Self {
