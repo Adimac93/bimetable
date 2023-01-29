@@ -7,6 +7,7 @@ use tracing::info;
 #[derive(Deserialize, Clone)]
 pub struct Settings {
     pub app: ApplicationSettings,
+    pub jwt: JwtSettings,
     pub postgres: PostgresSettings,
 }
 
@@ -29,6 +30,21 @@ impl ApplicationSettings {
             host: "0.0.0.0".into(),
             port: get_env("PORT").parse::<u16>().expect("Invalid port number"),
             origin: get_env("WEBSITE_URL"),
+        }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JwtSettings {
+    pub access_secret: Secret<String>,
+    pub refresh_secret: Secret<String>,
+}
+
+impl JwtSettings {
+    pub fn from_env() -> Self {
+        Self {
+            access_secret: get_secret_env("JWT_ACCESS_SECRET"),
+            refresh_secret: get_secret_env("JWT_REFRESH_SECRET"),
         }
     }
 }
@@ -161,6 +177,7 @@ pub fn get_config() -> Result<Settings, ConfigError> {
         Environment::Production => {
             let settings = Settings {
                 app: ApplicationSettings::from_env(),
+                jwt: JwtSettings::from_env(),
                 postgres: PostgresSettings::from_env(),
             };
             return Ok(settings);

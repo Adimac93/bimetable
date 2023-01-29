@@ -275,13 +275,15 @@ async fn auth_integration_test(db: PgPool) {
     let client = app_data.client();
 
     let payload = json!({
-        "email": format!("User{}", nanoid!(10)),
+        "login": format!("User{}", nanoid!(10)),
         "password": format!("#very#_#strong#_#pass#"),
         "username": format!("Chad")
     });
 
+    println!("http://{}/auth/register", app_data.addr);
+
     let res = client
-        .post(format!("http://{}/api/auth/register", app_data.addr))
+        .post(format!("http://{}/auth/register", app_data.addr))
         .json(&payload)
         .send()
         .await
@@ -290,7 +292,7 @@ async fn auth_integration_test(db: PgPool) {
     assert_eq!(res.status(), StatusCode::OK);
 
     let res = client
-        .post(format!("http://{}/api/auth/validate", app_data.addr))
+        .post(format!("http://{}/auth/validate", app_data.addr))
         .send()
         .await
         .unwrap();

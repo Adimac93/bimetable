@@ -2,6 +2,7 @@ use bimetable::app;
 use bimetable::modules::Modules;
 use dotenv::dotenv;
 use reqwest::{Client, IntoUrl};
+use secrecy::Secret;
 use sqlx::PgPool;
 use std::net::{SocketAddr, TcpListener};
 
@@ -12,7 +13,11 @@ async fn spawn_app(pool: PgPool) -> SocketAddr {
     let addr = listener.local_addr().unwrap();
 
     let origin = String::from("http://localhost:3000");
-    let modules = Modules::use_custom(pool, addr, origin);
+
+    let access = Secret::from(String::from("SECRET"));
+    let refresh = Secret::from(String::from("VERY_SECRET"));
+
+    let modules = Modules::use_custom(pool, addr, origin, access, refresh);
 
     tokio::spawn(async move {
         axum::Server::from_tcp(listener)

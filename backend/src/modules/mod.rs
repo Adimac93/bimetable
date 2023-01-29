@@ -1,6 +1,7 @@
-use self::database::get_postgres_pool;
+use self::{database::get_postgres_pool, extractors::jwt::{TokenExtractors, JwtAccessSecret, JwtRefreshSecret}};
 use crate::config::get_config;
 use axum::extract::FromRef;
+use secrecy::Secret;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use tracing::{error, info};
@@ -22,6 +23,7 @@ impl Core {
 pub struct Modules {
     pub pool: PgPool,
     pub core: Core,
+    pub jwt: TokenExtractors,
 }
 
 impl Modules {
@@ -38,13 +40,15 @@ impl Modules {
         Self {
             pool,
             core: Core::new(addr, origin),
+            jwt: TokenExtractors::from_settings(settings.jwt),
         }
     }
 
-    pub fn use_custom(pool: PgPool, addr: SocketAddr, origin: String) -> Self {
+    pub fn use_custom(pool: PgPool, addr: SocketAddr, origin: String, access: Secret<String>, refresh: Secret<String>) -> Self {
         Self {
             pool,
             core: Core::new(addr, origin),
+            jwt: TokenExtractors::new(JwtAccessSecret(access), JwtRefreshSecret(refresh)),
         }
     }
 
@@ -56,10 +60,29 @@ impl Modules {
 #[derive(Clone, FromRef)]
 pub struct AppState {
     pub pool: PgPool,
+    pub jwt: TokenExtractors,
 }
 
 impl AppState {
     fn new(modules: Modules) -> Self {
-        Self { pool: modules.pool }
+        Self {
+            pool: modules.pool,
+            jwt: modules.jwt,
+        }
+    }
+}
+
+#[derive(Clone, FromRef)]
+pub struct AuthState {
+    pub pool: PgPool,
+    pub jwt: TokenExtractors,
+}
+
+impl FromRef<AppState> for AuthState {
+    fn from_ref(val: &AppState) -> Self {
+        Self {
+            pool: val.pool.clone(),
+            jwt: val.jwt.clone(),
+        }
     }
 }

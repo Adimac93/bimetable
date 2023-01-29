@@ -1,7 +1,9 @@
+use crate::modules::{AppState, AuthState};
+use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
 use crate::{app_errors::AppError, utils::auth::*, modules::extractors::jwt::TokenExtractors};
 use anyhow::Context;
-use axum::extract::{ConnectInfo, Path};
+use axum::extract::{ConnectInfo, Path, State, FromRef};
 use axum::response::IntoResponse;
 use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
 use axum::{
@@ -17,7 +19,8 @@ use sqlx::PgPool;
 use time::Duration;
 use tracing::debug;
 use uuid::Uuid;
-pub fn router() -> Router {
+
+pub fn router() -> Router<AuthState> {
     Router::new()
         .route("/register", post(post_register_user))
         .route("/login", post(post_login_user))
@@ -28,13 +31,12 @@ pub fn router() -> Router {
 
 #[debug_handler]
 async fn post_register_user(
-    Extension(pgpool): Extension<PgPool>,
-    token_ext: TokenExtractors,
+    State(state): State<AuthState>,
     jar: CookieJar,
     Json(register_credentials): extract::Json<RegisterCredentials>,
 ) -> Result<CookieJar, AppError> {
     let user_id = try_register_user(
-        &pgpool,
+        &state.pool,
         register_credentials.login.trim(),
         SecretString::new(register_credentials.password.trim().to_string()),
         &register_credentials.username,
@@ -43,7 +45,7 @@ async fn post_register_user(
 
     let login_credentials =
         LoginCredentials::new(&register_credentials.login, &register_credentials.password);
-    let jar = generate_token_cookies(user_id, &login_credentials.login, &token_ext, jar).await?;
+    let jar = generate_token_cookies(user_id, &login_credentials.login, &state.jwt, jar).await?;
 
     debug!(
         "User {} ({}) registered successfully",
@@ -54,13 +56,12 @@ async fn post_register_user(
 }
 
 async fn post_login_user(
-    Extension(pool): Extension<PgPool>,
-    token_ext: TokenExtractors,
+    State(state): State<AuthState>,
     jar: CookieJar,
     Json(login_credentials): extract::Json<LoginCredentials>,
 ) -> Result<CookieJar, AppError> {
     // returns if credentials are wrong
-    let mut conn = pool.acquire().await.context("Failed")?;
+    let mut conn = state.pool.acquire().await.map_err(|e| AuthError::from(e))?;
 
     let user_id = verify_user_credentials(
         &mut conn,
@@ -69,7 +70,7 @@ async fn post_login_user(
     )
     .await?;
 
-    let jar = generate_token_cookies(user_id, &login_credentials.login, &token_ext, jar).await?;
+    let jar = generate_token_cookies(user_id, &login_credentials.login, &state.jwt, jar).await?;
 
     debug!(
         "User {} ({}) logged in successfully",
@@ -84,36 +85,36 @@ async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
 }
 
 async fn post_user_logout(
-    Extension(pool): Extension<PgPool>,
-    Extension(token_extensions): Extension<TokenExtractors>,
+    State(state): State<AuthState>,
     jar: CookieJar,
 ) -> Result<CookieJar, AppError> {
     let mut validation = Validation::default();
     validation.leeway = 5;
 
-    if let Some(access_token_cookie) = jar.get("jwt") {
-        let data = decode::<Claims>(
-            access_token_cookie.value(),
-            &DecodingKey::from_secret(token_extensions.access.0.expose_secret().as_bytes()),
-            &validation,
-        );
+    // TODO: blacklist for jwt
+    // if let Some(access_token_cookie) = jar.get("jwt") {
+    //     let data = decode::<Claims>(
+    //         access_token_cookie.value(),
+    //         &DecodingKey::from_secret(token_extensions.access.0.expose_secret().as_bytes()),
+    //         &validation,
+    //     );
 
-        if let Ok(token_data) = data {
-            let _ = &token_data.claims.add_token_to_blacklist(&pool).await?;
-        }
-    };
+    //     if let Ok(token_data) = data {
+    //         let _ = &token_data.claims.add_token_to_blacklist(&pool).await?;
+    //     }
+    // };
 
-    if let Some(refresh_token_cookie) = jar.get("refresh-jwt") {
-        let data = decode::<RefreshClaims>(
-            refresh_token_cookie.value(),
-            &DecodingKey::from_secret(token_extensions.access.0.expose_secret().as_bytes()),
-            &validation,
-        );
+    // if let Some(refresh_token_cookie) = jar.get("refresh-jwt") {
+    //     let data = decode::<RefreshClaims>(
+    //         refresh_token_cookie.value(),
+    //         &DecodingKey::from_secret(token_extensions.access.0.expose_secret().as_bytes()),
+    //         &validation,
+    //     );
 
-        if let Ok(token_data) = data {
-            let _ = &token_data.claims.add_token_to_blacklist(&pool).await?;
-        }
-    };
+    //     if let Ok(token_data) = data {
+    //         let _ = &token_data.claims.add_token_to_blacklist(&pool).await?;
+    //     }
+    // };
 
     debug!("User logged out successfully");
 
@@ -131,15 +132,14 @@ fn remove_cookie(name: &str) -> Cookie {
 
 #[debug_handler]
 async fn post_refresh_user_token(
-    Extension(pool): Extension<PgPool>,
-    ext: TokenExtractors,
+    State(state): State<AuthState>,
     refresh_claims: RefreshClaims,
     jar: CookieJar,
 ) -> Result<CookieJar, AppError> {
     let jar =
-        generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, &ext, jar).await?;
+        generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, &state.jwt, jar).await?;
 
-    refresh_claims.add_token_to_blacklist(&pool).await?;
+    // refresh_claims.add_token_to_blacklist(&pool).await?;
 
     debug!(
         "User {} ({})'s access token refreshed successfully",

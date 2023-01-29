@@ -1,5 +1,5 @@
 use crate::{
-    modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret},
+    modules::{extractors::jwt::{JwtAccessSecret, JwtRefreshSecret}, AuthState},
     utils::auth::{errors::*, TokenExtractors},
 };
 
@@ -109,14 +109,12 @@ impl Claims {
 }
 
 #[async_trait]
-impl<S> FromRequestParts<S> for Claims
-where
-    S: Send + Sync,
+impl FromRequestParts<AuthState> for Claims
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        verify_token::<Self, S>(req, state).await
+    async fn from_request_parts(req: &mut Parts, state: &AuthState) -> Result<Self, Self::Rejection> {
+        verify_token::<Self>(req, state).await
     }
 }
 
@@ -140,37 +138,20 @@ impl RefreshClaims {
 }
 
 #[async_trait]
-impl<S> FromRequestParts<S> for RefreshClaims
-where
-    S: Send + Sync,
+impl FromRequestParts<AuthState> for RefreshClaims
 {
     type Rejection = AuthError;
 
-    async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        verify_token::<Self, S>(req, state).await
+    async fn from_request_parts(req: &mut Parts, state: &AuthState) -> Result<Self, Self::Rejection> {
+        verify_token::<Self>(req, state).await
     }
 }
 
-async fn verify_token<'t, T, S>(req: &mut Parts, state: &S) -> Result<T, AuthError>
+async fn verify_token<'t, T>(req: &mut Parts, state: &AuthState) -> Result<T, AuthError>
 where
     T: AuthToken<'t>,
-    S: Send + Sync,
 {
-    // get extensions
-    let ext = &req.extensions;
-
-    let token_ext = ext
-        .get::<TokenExtractors>()
-        .expect("Can't find token extensions")
-        .clone();
-
-    let jwt_key = T::get_jwt_key(&token_ext);
-
-    // get extensions - PgPool
-    let pool = ext
-        .get::<PgPool>()
-        .expect("Failed to get PgPool to check jwt claims")
-        .clone();
+    let jwt_key = T::get_jwt_key(&state.jwt);
 
     // get extensions - CookieJar
     let jar = req

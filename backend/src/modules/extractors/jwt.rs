@@ -1,4 +1,4 @@
-use crate::utils::auth::errors::AuthError;
+use crate::{utils::auth::errors::AuthError, config::{Settings, JwtSettings}};
 use axum::{
     async_trait,
     extract::{self, FromRequestParts},
@@ -18,15 +18,21 @@ pub struct TokenExtractors {
     pub refresh: JwtRefreshSecret,
 }
 
-// #[async_trait]
-// impl<S> FromRequestParts<S> for TokenExtractors
-// {
-//     type Rejection = AuthError;
+impl TokenExtractors {
+    pub fn new(access: JwtAccessSecret, refresh: JwtRefreshSecret) -> Self {
+        Self {
+            access,
+            refresh,
+        }
+    }
 
-//     async fn from_request_parts(req: &mut Parts, state: S) -> Result<Self, Self::Rejection> {
-//
-//     }
-// }
+    pub fn from_settings(settings: JwtSettings) -> Self {
+        Self {
+            access: JwtAccessSecret(settings.access_secret),
+            refresh: JwtRefreshSecret(settings.refresh_secret),
+        }
+    }
+}
 
 #[async_trait]
 impl<S> FromRequestParts<S> for TokenExtractors {
