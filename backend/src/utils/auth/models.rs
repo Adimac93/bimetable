@@ -6,20 +6,19 @@ use crate::{
 use anyhow::Context;
 use axum::{
     async_trait,
-    extract::{self, FromRequest, FromRequestParts},
+    extract::FromRequestParts,
     RequestPartsExt,
 };
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
     CookieJar,
 };
-use http::{request::Parts, Request};
+use http::request::Parts;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use secrecy::{ExposeSecret, Secret};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sqlx::{query, PgPool};
-use time::{Duration, OffsetDateTime};
+use time::Duration;
 use uuid::Uuid;
 use validator::Validate;
 

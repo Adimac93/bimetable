@@ -1,24 +1,20 @@
-use crate::modules::{AppState, AuthState};
+use crate::modules::AuthState;
 use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
-use crate::{app_errors::AppError, utils::auth::*, modules::extractors::jwt::TokenExtractors};
-use anyhow::Context;
-use axum::extract::{ConnectInfo, Path, State, FromRef};
-use axum::response::IntoResponse;
-use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
+use crate::{app_errors::AppError, utils::auth::*};
+use axum::extract::State;
+use axum::{debug_handler, extract, http::StatusCode, Json};
 use axum::{
-    routing::{get, post},
+    routing::post,
     Router,
 };
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
-use jsonwebtoken::{decode, DecodingKey, Validation};
-use secrecy::{ExposeSecret, SecretString};
+use jsonwebtoken::Validation;
+use secrecy::SecretString;
 use serde_json::{json, Value};
-use sqlx::PgPool;
 use time::Duration;
 use tracing::debug;
-use uuid::Uuid;
 
 pub fn router() -> Router<AuthState> {
     Router::new()
@@ -85,7 +81,7 @@ async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
 }
 
 async fn post_user_logout(
-    State(state): State<AuthState>,
+    State(_state): State<AuthState>,
     jar: CookieJar,
 ) -> Result<CookieJar, AppError> {
     let mut validation = Validation::default();
