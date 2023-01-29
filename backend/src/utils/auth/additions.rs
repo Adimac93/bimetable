@@ -1,8 +1,5 @@
 use argon2::hash_encoded;
-use rand::{
-    distributions::Alphanumeric,
-    thread_rng, Rng,
-};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use secrecy::{ExposeSecret, SecretString};
 
 pub fn hash_pass(pass: SecretString) -> Result<String, argon2::Error> {

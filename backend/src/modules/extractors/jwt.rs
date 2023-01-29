@@ -3,7 +3,7 @@ use axum::{
     async_trait,
     extract::{self, FromRequestParts},
 };
-use http::{Request, request::Parts};
+use http::{request::Parts, Request};
 use secrecy::Secret;
 
 #[derive(Clone)]
@@ -24,7 +24,7 @@ pub struct TokenExtractors {
 //     type Rejection = AuthError;
 
 //     async fn from_request_parts(req: &mut Parts, state: S) -> Result<Self, Self::Rejection> {
-//         
+//
 //     }
 // }
 
@@ -32,7 +32,7 @@ pub struct TokenExtractors {
 impl<S> FromRequestParts<S> for TokenExtractors {
     type Rejection = AuthError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self,Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         Ok(parts
             .extensions
             .get::<Self>()

@@ -11,7 +11,7 @@ pub enum AuthError {
     #[error("Password is too weak")]
     WeakPassword,
     #[error("Incorrect email or password")]
-    WrongEmailOrPassword,
+    WrongLoginOrPassword,
     #[error("Invalid or expired token")]
     InvalidToken,
     #[error(transparent)]
@@ -24,7 +24,7 @@ impl IntoResponse for AuthError {
             AuthError::UserAlreadyExists => StatusCode::BAD_REQUEST,
             AuthError::MissingCredential => StatusCode::BAD_REQUEST,
             AuthError::WeakPassword => StatusCode::BAD_REQUEST,
-            AuthError::WrongEmailOrPassword => StatusCode::UNAUTHORIZED,
+            AuthError::WrongLoginOrPassword => StatusCode::UNAUTHORIZED,
             AuthError::InvalidToken => StatusCode::UNAUTHORIZED,
             AuthError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");

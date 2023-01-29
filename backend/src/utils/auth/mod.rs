@@ -1,9 +1,8 @@
 pub mod additions;
 pub mod errors;
 pub mod models;
-use crate::modules::{
-    extractors::jwt::TokenExtractors,
-};
+use crate::modules::extractors::jwt::TokenExtractors;
+use crate::utils::auth::errors::AuthError::WrongLoginOrPassword;
 use anyhow::Context;
 use argon2::verify_encoded;
 use axum_extra::extract::{cookie::Cookie, CookieJar};
@@ -11,47 +10,34 @@ use errors::*;
 use models::*;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
-use sqlx::{query, Acquire, PgPool, Postgres};
+use sqlx::{query, Acquire, PgConnection, PgPool, Postgres};
 use time::OffsetDateTime;
 use tracing::{debug, trace};
 use uuid::Uuid;
 use validator::Validate;
 
-#[derive(sqlx::Type, Debug, Serialize, Deserialize)]
-#[sqlx(type_name = "status", rename_all = "snake_case")]
-pub enum ActivityStatus {
-    Online,
-    Offline,
-    Idle,
-}
-
-// todo: make as transaction with Acquire
 pub async fn try_register_user<'c>(
-    pool: &PgPool,
-    email: &str,
+    acq: impl Acquire<'c, Database = Postgres>,
+    login: &str,
     password: SecretString,
     username: &str,
 ) -> Result<Uuid, AuthError> {
-    let mut transaction = pool.begin().await?;
+    let mut transaction = acq.begin().await?;
 
-    let user = query!(
-        r#"
-            select user_id from credentials where login = $1
-        "#,
-        email
-    )
-    .fetch_optional(&mut transaction)
-    .await?;
+    let mut q = AuthUser::new(login, &mut transaction);
 
-    if user.is_some() {
+    if !q.is_new().await? {
         return Err(AuthError::UserAlreadyExists);
     }
 
-    if email.trim().is_empty() || password.expose_secret().trim().is_empty() {
+    if login.trim().is_empty()
+        || password.expose_secret().trim().is_empty()
+        || username.trim().is_empty()
+    {
         return Err(AuthError::MissingCredential);
     }
 
-    if !additions::pass_is_strong(password.expose_secret(), &[&email]) {
+    if !additions::pass_is_strong(password.expose_secret(), &[&login]) {
         return Err(AuthError::WeakPassword);
     }
 
@@ -59,81 +45,26 @@ pub async fn try_register_user<'c>(
         .context("Failed to hash password with argon2")
         .map_err(AuthError::Unexpected)?;
 
-    let mut username = username.trim();
-    if username.is_empty() {
-        // TODO: Generate random username
-        username = "I am definitely not a chad"
-    }
-
-    let user_id = query!(
-        r#"
-            insert into users (username)
-            values ($1)
-            returning (id)
-        "#,
-        username,
-    )
-    .fetch_one(&mut transaction)
-    .await?
-    .id;
-
-    query!(
-        r#"
-            insert into credentials (user_id, login, password)
-            values ($1, $2, $3)
-        "#,
-        user_id,
-        username,
-        hashed_pass
-    )
-    .execute(&mut transaction)
-    .await?;
-
-    // query!(
-    //     r#"
-    //         insert into user_networks (ip, user_id, is_trusted)
-    //         values ($1, $2, true)
-    //     "#,
-    //     ip,
-    //     user_id
-    // )
-    // .execute(&mut transaction)
-    // .await?;
+    let user_id = q.create_account(hashed_pass, username).await?;
 
     transaction.commit().await?;
 
     Ok(user_id)
 }
 
-pub async fn verify_user_credentials(
-    pool: &PgPool,
-    username: String,
+pub async fn verify_user_credentials<'c>(
+    conn: &mut PgConnection,
+    login: &str,
     password: SecretString,
 ) -> Result<Uuid, AuthError> {
     debug!("Verifying credentials");
-    if username.trim().is_empty() || password.expose_secret().trim().is_empty() {
+    if login.trim().is_empty() || password.expose_secret().trim().is_empty() {
         return Err(AuthError::MissingCredential)?;
     }
 
-    let res = query!(
-        r#"
-            select users.id, password from credentials
-            join users on credentials.user_id = users.id
-            where username = $1
-        "#,
-        username
-    )
-    .fetch_optional(pool)
-    .await?
-    .ok_or(AuthError::WrongEmailOrPassword)?;
-
-    match verify_encoded(&res.password, password.expose_secret().as_bytes())
-        .context("Failed to verify credentials")
-        .map_err(AuthError::Unexpected)?
-    {
-        true => Ok(res.id),
-        false => Err(AuthError::WrongEmailOrPassword),
-    }
+    let mut q = AuthUser::new(login, conn);
+    let user_id = q.verify_credentials(password).await?;
+    Ok(user_id)
 }
 
 pub async fn generate_token_cookies(
@@ -173,4 +104,94 @@ where
     trace!("Access JWT: {access_cookie:#?}");
 
     Ok(access_cookie)
+}
+
+pub struct AuthUser<'c> {
+    login: &'c str,
+    conn: &'c mut PgConnection,
+}
+
+impl<'c> AuthUser<'c> {
+    fn new(login: &'c str, conn: &'c mut PgConnection) -> Self {
+        Self { login, conn }
+    }
+
+    async fn create_user(&mut self, username: &'c str) -> Result<Uuid, AuthError> {
+        let user_id = query!(
+            r#"
+            insert into users (username)
+            values ($1)
+            returning (id)
+        "#,
+            username,
+        )
+        .fetch_one(&mut *self.conn)
+        .await?
+        .id;
+        Ok(user_id)
+    }
+
+    async fn create_credentials(
+        &mut self,
+        user_id: &Uuid,
+        hashed_password: String,
+    ) -> Result<(), AuthError> {
+        query!(
+            r#"
+                insert into credentials (user_id, login, password)
+                values ($1, $2, $3)
+            "#,
+            user_id,
+            self.login,
+            hashed_password
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
+    async fn create_account(
+        &mut self,
+        hashed_password: String,
+        username: &'c str,
+    ) -> Result<Uuid, AuthError> {
+        let user_id = self.create_user(username).await?;
+        self.create_credentials(&user_id, hashed_password).await?;
+        Ok(user_id)
+    }
+
+    async fn is_new(&mut self) -> Result<bool, AuthError> {
+        let is_new = query!(
+            r#"
+                select * from credentials where login = $1
+            "#,
+            self.login
+        )
+        .fetch_optional(&mut *self.conn)
+        .await?
+        .is_none();
+        Ok(is_new)
+    }
+
+    async fn verify_credentials(&mut self, password: SecretString) -> Result<Uuid, AuthError> {
+        let res = query!(
+            r#"
+            select users.id, password from credentials
+            join users on credentials.user_id = users.id
+            where login = $1
+        "#,
+            self.login
+        )
+        .fetch_optional(&mut *self.conn)
+        .await?
+        .ok_or(WrongLoginOrPassword)?;
+
+        let is_verified = verify_encoded(&res.password, password.expose_secret().as_bytes())
+            .context("Failed to verify credentials")?;
+
+        if is_verified {
+            return Ok(res.id);
+        }
+        Err(WrongLoginOrPassword)
+    }
 }

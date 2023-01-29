@@ -1,8 +1,4 @@
-use crate::{
-    utils::{
-        auth::errors::AuthError,
-    },
-};
+use crate::utils::auth::errors::AuthError;
 use axum::response::IntoResponse;
 use thiserror::Error;
 

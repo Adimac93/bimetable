@@ -1,4 +1,7 @@
-use crate::{utils::auth::{errors::*, TokenExtractors}, modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret}};
+use crate::{
+    modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret},
+    utils::auth::{errors::*, TokenExtractors},
+};
 
 use anyhow::Context;
 use axum::{
@@ -9,7 +12,7 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
     CookieJar,
 };
-use http::{Request, request::Parts};
+use http::{request::Parts, Request};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
