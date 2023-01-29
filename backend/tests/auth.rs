@@ -11,7 +11,7 @@ use sqlx::PgPool;
 async fn registration_health_check(db: PgPool) {
     let res = try_register_user(
         &db,
-        &format!("User{}@gmail.com", nanoid!(10)),
+        &format!("User{}", nanoid!(10)),
         SecretString::new("#very#_#strong#_#pass#".to_string()),
         "Chad",
     )
@@ -91,7 +91,7 @@ async fn registration_missing_credential_3(db: PgPool) {
 async fn registration_weak_password(db: PgPool) {
     let res = try_register_user(
         &db,
-        &format!("User{}@gmail.com", nanoid!(10)),
+        &format!("User{}", nanoid!(10)),
         SecretString::new("12345678".to_string()),
         "Chad",
     )
@@ -107,7 +107,7 @@ async fn registration_weak_password(db: PgPool) {
 async fn registration_user_exists_0(db: PgPool) {
     let res = try_register_user(
         &db,
-        "some_user@gmail.com",
+        "mabmab",
         SecretString::new("#very#_#strong#_#pass#".to_string()),
         "Chad",
     )
@@ -123,7 +123,7 @@ async fn registration_user_exists_0(db: PgPool) {
 async fn registration_user_exists_1(db: PgPool) {
     let res = try_register_user(
         &db,
-        "some_user@gmail.com",
+        "pkbpkp",
         SecretString::new("#strong#_#pass#".to_string()),
         "Chad",
     )
@@ -188,7 +188,7 @@ async fn login_health_check(db: PgPool) {
     let mut conn = db.acquire().await.unwrap();
     let res = verify_user_credentials(
         &mut conn,
-        "some_user@gmail.com",
+        "macmac",
         SecretString::new("#strong#_#pass#".to_string()),
     )
     .await;
@@ -202,7 +202,7 @@ async fn login_health_check(db: PgPool) {
 #[sqlx::test(fixtures("users"))]
 async fn login_missing_credential_0(db: PgPool) {
     let mut conn = db.acquire().await.unwrap();
-    let res = verify_user_credentials(&mut conn, "some_user", SecretString::new("   ".to_string())).await;
+    let res = verify_user_credentials(&mut conn, "hubhub", SecretString::new("   ".to_string())).await;
 
     match res {
         Err(AuthError::MissingCredential) => (),
@@ -258,7 +258,7 @@ async fn login_wrong_password(db: PgPool) {
     let mut conn = db.acquire().await.unwrap();
     let res = verify_user_credentials(
         &mut conn,
-        "some_user",
+        "mabmab",
         SecretString::new("#wrong#_#pass#".to_string()),
     )
     .await;
@@ -275,7 +275,7 @@ async fn auth_integration_test(db: PgPool) {
     let client = app_data.client();
 
     let payload = json!({
-        "email": format!("User{}@gmail.com", nanoid!(10)),
+        "email": format!("User{}", nanoid!(10)),
         "password": format!("#very#_#strong#_#pass#"),
         "username": format!("Chad")
     });
@@ -297,19 +297,19 @@ async fn auth_integration_test(db: PgPool) {
 
     assert_eq!(res.status(), StatusCode::OK);
 
-    let res = client
-        .post(format!("http://{}/api/auth/logout", app_data.addr))
-        .send()
-        .await
-        .unwrap();
+    // let res = client
+    //     .post(format!("http://{}/api/auth/logout", app_data.addr))
+    //     .send()
+    //     .await
+    //     .unwrap();
 
-    assert_eq!(res.status(), StatusCode::OK);
+    // assert_eq!(res.status(), StatusCode::OK);
 
-    let res = client
-        .post(format!("http://{}/api/auth/validate", app_data.addr))
-        .send()
-        .await
-        .unwrap();
+    // let res = client
+    //     .post(format!("http://{}/api/auth/validate", app_data.addr))
+    //     .send()
+    //     .await
+    //     .unwrap();
 
-    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    // assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }

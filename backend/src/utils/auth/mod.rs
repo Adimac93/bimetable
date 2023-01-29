@@ -14,7 +14,7 @@ use sqlx::{query, Acquire, PgConnection, PgPool, Postgres};
 use time::OffsetDateTime;
 use tracing::{debug, trace};
 use uuid::Uuid;
-use validator::Validate;
+// use validator::Validate;
 
 pub async fn try_register_user<'c>(
     acq: impl Acquire<'c, Database = Postgres>,
