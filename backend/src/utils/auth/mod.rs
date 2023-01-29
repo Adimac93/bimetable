@@ -73,34 +73,29 @@ pub async fn generate_token_cookies(
     ext: &TokenExtractors,
     jar: CookieJar,
 ) -> Result<CookieJar, AuthError> {
-    let access_cookie = generate_jwt_in_cookie::<Claims>(user_id, login, ext).await?;
+    let access_cookie =
+        generate_jwt_in_cookie(Claims::new(user_id, login, Claims::JWT_EXPIRATION), ext).await?;
 
     trace!("Access JWT: {access_cookie:#?}");
 
-    let refresh_cookie = generate_jwt_in_cookie::<RefreshClaims>(user_id, login, ext).await?;
+    let refresh_cookie = generate_jwt_in_cookie(
+        RefreshClaims::new(user_id, login, RefreshClaims::JWT_EXPIRATION),
+        ext,
+    )
+    .await?;
 
     trace!("Refresh JWT: {refresh_cookie:#?}");
 
     Ok(jar.add(access_cookie).add(refresh_cookie))
 }
 
-async fn generate_jwt_in_cookie<'a, T>(
-    user_id: Uuid,
-    login: &str,
+async fn generate_jwt_in_cookie<'a, T: AuthToken<'a>>(
+    payload: T,
     ext: &TokenExtractors,
-) -> Result<Cookie<'a>, AuthError>
-where
-    T: AuthToken,
-{
-    let access_token = T::generate_jwt(
-        user_id,
-        login,
-        T::JWT_EXPIRATION,
-        &T::get_jwt_key(ext).await,
-    )
-    .await?;
-
-    let access_cookie = T::generate_cookie(access_token).await;
+) -> Result<Cookie<'a>, AuthError> {
+    // let access_token = Token::generate_jwt(Claims, &Token::get_jwt_key(ext))?;
+    let token = payload.generate_jwt(&T::get_jwt_key(ext))?;
+    let access_cookie = T::generate_cookie(token);
     trace!("Access JWT: {access_cookie:#?}");
 
     Ok(access_cookie)

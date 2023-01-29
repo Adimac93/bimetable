@@ -7,6 +7,7 @@ use anyhow::Context;
 use axum::{
     async_trait,
     extract::{self, FromRequest, FromRequestParts},
+    RequestPartsExt,
 };
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
@@ -15,141 +16,76 @@ use axum_extra::extract::{
 use http::{request::Parts, Request};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use secrecy::{ExposeSecret, Secret};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sqlx::{query, PgPool};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 use validator::Validate;
 
-#[async_trait]
-pub trait AuthToken {
+pub trait AuthToken<'s>
+where
+    Self: DeserializeOwned + Serialize + Send + Sized,
+{
+    const NAME: &'s str;
     const JWT_EXPIRATION: Duration;
 
-    async fn generate_cookie<'a>(token: String) -> Cookie<'a>;
-    async fn generate_jwt(
-        user_id: Uuid,
-        login: &str,
-        duration: Duration,
-        key: &Secret<String>,
-    ) -> Result<String, AuthError>;
-    async fn get_jwt_key(ext: &TokenExtractors) -> Secret<String>;
-    async fn get_jwt_cookie(jar: CookieJar) -> Result<Cookie<'static>, AuthError>;
-    async fn decode_jwt(token: &str, key: Secret<String>) -> Result<Self, AuthError>
-    where
-        Self: Sized;
+    fn generate_cookie(token: String) -> Cookie<'s> {
+        Cookie::build(Self::NAME, token)
+            .http_only(true)
+            .secure(true)
+            .same_site(SameSite::Strict)
+            .path("/")
+            .finish()
+    }
+    fn generate_jwt(&self, key: &Secret<String>) -> Result<String, AuthError> {
+        Ok(encode(
+            &Header::default(),
+            &self,
+            &EncodingKey::from_secret(key.expose_secret().as_bytes()),
+        )
+        .context("Failed to encrypt token")?)
+    }
+    fn get_jwt_key(ext: &TokenExtractors) -> Secret<String>;
+    fn get_jwt_cookie(jar: &CookieJar) -> Result<Cookie<'s>, AuthError> {
+        jar.get(Self::NAME).ok_or(AuthError::InvalidToken).cloned()
+    }
+    fn decode_jwt(token: &str, key: Secret<String>) -> Result<Self, AuthError> {
+        // decode token - validation setup
+        let mut validation = Validation::default();
+        validation.leeway = 5;
+
+        // decode token - try to decode token with a provided jwt key
+        let data = decode::<Self>(
+            token,
+            &DecodingKey::from_secret(key.expose_secret().as_bytes()),
+            &validation,
+        )
+        .map_err(|_e| AuthError::InvalidToken)?;
+
+        Ok(data.claims)
+    }
 }
 
 #[async_trait]
-impl AuthToken for Claims {
+impl<'s> AuthToken<'s> for Claims {
+    const NAME: &'s str = "jwt";
     const JWT_EXPIRATION: Duration = Duration::seconds(15);
 
-    async fn get_jwt_key(ext: &TokenExtractors) -> Secret<String> {
+    fn get_jwt_key(ext: &TokenExtractors) -> Secret<String> {
         let JwtAccessSecret(jwt_key) = ext.access.clone();
-
         jwt_key
-    }
-
-    async fn get_jwt_cookie(jar: CookieJar) -> Result<Cookie<'static>, AuthError> {
-        jar.get("jwt").ok_or(AuthError::InvalidToken).cloned()
-    }
-
-    async fn decode_jwt(token: &str, key: Secret<String>) -> Result<Self, AuthError> {
-        // decode token - validation setup
-        let mut validation = Validation::default();
-        validation.leeway = 5;
-
-        // decode token - try to decode token with a provided jwt key
-        let data = decode::<Claims>(
-            token,
-            &DecodingKey::from_secret(key.expose_secret().as_bytes()),
-            &validation,
-        )
-        .map_err(|_e| AuthError::InvalidToken)?;
-
-        Ok(data.claims)
-    }
-
-    async fn generate_cookie<'a>(token: String) -> Cookie<'a> {
-        Cookie::build(String::from("jwt"), token)
-            .http_only(true)
-            .secure(true)
-            .same_site(SameSite::Strict)
-            .path("/")
-            .finish()
-    }
-
-    async fn generate_jwt(
-        user_id: Uuid,
-        login: &str,
-        duration: Duration,
-        key: &Secret<String>,
-    ) -> Result<String, AuthError> {
-        let claims = Claims::new(user_id, login, duration);
-
-        Ok(encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(key.expose_secret().as_bytes()),
-        )
-        .context("Failed to encrypt token")?)
     }
 }
 
 #[async_trait]
-impl AuthToken for RefreshClaims {
+impl<'s> AuthToken<'s> for RefreshClaims {
+    const NAME: &'s str = "refresh-jwt";
     const JWT_EXPIRATION: Duration = Duration::days(7);
 
-    async fn get_jwt_key(ext: &TokenExtractors) -> Secret<String> {
+    fn get_jwt_key(ext: &TokenExtractors) -> Secret<String> {
         let JwtRefreshSecret(jwt_key) = ext.refresh.clone();
-
         jwt_key
-    }
-
-    async fn get_jwt_cookie(jar: CookieJar) -> Result<Cookie<'static>, AuthError> {
-        jar.get("refresh-jwt")
-            .ok_or(AuthError::InvalidToken)
-            .cloned()
-    }
-
-    async fn decode_jwt(token: &str, key: Secret<String>) -> Result<Self, AuthError> {
-        // decode token - validation setup
-        let mut validation = Validation::default();
-        validation.leeway = 5;
-
-        // decode token - try to decode token with a provided jwt key
-        let data = decode::<RefreshClaims>(
-            token,
-            &DecodingKey::from_secret(key.expose_secret().as_bytes()),
-            &validation,
-        )
-        .map_err(|_e| AuthError::InvalidToken)?;
-
-        Ok(data.claims)
-    }
-
-    async fn generate_cookie<'a>(token: String) -> Cookie<'a> {
-        Cookie::build(String::from("refresh-jwt"), token)
-            .http_only(true)
-            .secure(true)
-            .same_site(SameSite::Strict)
-            .path("/")
-            .finish()
-    }
-
-    async fn generate_jwt(
-        user_id: Uuid,
-        login: &str,
-        duration: Duration,
-        key: &Secret<String>,
-    ) -> Result<String, AuthError> {
-        let refresh_claims = RefreshClaims::new(user_id, login, duration);
-
-        Ok(encode(
-            &Header::default(),
-            &refresh_claims,
-            &EncodingKey::from_secret(key.expose_secret().as_bytes()),
-        )
-        .context("Failed to encrypt token")?)
     }
 }
 
@@ -215,9 +151,9 @@ where
     }
 }
 
-async fn verify_token<T, S>(req: &mut Parts, state: &S) -> Result<T, AuthError>
+async fn verify_token<'t, T, S>(req: &mut Parts, state: &S) -> Result<T, AuthError>
 where
-    T: AuthToken,
+    T: AuthToken<'t>,
     S: Send + Sync,
 {
     // get extensions
@@ -228,7 +164,7 @@ where
         .expect("Can't find token extensions")
         .clone();
 
-    let jwt_key = T::get_jwt_key(&token_ext).await;
+    let jwt_key = T::get_jwt_key(&token_ext);
 
     // get extensions - PgPool
     let pool = ext
@@ -237,27 +173,28 @@ where
         .clone();
 
     // get extensions - CookieJar
-    let jar = CookieJar::from_request_parts(req, &state)
+    let jar = req
+        .extract::<CookieJar>()
         .await
         .context("Failed to fetch cookie jar")?;
 
-    let cookie = T::get_jwt_cookie(jar).await?;
+    let cookie = T::get_jwt_cookie(&jar)?;
 
-    let claims = T::decode_jwt(cookie.value(), jwt_key).await?;
+    let claims = T::decode_jwt(cookie.value(), jwt_key)?;
 
     Ok(claims)
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginCredentials {
-    pub email: String,
+    pub login: String,
     pub password: String,
 }
 
 impl LoginCredentials {
-    pub fn new(email: &str, password: &str) -> Self {
+    pub fn new(login: &str, password: &str) -> Self {
         Self {
-            email: email.into(),
+            login: login.into(),
             password: password.into(),
         }
     }
@@ -265,16 +202,15 @@ impl LoginCredentials {
 
 #[derive(Serialize, Deserialize, Validate)]
 pub struct RegisterCredentials {
-    #[validate(email)]
-    pub email: String,
+    pub login: String,
     pub password: String,
     pub username: String,
 }
 
 impl RegisterCredentials {
-    pub fn new(email: &str, password: &str, username: &str) -> Self {
+    pub fn new(login: &str, password: &str, username: &str) -> Self {
         Self {
-            email: email.into(),
+            login: login.into(),
             password: password.into(),
             username: username.into(),
         }
