@@ -26,7 +26,7 @@ async fn spawn_app(pool: PgPool) -> SocketAddr {
 }
 
 pub struct AppData {
-    addr: SocketAddr,
+    pub addr: SocketAddr,
 }
 
 impl AppData {
