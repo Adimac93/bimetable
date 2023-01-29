@@ -25,7 +25,8 @@
                         v-else
                         :day="day.date.date()"
                         :highlight="day.date.isSame(today, 'day')"
-                        :events="eventMap.get(getDateString(day.date)) ?? []"
+                        :events="day.events"
+                        @activate="selectCell(day.date, day.events)"
                     />
                 </template>
             </tr>
@@ -45,28 +46,32 @@ function getDateString(date: dayjs.Dayjs) {
     return date.format("YYYY-MM-DD");
 }
 
-const events = [
-    {
-        name: "Bibruspotkanie",
-        startTime: 1675004400000, // 2023-01-29 15:00:00
-        endTime: 1675008000000, // 2023-01-29 16:00:00
-    },
-    {
-        name: "Coś na pewno",
-        startTime: 1675072800000, // 2023-01-29 15:00:00
-        endTime: 1675101600000, // 2023-01-29 16:00:00
-    },
-    {
-        name: "Podróż w czasie",
-        startTime: 1673082000000,
-        endTime: 1673082000001,
+interface Event {
+    name: string,
+    startTime: number,
+    endTime: number,
+};
+
+const props = defineProps<{
+    events: Event[]
+}>();
+
+const emit = defineEmits<{
+    (event: "select", data: { date: dayjs.Dayjs, events: CalendarEvent[] } | null): void
+}>();
+
+function selectCell(date: dayjs.Dayjs, events: CalendarEvent[]) {
+    if (!events.length) {
+        emit("select", null);
+    } else {
+        emit("select", { date, events });
     }
-];
+}
 
 const eventMap = computed(() => {
     const eventMap = new Map<string, CalendarEvent[]>();
 
-    for (const event of events) {
+    for (const event of props.events) {
         const newEvent: CalendarEvent = {
             name: event.name,
             when: {
@@ -105,7 +110,7 @@ const days = computed(() => {
         if (weekDay == 0) {
             days.push([]);
         }
-        days[days.length - 1].push({ date: day, events: [] });
+        days[days.length - 1].push({ date: day, events: eventMap.value.get(getDateString(day)) ?? [] });
     }
 
     // add empty cells at beginning and end

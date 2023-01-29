@@ -5,7 +5,6 @@
             <div class="dot" v-if="events.length"></div>
         </div>
     </td>
-    <Popover :source-rect="rect" v-if="eventsShown">test</Popover>
 </template>
 
 <script setup lang="ts">
@@ -17,19 +16,14 @@ const props = defineProps<{
     events: CalendarEvent[]
 }>();
 
-const eventsShown = ref(false);
 const cellElement = ref<HTMLDivElement | null>(null);
 
-const rect = computed(() => {
-    // dummy read to update when body changes
-    useBodyRect().value;
-    return cellElement.value?.getBoundingClientRect();
-});
+const emit = defineEmits<{
+    (event: "activate"): void
+}>();
 
 function toggleEvents() {
-    if (props.events.length) {
-        eventsShown.value = !eventsShown.value;
-    }
+    emit("activate");
 }
 </script>
 
