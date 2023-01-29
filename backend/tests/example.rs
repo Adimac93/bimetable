@@ -37,7 +37,7 @@ async fn database_trace_test(pool: PgPool) {
     let app = AppData::new(pool).await;
     let client = app.client();
 
-    let res = client.get(app.api("/")).send().await.unwrap();
+    let res = client.get(app.api("/ex/")).send().await.unwrap();
     let html = res.text().await.unwrap();
     trace!("HTML: {}", html);
 

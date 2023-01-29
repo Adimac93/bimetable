@@ -12,12 +12,12 @@ async fn spawn_app(pool: PgPool) -> SocketAddr {
     let addr = listener.local_addr().unwrap();
 
     let origin = String::from("http://localhost:3000");
-    let config = Modules::use_custom(pool, addr, origin);
+    let modules = Modules::use_custom(pool, addr, origin);
 
     tokio::spawn(async move {
         axum::Server::from_tcp(listener)
             .unwrap()
-            .serve(app(config).await.into_make_service())
+            .serve(app(modules.state()).await.into_make_service())
             .await
             .unwrap()
     });
