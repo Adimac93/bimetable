@@ -1,7 +1,7 @@
 use bimetable::app;
 use bimetable::modules::Modules;
 use dotenv::dotenv;
-use reqwest::{Client, IntoUrl};
+use reqwest::Client;
 use secrecy::Secret;
 use sqlx::PgPool;
 use std::net::{SocketAddr, TcpListener};

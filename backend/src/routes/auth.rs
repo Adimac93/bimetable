@@ -1,4 +1,4 @@
-use crate::modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets};
+use crate::modules::extractors::jwt::{JwtAccessSecret, TokenSecrets};
 use crate::modules::AppState;
 use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
@@ -11,7 +11,7 @@ use axum_extra::extract::CookieJar;
 use jsonwebtoken::Validation;
 use secrecy::SecretString;
 use serde_json::{json, Value};
-use sqlx::PgPool;
+
 use time::Duration;
 use tracing::debug;
 
@@ -76,14 +76,11 @@ async fn post_login_user(
 }
 
 #[debug_handler]
-async fn protected_zone(state: State<AppState>, claims: Claims) -> Result<Json<Value>, StatusCode> {
+async fn protected_zone(_: State<AppState>, claims: Claims) -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "user id": claims.user_id })))
 }
 
-async fn post_user_logout(
-    State(_state): State<AppState>,
-    jar: CookieJar,
-) -> Result<CookieJar, AppError> {
+async fn post_user_logout(_: State<AppState>, jar: CookieJar) -> Result<CookieJar, AppError> {
     let mut validation = Validation::default();
     validation.leeway = 5;
 

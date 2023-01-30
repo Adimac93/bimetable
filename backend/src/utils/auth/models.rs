@@ -1,11 +1,6 @@
-use crate::{
-    modules::extractors::jwt::{JwtAccessSecret, JwtRefreshSecret},
-    utils::auth::{errors::*, TokenSecrets},
-};
-
 use crate::modules::AppState;
+use crate::utils::auth::errors::*;
 use anyhow::Context;
-use axum::extract::FromRequest;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
@@ -13,10 +8,11 @@ use axum_extra::extract::{
 };
 use http::request::Parts;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use secrecy::{ExposeSecret, Secret, SecretString};
+use secrecy::{ExposeSecret, Secret};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::Duration;
+
 use uuid::Uuid;
 use validator::Validate;
 
