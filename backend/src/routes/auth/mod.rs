@@ -134,6 +134,7 @@ fn remove_cookie(name: &str) -> Cookie {
 
 #[debug_handler]
 async fn post_refresh_user_token(
+    State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
     refresh_claims: RefreshClaims,
@@ -141,7 +142,7 @@ async fn post_refresh_user_token(
     let jar =
         generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, secrets, jar).await?;
 
-    // refresh_claims.add_token_to_blacklist(&pool).await?;
+    refresh_claims.add_token_to_blacklist(&state.pool).await?;
 
     debug!(
         "User {} ({})'s access token refreshed successfully",
