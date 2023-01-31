@@ -6,6 +6,7 @@ use crate::routes::auth::models::{LoginCredentials, RegisterCredentials};
 use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
 use crate::{app_errors::AppError, utils::auth::*};
+use anyhow::Context;
 use axum::extract::State;
 use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
 use axum::{routing::post, Router};
@@ -18,6 +19,7 @@ use sqlx::PgPool;
 
 use time::Duration;
 use tracing::debug;
+use validator::Validate;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -35,6 +37,8 @@ async fn post_register_user(
     jar: CookieJar,
     Json(register_credentials): Json<RegisterCredentials>,
 ) -> Result<CookieJar, AppError> {
+    register_credentials.validate().map_err(|e| AuthError::InvalidUsername(e))?;
+
     let user_id = try_register_user(
         &pool,
         register_credentials.login.trim(),

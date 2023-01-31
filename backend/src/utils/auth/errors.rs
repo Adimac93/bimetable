@@ -1,6 +1,7 @@
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use thiserror::Error;
+use validator::ValidationErrors;
 
 #[derive(Error, Debug)]
 pub enum AuthError {
@@ -14,6 +15,8 @@ pub enum AuthError {
     WrongLoginOrPassword,
     #[error("Invalid or expired token")]
     InvalidToken,
+    #[error("Invalid username")]
+    InvalidUsername(#[from] ValidationErrors),
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
@@ -26,6 +29,7 @@ impl IntoResponse for AuthError {
             AuthError::WeakPassword => StatusCode::BAD_REQUEST,
             AuthError::WrongLoginOrPassword => StatusCode::UNAUTHORIZED,
             AuthError::InvalidToken => StatusCode::UNAUTHORIZED,
+            AuthError::InvalidUsername(_e) => StatusCode::BAD_REQUEST,
             AuthError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -33,6 +37,7 @@ impl IntoResponse for AuthError {
         };
 
         let info = match self {
+            AuthError::InvalidUsername(_) => "Invalid username".to_string(),
             AuthError::Unexpected(_) => "Unexpected server error".to_string(),
             _ => self.to_string(),
         };
