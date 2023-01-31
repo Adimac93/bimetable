@@ -18,6 +18,7 @@ use time::serde::timestamp;
 
 use crate::modules::AppState;
 use crate::routes::events::models::{CreateEvent, Event, GetEventsQuery};
+use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
 
 pub fn router() -> Router<AppState> {
@@ -27,6 +28,7 @@ pub fn router() -> Router<AppState> {
 async fn get_events(
     Query(query): Query<GetEventsQuery>,
     State(pool): State<PgPool>,
+    claims: Claims,
 ) -> Result<Json<Vec<Event>>, EventError> {
     let events = query_as!(
         Event,
