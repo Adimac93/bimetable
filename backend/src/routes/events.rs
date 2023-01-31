@@ -33,9 +33,9 @@ pub struct Event {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetEventsQuery {
     #[serde(with = "timestamp")]
-    starts_at: OffsetDateTime,
+    pub starts_at: OffsetDateTime,
     #[serde(with = "timestamp")]
-    ends_at: OffsetDateTime,
+    pub ends_at: OffsetDateTime,
 }
 
 async fn get_events(
