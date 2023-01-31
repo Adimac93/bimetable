@@ -12,6 +12,8 @@ use secrecy::{ExposeSecret, SecretString};
 use sqlx::{query, Acquire, PgConnection, Postgres};
 use tracing::{debug, trace};
 use uuid::Uuid;
+
+use self::additions::validate_usernames;
 // use validator::Validate;
 
 pub async fn try_register_user<'c>(
@@ -34,6 +36,8 @@ pub async fn try_register_user<'c>(
     {
         return Err(AuthError::MissingCredential);
     }
+
+    validate_usernames(login, username)?;
 
     if !additions::pass_is_strong(password.expose_secret(), &[&login]) {
         return Err(AuthError::WeakPassword);

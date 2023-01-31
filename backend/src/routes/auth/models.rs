@@ -16,12 +16,10 @@ impl LoginCredentials {
     }
 }
 
-#[derive(Serialize, Deserialize, Validate)]
+#[derive(Serialize, Deserialize)]
 pub struct RegisterCredentials {
-    #[validate(non_control_character, custom = "is_ascii_or_latin_extended", does_not_contain = " ", length(min = 4, max = 20))]
     pub login: String,
     pub password: String,
-    #[validate(non_control_character, custom = "is_ascii_or_latin_extended", length(min = 4, max = 20))]
     pub username: String,
 }
 
@@ -35,7 +33,3 @@ impl RegisterCredentials {
     }
 }
 
-fn is_ascii_or_latin_extended(text: &str) -> Result<(), ValidationError> {
-    if text.chars().all(|x| x as u32 <= 687) { Ok(()) }
-    else { Err(ValidationError::new("Non-ASCII and non-latin-extended characters detected")) }
-}

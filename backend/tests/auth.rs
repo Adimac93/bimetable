@@ -149,7 +149,7 @@ async fn registration_invalid_username_0(db: PgPool) {
 async fn registration_invalid_username_1(db: PgPool) {
     let res = try_register_user(
         &db,
-        "spaced name@gmail.com",
+        "spaced name",
         SecretString::new("#strong#_#pass#".to_string()),
         "Chad",
     )
@@ -166,6 +166,38 @@ async fn registration_invalid_username_2(db: PgPool) {
     let res = try_register_user(
         &db,
         "verylongveryverylongnameveryveryverylongname",
+        SecretString::new("#strong#_#pass#".to_string()),
+        "Chad",
+    )
+    .await;
+
+    match res {
+        Err(AuthError::InvalidUsername(_)) => (),
+        _ => panic!("Test gives the result {:?}", res),
+    }
+}
+
+#[sqlx::test(fixtures("users"))]
+async fn registration_invalid_username_3(db: PgPool) {
+    let res = try_register_user(
+        &db,
+        "thΣtruΣsigma",
+        SecretString::new("#strong#_#pass#".to_string()),
+        "Chad",
+    )
+    .await;
+
+    match res {
+        Err(AuthError::InvalidUsername(_)) => (),
+        _ => panic!("Test gives the result {:?}", res),
+    }
+}
+
+#[sqlx::test(fixtures("users"))]
+async fn registration_invalid_username_4(db: PgPool) {
+    let res = try_register_user(
+        &db,
+        "deletethis->",
         SecretString::new("#strong#_#pass#".to_string()),
         "Chad",
     )

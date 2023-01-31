@@ -1,4 +1,4 @@
-use crate::modules::AppState;
+use crate::utils::auth::additions::is_ascii_or_latin_extended;
 use crate::utils::auth::errors::*;
 use anyhow::Context;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
@@ -224,4 +224,12 @@ impl RegisterCredentials {
             username: username.into(),
         }
     }
+}
+
+#[derive(Validate)]
+pub struct ValidatedUserData {
+    #[validate(non_control_character, custom = "is_ascii_or_latin_extended", does_not_contain = " ", length(min = 4, max = 20))]
+    pub login: String,
+    #[validate(non_control_character, custom = "is_ascii_or_latin_extended", length(min = 4, max = 20))]
+    pub username: String,
 }
