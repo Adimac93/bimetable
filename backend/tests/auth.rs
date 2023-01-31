@@ -129,53 +129,53 @@ async fn registration_user_exists_1(db: PgPool) {
     }
 }
 
-// #[sqlx::test(fixtures("users"))]
-// async fn registration_invalid_username_0(db: PgPool) {
-//     let res = try_register_user(
-//         &db,
-//         "why",
-//         SecretString::new("#strong#_#pass#".to_string()),
-//         "Chad",
-//     )
-//     .await;
+#[sqlx::test(fixtures("users"))]
+async fn registration_invalid_username_0(db: PgPool) {
+    let res = try_register_user(
+        &db,
+        "why",
+        SecretString::new("#strong#_#pass#".to_string()),
+        "Chad",
+    )
+    .await;
 
-//     match res {
-//         Err(AuthError::InvalidEmail(_)) => (),
-//         _ => panic!("Test gives the result {:?}", res),
-//     }
-// }
+    match res {
+        Err(AuthError::InvalidUsername(_)) => (),
+        _ => panic!("Test gives the result {:?}", res),
+    }
+}
 
-// #[sqlx::test(fixtures("users"))]
-// async fn registration_invalid_username_1(db: PgPool) {
-//     let res = try_register_user(
-//         &db,
-//         "spaced name@gmail.com",
-//         SecretString::new("#strong#_#pass#".to_string()),
-//         "Chad",
-//     )
-//     .await;
+#[sqlx::test(fixtures("users"))]
+async fn registration_invalid_username_1(db: PgPool) {
+    let res = try_register_user(
+        &db,
+        "spaced name@gmail.com",
+        SecretString::new("#strong#_#pass#".to_string()),
+        "Chad",
+    )
+    .await;
 
-//     match res {
-//         Err(AuthError::InvalidEmail(_)) => (),
-//         _ => panic!("Test gives the result {:?}", res),
-//     }
-// }
+    match res {
+        Err(AuthError::InvalidUsername(_)) => (),
+        _ => panic!("Test gives the result {:?}", res),
+    }
+}
 
-// #[sqlx::test(fixtures("users"))]
-// async fn registration_invalid_username_2(db: PgPool) {
-//     let res = try_register_user(
-//         &db,
-//         "verylongveryverylongnameveryveryverylongname",
-//         SecretString::new("#strong#_#pass#".to_string()),
-//         "Chad",
-//     )
-//     .await;
+#[sqlx::test(fixtures("users"))]
+async fn registration_invalid_username_2(db: PgPool) {
+    let res = try_register_user(
+        &db,
+        "verylongveryverylongnameveryveryverylongname",
+        SecretString::new("#strong#_#pass#".to_string()),
+        "Chad",
+    )
+    .await;
 
-//     match res {
-//         Err(AuthError::InvalidEmail(_)) => (),
-//         _ => panic!("Test gives the result {:?}", res),
-//     }
-// }
+    match res {
+        Err(AuthError::InvalidUsername(_)) => (),
+        _ => panic!("Test gives the result {:?}", res),
+    }
+}
 
 #[sqlx::test(fixtures("users"))]
 async fn login_health_check(db: PgPool) {
