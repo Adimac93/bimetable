@@ -22,7 +22,11 @@ async fn spawn_app(pool: PgPool) -> SocketAddr {
     tokio::spawn(async move {
         axum::Server::from_tcp(listener)
             .unwrap()
-            .serve(app(modules.state()).await.into_make_service())
+            .serve(
+                app(modules.state(), modules.extensions())
+                    .await
+                    .into_make_service(),
+            )
             .await
             .unwrap()
     });

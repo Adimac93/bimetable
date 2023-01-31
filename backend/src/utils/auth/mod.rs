@@ -1,7 +1,7 @@
 pub mod additions;
 pub mod errors;
 pub mod models;
-use crate::modules::extractors::jwt::TokenSecrets;
+use crate::modules::extensions::jwt::TokenSecrets;
 use crate::utils::auth::errors::AuthError::WrongLoginOrPassword;
 use anyhow::Context;
 use argon2::verify_encoded;

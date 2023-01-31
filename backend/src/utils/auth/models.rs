@@ -13,6 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
+use crate::modules::extensions::jwt::TokenSecrets;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -93,14 +94,19 @@ impl Claims {
 }
 
 #[async_trait]
-impl FromRequestParts<AppState> for Claims {
+impl<S> FromRequestParts<S> for Claims
+where
+    S: Send + Sync,
+{
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        req: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        verify_token::<Self>(req, &state.jwt.access.0).await
+    async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let secret = req
+            .extensions
+            .get::<TokenSecrets>()
+            .context("Failed to get JWT secrets")?
+            .to_owned();
+        verify_token::<Self>(req, &secret.access.0).await
     }
 }
 
@@ -124,14 +130,19 @@ impl RefreshClaims {
 }
 
 #[async_trait]
-impl FromRequestParts<AppState> for RefreshClaims {
+impl<S> FromRequestParts<S> for RefreshClaims
+where
+    S: Send + Sync,
+{
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        req: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        verify_token::<Self>(req, &state.jwt.refresh.0).await
+    async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let secret = req
+            .extensions
+            .get::<TokenSecrets>()
+            .context("Failed to get JWT secrets")?
+            .to_owned();
+        verify_token::<Self>(req, &secret.refresh.0).await
     }
 }
 

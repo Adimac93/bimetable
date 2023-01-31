@@ -21,7 +21,7 @@ async fn main() {
     info!("Listening on {}", modules.core.addr);
     axum::Server::bind(&modules.core.addr)
         .serve(
-            app(modules.state())
+            app(modules.state(), modules.extensions())
                 .await
                 .into_make_service_with_connect_info::<SocketAddr>(),
         )
