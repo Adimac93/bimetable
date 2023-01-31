@@ -24,7 +24,7 @@ rand = "0.8.5"
 zxcvbn = "2.2.1"
 rust-argon2 = "1.0.0"
 axum-extra = { version = "0.4.2", features = ["cookie"] }
-time = "0.3.17"
+time = { version = "0.3.17", features = ["serde"] }
 uuid = { version = "1.2.2", features = ["serde", "v4"] }
 validator = { version = "0.16.0", features = ["derive"] }
 jsonwebtoken = "8.2.0"
