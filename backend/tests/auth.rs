@@ -278,6 +278,14 @@ async fn auth_integration_test(db: PgPool) {
     println!("http://{}/auth/register", app_data.addr);
 
     let res = client
+        .post(format!("http://{}/auth/validate", app_data.addr))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    let res = client
         .post(format!("http://{}/auth/register", app_data.addr))
         .json(&payload)
         .send()
@@ -294,19 +302,19 @@ async fn auth_integration_test(db: PgPool) {
 
     assert_eq!(res.status(), StatusCode::OK);
 
-    // let res = client
-    //     .post(format!("http://{}/api/auth/logout", app_data.addr))
-    //     .send()
-    //     .await
-    //     .unwrap();
+    let res = client
+        .post(format!("http://{}/auth/logout", app_data.addr))
+        .send()
+        .await
+        .unwrap();
 
-    // assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.status(), StatusCode::OK);
 
-    // let res = client
-    //     .post(format!("http://{}/api/auth/validate", app_data.addr))
-    //     .send()
-    //     .await
-    //     .unwrap();
+    let res = client
+        .post(format!("http://{}/auth/validate", app_data.addr))
+        .send()
+        .await
+        .unwrap();
 
-    // assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }

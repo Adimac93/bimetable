@@ -11,12 +11,15 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use secrecy::{ExposeSecret, Secret};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use time::Duration;
+use sqlx::{PgPool, query};
+use time::{Duration, OffsetDateTime};
+use tracing::trace;
 
 use crate::modules::extensions::jwt::TokenSecrets;
 use uuid::Uuid;
 use validator::Validate;
 
+#[async_trait]
 pub trait AuthToken<'s>
 where
     Self: DeserializeOwned + Serialize + Send + Sized,
@@ -24,6 +27,8 @@ where
     const NAME: &'s str;
     const JWT_EXPIRATION: Duration;
 
+    fn jti(&self) -> Uuid;
+    fn exp(&self) -> u64;
     fn generate_cookie(token: String) -> Cookie<'s> {
         Cookie::build(Self::NAME, token)
             .http_only(true)
@@ -60,18 +65,44 @@ where
 
         Ok(data.claims)
     }
+
+    async fn add_token_to_blacklist (&self, pool: &PgPool) -> Result<(), AuthError> {
+        let exp = OffsetDateTime::from_unix_timestamp(self.exp() as i64)
+            .context("Failed to convert timestamp to date and time with the timezone")
+            .map_err(AuthError::Unexpected)?;
+    
+        let _res = query!(
+            r#"
+                insert into jwt_blacklist (token_id, expiry)
+                values ($1, $2)
+            "#,
+            self.jti(),
+            exp,
+        )
+        .execute(pool)
+        .await?;
+    
+        trace!("Adding token to blacklist");
+        Ok(())
+    }
 }
 
 #[async_trait]
 impl<'s> AuthToken<'s> for Claims {
     const NAME: &'s str = "jwt";
     const JWT_EXPIRATION: Duration = Duration::seconds(15);
+
+    fn jti(&self) -> Uuid { self.jti }
+    fn exp(&self) -> u64 { self.exp }
 }
 
 #[async_trait]
 impl<'s> AuthToken<'s> for RefreshClaims {
     const NAME: &'s str = "refresh-jwt";
     const JWT_EXPIRATION: Duration = Duration::days(7);
+
+    fn jti(&self) -> Uuid { self.jti }
+    fn exp(&self) -> u64 { self.exp }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
