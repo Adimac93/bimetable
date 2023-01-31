@@ -1,28 +1,23 @@
 pub mod models;
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     routing::get,
     Json, Router,
 };
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
-use sqlx::{
-    query,
-    query_as,
-    // maybe instead import `OffsetDateTime` from `time`?
-    types::{time::OffsetDateTime, Uuid},
-    PgPool,
-};
-use time::serde::timestamp;
+use sqlx::{query, query_as, types::Uuid, PgPool};
 
 use crate::modules::AppState;
-use crate::routes::events::models::{CreateEvent, Event, GetEventsQuery};
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
 
+use self::models::{CreateEvent, Event, GetEventsQuery};
+
 pub fn router() -> Router<AppState> {
-    Router::new().route("/", get(get_events).put(put_event))
+    Router::new()
+        .route("/", get(get_events).put(put_new_event))
+        .route("/:id", get(get_event).put(put_event).delete(delete_event))
 }
 
 async fn get_events(
@@ -46,7 +41,7 @@ async fn get_events(
     Ok(Json(events))
 }
 
-async fn put_event(
+async fn put_new_event(
     State(pool): State<PgPool>,
     Json(body): Json<CreateEvent>,
 ) -> Result<(StatusCode, Json<Uuid>), EventError> {
@@ -66,4 +61,64 @@ async fn put_event(
     .id;
 
     Ok((StatusCode::CREATED, Json(id)))
+}
+
+async fn get_event(
+    Path(id): Path<Uuid>,
+    State(pool): State<PgPool>,
+) -> Result<Json<Event>, EventError> {
+    let event = query_as!(
+        Event,
+        r#"
+            SELECT *
+            FROM events
+            WHERE id = $1;
+        "#,
+        id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(EventError::NotFound)?;
+
+    Ok(Json(event))
+}
+
+async fn put_event(
+    State(pool): State<PgPool>,
+    Json(body): Json<Event>,
+) -> Result<StatusCode, EventError> {
+    query!(
+        r#"
+            UPDATE events SET
+            starts_at = $2,
+            ends_at = $3,
+            name = $4
+            WHERE id = $1;
+        "#,
+        body.id,
+        body.starts_at,
+        body.ends_at,
+        body.name,
+    )
+    .execute(&pool)
+    .await?;
+
+    Ok(StatusCode::OK)
+}
+
+async fn delete_event(
+    Path(id): Path<Uuid>,
+    State(pool): State<PgPool>,
+) -> Result<StatusCode, EventError> {
+    query!(
+        r#"
+            DELETE FROM events
+            WHERE id = $1;
+        "#,
+        id
+    )
+    .execute(&pool)
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
