@@ -15,33 +15,17 @@ use sqlx::{
 use time::serde::timestamp;
 
 use crate::modules::AppState;
+use crate::utils::events::errors::EventError;
+use crate::utils::events::models::{Event, GetEventsQuery};
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/", get(get_events).put(put_event))
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Event {
-    pub id: Uuid,
-    #[serde(with = "timestamp")]
-    pub starts_at: OffsetDateTime,
-    #[serde(with = "timestamp")]
-    pub ends_at: OffsetDateTime,
-    pub name: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct GetEventsQuery {
-    #[serde(with = "timestamp")]
-    pub starts_at: OffsetDateTime,
-    #[serde(with = "timestamp")]
-    pub ends_at: OffsetDateTime,
-}
-
 async fn get_events(
     Query(query): Query<GetEventsQuery>,
     State(pool): State<PgPool>,
-) -> Result<Json<Vec<Event>>, StatusCode> {
+) -> Result<Json<Vec<Event>>, EventError> {
     let events = query_as!(
         Event,
         r#"
@@ -53,9 +37,7 @@ async fn get_events(
         query.ends_at,
     )
     .fetch_all(&pool)
-    .await
-    // TODO: proper error handling
-    .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+    .await?;
 
     Ok(Json(events))
 }
@@ -72,7 +54,7 @@ pub struct CreateEvent {
 async fn put_event(
     State(pool): State<PgPool>,
     Json(body): Json<CreateEvent>,
-) -> Result<(StatusCode, Json<Uuid>), StatusCode> {
+) -> Result<(StatusCode, Json<Uuid>), EventError> {
     let id = query!(
         r#"
             INSERT INTO events (starts_at, ends_at, name)
@@ -85,9 +67,7 @@ async fn put_event(
         body.name,
     )
     .fetch_one(&pool)
-    .await
-    // TODO: proper error handling
-    .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+    .await?
     .id;
 
     Ok((StatusCode::CREATED, Json(id)))
