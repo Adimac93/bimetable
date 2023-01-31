@@ -11,5 +11,6 @@ pub async fn app(state: AppState) -> Router {
     Router::new()
         .nest("/auth", routes::auth::router())
         .nest("/ex", routes::example::router())
+        .nest("/events", routes::events::router())
         .with_state(state)
 }
