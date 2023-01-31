@@ -1,5 +1,8 @@
+pub mod models;
+
 use crate::modules::extensions::jwt::{JwtAccessSecret, TokenSecrets};
 use crate::modules::AppState;
+use crate::routes::auth::models::{LoginCredentials, RegisterCredentials};
 use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
 use crate::{app_errors::AppError, utils::auth::*};
@@ -30,7 +33,7 @@ async fn post_register_user(
     State(pool): State<PgPool>,
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
-    Json(register_credentials): extract::Json<RegisterCredentials>,
+    Json(register_credentials): Json<RegisterCredentials>,
 ) -> Result<CookieJar, AppError> {
     let user_id = try_register_user(
         &pool,

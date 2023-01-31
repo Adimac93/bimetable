@@ -1,4 +1,4 @@
-use bimetable::routes::events::{CreateEvent, Event, GetEventsQuery};
+use bimetable::routes::events::models::{CreateEvent, Event, GetEventsQuery};
 use http::StatusCode;
 use sqlx::PgPool;
 use time::OffsetDateTime;

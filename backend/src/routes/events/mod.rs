@@ -1,3 +1,5 @@
+pub mod models;
+
 use axum::{
     extract::{Query, State},
     routing::get,
@@ -15,8 +17,8 @@ use sqlx::{
 use time::serde::timestamp;
 
 use crate::modules::AppState;
+use crate::routes::events::models::{CreateEvent, Event, GetEventsQuery};
 use crate::utils::events::errors::EventError;
-use crate::utils::events::models::{Event, GetEventsQuery};
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/", get(get_events).put(put_event))
@@ -40,15 +42,6 @@ async fn get_events(
     .await?;
 
     Ok(Json(events))
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CreateEvent {
-    #[serde(with = "timestamp")]
-    pub starts_at: OffsetDateTime,
-    #[serde(with = "timestamp")]
-    pub ends_at: OffsetDateTime,
-    pub name: String,
 }
 
 async fn put_event(
