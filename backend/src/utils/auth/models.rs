@@ -87,7 +87,6 @@ where
     }
 }
 
-#[async_trait]
 impl<'s> AuthToken<'s> for Claims {
     const NAME: &'s str = "jwt";
     const JWT_EXPIRATION: Duration = Duration::seconds(15);
@@ -96,7 +95,6 @@ impl<'s> AuthToken<'s> for Claims {
     fn exp(&self) -> u64 { self.exp }
 }
 
-#[async_trait]
 impl<'s> AuthToken<'s> for RefreshClaims {
     const NAME: &'s str = "refresh-jwt";
     const JWT_EXPIRATION: Duration = Duration::days(7);
@@ -192,38 +190,6 @@ where
     let claims = T::decode_jwt(cookie.value(), secret.to_owned())?;
 
     Ok(claims)
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct LoginCredentials {
-    pub login: String,
-    pub password: String,
-}
-
-impl LoginCredentials {
-    pub fn new(login: &str, password: &str) -> Self {
-        Self {
-            login: login.into(),
-            password: password.into(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Validate)]
-pub struct RegisterCredentials {
-    pub login: String,
-    pub password: String,
-    pub username: String,
-}
-
-impl RegisterCredentials {
-    pub fn new(login: &str, password: &str, username: &str) -> Self {
-        Self {
-            login: login.into(),
-            password: password.into(),
-            username: username.into(),
-        }
-    }
 }
 
 #[derive(Validate)]
