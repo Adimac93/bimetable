@@ -11,8 +11,8 @@ use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
 use axum::{routing::post, Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
-use jsonwebtoken::Validation;
-use secrecy::SecretString;
+use jsonwebtoken::{Validation, decode, DecodingKey};
+use secrecy::{SecretString, ExposeSecret};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
@@ -86,34 +86,37 @@ async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "user id": claims.user_id })))
 }
 
-async fn post_user_logout(_: State<AppState>, jar: CookieJar) -> Result<CookieJar, AppError> {
+async fn post_user_logout(
+    State(state): State<AppState>,
+    Extension(secrets): Extension<TokenSecrets>,
+    jar: CookieJar
+) -> Result<CookieJar, AppError> {
     let mut validation = Validation::default();
     validation.leeway = 5;
 
-    // TODO: database blacklist for jwt
-    // if let Some(access_token_cookie) = jar.get("jwt") {
-    //     let data = decode::<Claims>(
-    //         access_token_cookie.value(),
-    //         &DecodingKey::from_secret(token_extensions.access.0.expose_secret().as_bytes()),
-    //         &validation,
-    //     );
+    if let Some(access_token_cookie) = jar.get("jwt") {
+        let data = decode::<Claims>(
+            access_token_cookie.value(),
+            &DecodingKey::from_secret(secrets.access.0.expose_secret().as_bytes()),
+            &validation,
+        );
 
-    //     if let Ok(token_data) = data {
-    //         let _ = &token_data.claims.add_token_to_blacklist(&pool).await?;
-    //     }
-    // };
+        if let Ok(token_data) = data {
+            let _ = &token_data.claims.add_token_to_blacklist(&state.pool).await?;
+        }
+    };
 
-    // if let Some(refresh_token_cookie) = jar.get("refresh-jwt") {
-    //     let data = decode::<RefreshClaims>(
-    //         refresh_token_cookie.value(),
-    //         &DecodingKey::from_secret(token_extensions.access.0.expose_secret().as_bytes()),
-    //         &validation,
-    //     );
+    if let Some(refresh_token_cookie) = jar.get("refresh-jwt") {
+        let data = decode::<RefreshClaims>(
+            refresh_token_cookie.value(),
+            &DecodingKey::from_secret(secrets.access.0.expose_secret().as_bytes()),
+            &validation,
+        );
 
-    //     if let Ok(token_data) = data {
-    //         let _ = &token_data.claims.add_token_to_blacklist(&pool).await?;
-    //     }
-    // };
+        if let Ok(token_data) = data {
+            let _ = &token_data.claims.add_token_to_blacklist(&state.pool).await?;
+        }
+    };
 
     debug!("User logged out successfully");
 
