@@ -40,8 +40,8 @@ async fn get_events_in_time_range(pool: PgPool) {
     let client = app.client();
 
     let query = GetEventsQuery {
-        starts_at: OffsetDateTime::from_unix_timestamp(1675666800).unwrap(),
-        ends_at: OffsetDateTime::from_unix_timestamp(1675672500).unwrap(),
+        starts_at: OffsetDateTime::from_unix_timestamp(1_675_666_800).unwrap(),
+        ends_at: OffsetDateTime::from_unix_timestamp(1_675_672_500).unwrap(),
     };
 
     let res = client
@@ -54,13 +54,13 @@ async fn get_events_in_time_range(pool: PgPool) {
 
     let expected = vec![
         CreateEvent {
-            starts_at: OffsetDateTime::from_unix_timestamp(1675666800).unwrap(),
-            ends_at: OffsetDateTime::from_unix_timestamp(1675669500).unwrap(),
+            starts_at: OffsetDateTime::from_unix_timestamp(1_675_666_800).unwrap(),
+            ends_at: OffsetDateTime::from_unix_timestamp(1_675_669_500).unwrap(),
             name: "Matematyka".into(),
         },
         CreateEvent {
-            starts_at: OffsetDateTime::from_unix_timestamp(1675666850).unwrap(),
-            ends_at: OffsetDateTime::from_unix_timestamp(1675672500).unwrap(),
+            starts_at: OffsetDateTime::from_unix_timestamp(1_675_669_800).unwrap(),
+            ends_at: OffsetDateTime::from_unix_timestamp(1_675_672_500).unwrap(),
             name: "Fizyka".into(),
         },
     ];

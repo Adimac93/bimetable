@@ -47,7 +47,7 @@ async fn get_events(
         r#"
             SELECT *
             FROM events
-            WHERE starts_at > $1 AND ends_at < $2;
+            WHERE starts_at >= $1 AND ends_at <= $2;
         "#,
         query.starts_at,
         query.ends_at,
