@@ -22,7 +22,6 @@ config = "0.13.3"
 reqwest = { version = "0.11.14", features = ["tokio-rustls", "json", "cookies"] }
 rand = "0.8.5"
 zxcvbn = "2.2.1"
-rust-argon2 = "1.0.0"
 axum-extra = { version = "0.4.2", features = ["cookie"] }
 time = { version = "0.3.17", features = ["serde"] }
 uuid = { version = "1.2.2", features = ["serde", "v4"] }
@@ -30,3 +29,4 @@ validator = { version = "0.16.0", features = ["derive", "unic"] }
 jsonwebtoken = "8.2.0"
 http = "0.2.8"
 nanoid = "0.4.0"
+argon2 = "0.4.1"

@@ -2,9 +2,8 @@ pub mod additions;
 pub mod errors;
 pub mod models;
 use crate::modules::extensions::jwt::TokenSecrets;
+use crate::utils::auth::additions::{hash_pass, verify_pass};
 use crate::utils::auth::errors::AuthError::WrongLoginOrPassword;
-use anyhow::Context;
-use argon2::verify_encoded;
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use errors::*;
 use models::*;
@@ -43,9 +42,7 @@ pub async fn try_register_user<'c>(
         return Err(AuthError::WeakPassword);
     }
 
-    let hashed_pass = additions::hash_pass(password)
-        .context("Failed to hash password with argon2")
-        .map_err(AuthError::Unexpected)?;
+    let hashed_pass = hash_pass(password.expose_secret().to_owned())?;
 
     let user_id = q.create_account(hashed_pass, username).await?;
 
@@ -185,8 +182,7 @@ impl<'c> AuthUser<'c> {
         .await?
         .ok_or(WrongLoginOrPassword)?;
 
-        let is_verified = verify_encoded(&res.password, password.expose_secret().as_bytes())
-            .context("Failed to verify credentials")?;
+        let is_verified = verify_pass(password.expose_secret().to_owned(), res.password)?;
 
         if is_verified {
             return Ok(res.id);
