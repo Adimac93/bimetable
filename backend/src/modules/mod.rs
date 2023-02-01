@@ -73,12 +73,14 @@ impl Modules {
 #[derive(Clone, FromRef)]
 pub struct AppState {
     pub pool: PgPool,
+    pub jwt: TokenSecrets,
 }
 
 impl AppState {
     fn new(modules: &Modules) -> Self {
         Self {
             pool: modules.pool.clone(),
+            jwt: modules.jwt.clone(),
         }
     }
 }

@@ -1,6 +1,7 @@
-use crate::utils::auth::additions::is_ascii_or_latin_extended;
+use crate::{utils::auth::additions::is_ascii_or_latin_extended, modules::AppState};
 use crate::utils::auth::errors::*;
 use anyhow::Context;
+use axum::extract::FromRef;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
 use axum_extra::extract::{
     cookie::{Cookie, SameSite},
@@ -15,7 +16,7 @@ use sqlx::{PgPool, query};
 use time::{Duration, OffsetDateTime};
 use tracing::trace;
 
-use crate::modules::extensions::jwt::TokenSecrets;
+use crate::modules::extensions::jwt::{TokenSecrets, JwtAccessSecret};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -85,6 +86,21 @@ where
         trace!("Adding token to blacklist");
         Ok(())
     }
+
+    async fn check_if_in_blacklist(&self, pool: &PgPool) -> Result<bool, AuthError> {
+        // verify blacklist
+        Ok(query!(
+            r#"
+                select * from jwt_blacklist
+                where token_id = $1;
+            "#,
+            self.jti()
+        )
+        .fetch_optional(pool)
+        .await
+        .context("Failed to verify token with the blacklist")?
+        .is_some())
+    }
 }
 
 impl<'s> AuthToken<'s> for Claims {
@@ -103,7 +119,7 @@ impl<'s> AuthToken<'s> for RefreshClaims {
     fn exp(&self) -> u64 { self.exp }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Claims {
     pub jti: Uuid,
     pub user_id: Uuid,
@@ -122,24 +138,8 @@ impl Claims {
     }
 }
 
-#[async_trait]
-impl<S> FromRequestParts<S> for Claims
-where
-    S: Send + Sync,
-{
-    type Rejection = AuthError;
 
-    async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let secret = req
-            .extensions
-            .get::<TokenSecrets>()
-            .context("Failed to get JWT secrets")?
-            .to_owned();
-        verify_token::<Self>(req, &secret.access.0).await
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RefreshClaims {
     pub jti: Uuid,
     pub user_id: Uuid,
@@ -158,36 +158,61 @@ impl RefreshClaims {
     }
 }
 
-#[async_trait]
-impl<S> FromRequestParts<S> for RefreshClaims
-where
-    S: Send + Sync,
-{
-    type Rejection = AuthError;
+// #[async_trait]
+// impl<S> FromRequestParts<S> for RefreshClaims
+// where
+//     AppState: FromRef<S>,
+//     S: Send + Sync,
+// {
+//     type Rejection = AuthError;
 
-    async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let secret = req
-            .extensions
-            .get::<TokenSecrets>()
-            .context("Failed to get JWT secrets")?
-            .to_owned();
-        verify_token::<Self>(req, &secret.refresh.0).await
-    }
-}
+//     async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+//         let state = AppState::from_ref(state);
+//         let secret = req
+//             .extensions
+//             .get::<TokenSecrets>()
+//             .context("Failed to get JWT secrets")?
+//             .to_owned();
+//         verify_token::<Self>(req, &secret.refresh.0, &state.pool).await
+//     }
+// }
 
-async fn verify_token<'t, T>(req: &mut Parts, secret: &Secret<String>) -> Result<T, AuthError>
+// #[async_trait]
+// impl<S> FromRequestParts<S> for Claims
+// where
+//     PgPool: FromRef<S>,
+//     TokenSecrets: FromRef<S>,
+//     S: Send + Sync,
+// {
+//     type Rejection = AuthError;
+
+//     async fn from_request_parts(req: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+//         let pool = PgPool::from_ref(state);
+//         let _access_secret = TokenSecrets::from_ref(state);
+//         let secret = req
+//             .extensions
+//             .get::<TokenSecrets>()
+//             .context("Failed to get JWT secrets")?
+//             .to_owned();
+//         verify_token::<Self>(req, &secret.access.0, &pool).await
+//     }
+// }
+
+async fn verify_token<'t, T>(req: &mut Parts, secret: &Secret<String>, pool: &PgPool) -> Result<T, AuthError>
 where
-    T: AuthToken<'t>,
+    T: AuthToken<'t> + Send + Sync,
 {
     // get extensions - CookieJar
     let jar = req
         .extract::<CookieJar>()
         .await
         .context("Failed to fetch cookie jar")?;
-
+        
     let cookie = T::get_jwt_cookie(&jar)?;
 
     let claims = T::decode_jwt(cookie.value(), secret.to_owned())?;
+
+    let _ = claims.check_if_in_blacklist(pool);
 
     Ok(claims)
 }

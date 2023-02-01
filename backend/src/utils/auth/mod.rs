@@ -1,6 +1,7 @@
 pub mod additions;
 pub mod errors;
 pub mod models;
+pub mod middleware;
 use crate::modules::extensions::jwt::TokenSecrets;
 use crate::utils::auth::additions::{hash_pass, verify_pass};
 use crate::utils::auth::errors::AuthError::WrongLoginOrPassword;

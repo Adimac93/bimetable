@@ -307,8 +307,6 @@ async fn auth_integration_test(db: PgPool) {
         "username": format!("Chad")
     });
 
-    println!("http://{}/auth/register", app_data.addr);
-
     let res = client
         .post(format!("http://{}/auth/validate", app_data.addr))
         .send()

@@ -4,10 +4,12 @@ use crate::modules::extensions::jwt::TokenSecrets;
 use crate::modules::AppState;
 use crate::routes::auth::models::{LoginCredentials, RegisterCredentials};
 use crate::utils::auth::errors::AuthError;
+use crate::utils::auth::middleware::{auth_access_middleware, auth_refresh_middleware};
 use crate::utils::auth::models::*;
 use crate::{app_errors::AppError, utils::auth::*};
 use axum::extract::State;
 use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
+use axum::middleware::from_fn_with_state;
 use axum::{routing::post, Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
@@ -19,13 +21,18 @@ use sqlx::PgPool;
 use time::Duration;
 use tracing::debug;
 
-pub fn router() -> Router<AppState> {
+pub fn router(state: AppState) -> Router<AppState> {
+    let refresh_router = Router::new()
+        .route("/refresh", post(post_refresh_user_token))
+        .route_layer(from_fn_with_state(state.clone(), auth_refresh_middleware));
+
     Router::new()
+        .route("/validate", post(protected_zone))
+        .route_layer(from_fn_with_state(state.clone(), auth_access_middleware))
         .route("/register", post(post_register_user))
         .route("/login", post(post_login_user))
-        .route("/validate", post(protected_zone))
         .route("/logout", post(post_user_logout))
-        .route("/refresh", post(post_refresh_user_token))
+        .merge(refresh_router)
 }
 
 #[debug_handler]
@@ -82,7 +89,7 @@ async fn post_login_user(
 }
 
 #[debug_handler]
-async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
+async fn protected_zone(Extension(claims): Extension<Claims>) -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "user id": claims.user_id })))
 }
 
@@ -137,7 +144,7 @@ async fn post_refresh_user_token(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
-    refresh_claims: RefreshClaims,
+    Extension(refresh_claims): Extension<RefreshClaims>,
 ) -> Result<CookieJar, AppError> {
     let jar =
         generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, secrets, jar).await?;
