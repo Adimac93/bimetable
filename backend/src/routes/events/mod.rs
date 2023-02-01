@@ -23,7 +23,6 @@ pub fn router() -> Router<AppState> {
 async fn get_events(
     Query(query): Query<GetEventsQuery>,
     State(pool): State<PgPool>,
-    claims: Claims,
 ) -> Result<Json<Vec<Event>>, EventError> {
     let events = query_as!(
         Event,
