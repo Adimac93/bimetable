@@ -1,2 +1,2 @@
-drop table credentials;
-drop table users;
+DROP TABLE credentials;
+DROP TABLE users;

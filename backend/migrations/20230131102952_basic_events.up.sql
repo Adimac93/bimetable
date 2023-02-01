@@ -1,7 +1,7 @@
 CREATE TABLE events (
 	id UUID DEFAULT gen_random_uuid(),
-	starts_at TIMESTAMP WITH TIME ZONE NOT NULL,
-	ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
+	starts_at TIMESTAMPTZ NOT NULL,
+	ends_at TIMESTAMPTZ NOT NULL,
 	name TEXT NOT NULL,
 	PRIMARY KEY (id)
 );

@@ -1,13 +1,13 @@
-create table users (
-    id uuid default gen_random_uuid(),
-    username text not null,
-    primary key (id)
+CREATE TABLE users (
+    id UUID DEFAULT gen_random_uuid(),
+    username TEXT NOT NULL,
+    PRIMARY KEY (id)
 );
 
-create table credentials (
-    login text,
-    password text not null,
-    user_id uuid not null unique,
-    primary key (login),
-    foreign key (user_id) references users(id)
+CREATE TABLE credentials (
+    login TEXT,
+    password TEXT NOT NULL,
+    user_id UUID NOT NULL UNIQUE,
+    PRIMARY KEY (login),
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );

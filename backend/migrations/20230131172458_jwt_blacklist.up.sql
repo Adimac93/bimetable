@@ -1,5 +1,5 @@
--- Add up migration script here
-create table jwt_blacklist (
-    token_id uuid not null primary key,
-    expiry timestamptz not null
+CREATE TABLE jwt_blacklist (
+    token_id UUID,
+    expiry TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (token_id)
 );
