@@ -2,9 +2,8 @@ use bimetable::routes::events::models::{CreateEvent, Event, GetEventsQuery};
 use http::StatusCode;
 use sqlx::PgPool;
 use time::macros::datetime;
-use time::OffsetDateTime;
 use tracing_test::traced_test;
-use uuid::Uuid;
+use uuid::{uuid, Uuid};
 
 use crate::tools::AppData;
 
@@ -17,9 +16,9 @@ async fn create_event(pool: PgPool) {
     let client = app.client();
 
     let req = CreateEvent {
-        starts_at: OffsetDateTime::from_unix_timestamp(1000).unwrap(),
-        ends_at: OffsetDateTime::from_unix_timestamp(2000).unwrap(),
-        name: "Foo".into(),
+        starts_at: datetime!(2023-02-06 8:00 +1),
+        ends_at: datetime!(2023-02-06 8:45 +1),
+        name: "Matematyka".into(),
     };
 
     let res = client
@@ -41,8 +40,8 @@ async fn get_events_in_time_range(pool: PgPool) {
     let client = app.client();
 
     let query = GetEventsQuery {
-        starts_at: datetime!(2023-02-06 8:00 UTC),
-        ends_at: datetime!(2023-02-06 9:35 UTC),
+        starts_at: datetime!(2023-02-06 8:00 +1),
+        ends_at: datetime!(2023-02-06 9:35 +1),
     };
 
     let res = client
@@ -54,14 +53,16 @@ async fn get_events_in_time_range(pool: PgPool) {
     assert_eq!(res.status(), StatusCode::OK);
 
     let expected = vec![
-        CreateEvent {
-            starts_at: datetime!(2023-02-06 8:00 UTC),
-            ends_at: datetime!(2023-02-06 8:45 UTC),
+        Event {
+            id: uuid!("248c5f26-e48e-4ada-bace-384b1badb95c"),
+            starts_at: datetime!(2023-02-06 8:00 +1),
+            ends_at: datetime!(2023-02-06 8:45 +1),
             name: "Matematyka".into(),
         },
-        CreateEvent {
-            starts_at: datetime!(2023-02-06 8:50 UTC),
-            ends_at: datetime!(2023-02-06 9:35 UTC),
+        Event {
+            id: uuid!("73cb2256-80ce-4c0b-b753-34fdd2c7f5e5"),
+            starts_at: datetime!(2023-02-06 8:50 +1),
+            ends_at: datetime!(2023-02-06 9:35 +1),
             name: "Fizyka".into(),
         },
     ];
