@@ -1,6 +1,7 @@
 use bimetable::routes::events::models::{CreateEvent, Event, GetEventsQuery};
 use http::StatusCode;
 use sqlx::PgPool;
+use time::macros::datetime;
 use time::OffsetDateTime;
 use tracing_test::traced_test;
 use uuid::Uuid;
@@ -40,8 +41,8 @@ async fn get_events_in_time_range(pool: PgPool) {
     let client = app.client();
 
     let query = GetEventsQuery {
-        starts_at: OffsetDateTime::from_unix_timestamp(1_675_666_800).unwrap(),
-        ends_at: OffsetDateTime::from_unix_timestamp(1_675_672_500).unwrap(),
+        starts_at: datetime!(2023-02-06 8:00 UTC),
+        ends_at: datetime!(2023-02-06 9:35 UTC),
     };
 
     let res = client
@@ -54,13 +55,13 @@ async fn get_events_in_time_range(pool: PgPool) {
 
     let expected = vec![
         CreateEvent {
-            starts_at: OffsetDateTime::from_unix_timestamp(1_675_666_800).unwrap(),
-            ends_at: OffsetDateTime::from_unix_timestamp(1_675_669_500).unwrap(),
+            starts_at: datetime!(2023-02-06 8:00 UTC),
+            ends_at: datetime!(2023-02-06 8:45 UTC),
             name: "Matematyka".into(),
         },
         CreateEvent {
-            starts_at: OffsetDateTime::from_unix_timestamp(1_675_669_800).unwrap(),
-            ends_at: OffsetDateTime::from_unix_timestamp(1_675_672_500).unwrap(),
+            starts_at: datetime!(2023-02-06 8:50 UTC),
+            ends_at: datetime!(2023-02-06 9:35 UTC),
             name: "Fizyka".into(),
         },
     ];
