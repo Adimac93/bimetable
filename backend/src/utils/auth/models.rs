@@ -1,4 +1,4 @@
-use crate::utils::auth::additions::is_ascii_or_latin_extended;
+use crate::{utils::auth::additions::is_ascii_or_latin_extended, modules::AppState};
 use crate::utils::auth::errors::*;
 use anyhow::Context;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
