@@ -17,7 +17,7 @@ async fn main() {
 
     let modules = Modules::load_from_settings().await;
 
-    info!("Starting server");
+    info!("Starting server on {} machine", machine_kind());
     info!("Listening on {}", modules.core.addr);
     axum::Server::bind(&modules.core.addr)
         .serve(
@@ -27,4 +27,14 @@ async fn main() {
         )
         .await
         .expect("Failed to run axum server");
+}
+
+fn machine_kind<'s>() -> &'s str {
+    if cfg!(unix) {
+        "unix"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "unknown"
+    }
 }

@@ -4,6 +4,7 @@ use self::{
 };
 use crate::config::get_config;
 use axum::extract::FromRef;
+use core::fmt::Display;
 use secrecy::Secret;
 use sqlx::PgPool;
 use std::net::SocketAddr;
@@ -83,6 +84,12 @@ impl AppState {
     }
 }
 
+impl Display for AppState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "postgres pool")
+    }
+}
+
 pub struct AppExtensions {
     pub jwt: TokenSecrets,
 }
@@ -92,5 +99,11 @@ impl AppExtensions {
         Self {
             jwt: modules.jwt.clone(),
         }
+    }
+}
+
+impl Display for AppExtensions {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "token secrets")
     }
 }
