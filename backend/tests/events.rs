@@ -1,7 +1,10 @@
-use bimetable::{routes::events::models::{CreateEvent, GetEventsQuery}, utils::events::models::{EventRules, TimeRules, EndsAt, Event}};
+use bimetable::{
+    routes::events::models::{CreateEvent, GetEventsQuery},
+    utils::events::models::{EndsAt, Event, EventRules, TimeRules},
+};
 use http::StatusCode;
 use serde_json::json;
-use sqlx::{PgPool, query, query_as};
+use sqlx::{query, query_as, PgPool};
 use time::macros::datetime;
 use tracing_test::traced_test;
 use uuid::{uuid, Uuid};
@@ -15,10 +18,17 @@ mod tools;
 fn create_event(pool: PgPool) {
     let user_id = uuid!("32190025-7c15-4adb-82fd-9acc3dc8e7b6");
     let body = CreateEvent {
-    name: "abc".into(), 
-    starts_at: Some(datetime!(2023-02-05 10:00 +1)), 
-    ends_at: Some(datetime!(2023-02-05 12:00 +1)), 
-    recurrence_rule: Some(EventRules::Weekly { time_rules: TimeRules {ends_at: Some(EndsAt::Until(datetime!(2040-02-05 12:00 +1))), interval: 1}, week_map: 0b0010011 })};
+        name: "abc".into(),
+        starts_at: Some(datetime!(2023-02-05 10:00 +1)),
+        ends_at: Some(datetime!(2023-02-05 12:00 +1)),
+        recurrence_rule: Some(EventRules::Weekly {
+            time_rules: TimeRules {
+                ends_at: Some(EndsAt::Until(datetime!(2040-02-05 12:00 +1))),
+                interval: 1,
+            },
+            week_map: 0b0010011,
+        }),
+    };
     let rec = query_as!(
         Event,
         r#"
@@ -38,7 +48,6 @@ fn create_event(pool: PgPool) {
 
     println!("{rec:#?}");
 }
-
 
 #[traced_test]
 #[sqlx::test(fixtures("users", "events"))]
@@ -64,7 +73,7 @@ async fn get_events_in_time_range(pool: PgPool) {
         .unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-        
+
     let res = client
         .get(app.api("/events"))
         .query(&query)

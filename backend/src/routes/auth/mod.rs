@@ -11,8 +11,8 @@ use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
 use axum::{routing::post, Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
-use jsonwebtoken::{Validation, decode, DecodingKey};
-use secrecy::{SecretString, ExposeSecret};
+use jsonwebtoken::{decode, DecodingKey, Validation};
+use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
@@ -89,7 +89,7 @@ async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
 async fn post_user_logout(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,
-    jar: CookieJar
+    jar: CookieJar,
 ) -> Result<CookieJar, AppError> {
     let mut validation = Validation::default();
     validation.leeway = 5;
@@ -102,7 +102,10 @@ async fn post_user_logout(
         );
 
         if let Ok(token_data) = data {
-            let _ = &token_data.claims.add_token_to_blacklist(&state.pool).await?;
+            let _ = &token_data
+                .claims
+                .add_token_to_blacklist(&state.pool)
+                .await?;
         }
     };
 
@@ -114,7 +117,10 @@ async fn post_user_logout(
         );
 
         if let Ok(token_data) = data {
-            let _ = &token_data.claims.add_token_to_blacklist(&state.pool).await?;
+            let _ = &token_data
+                .claims
+                .add_token_to_blacklist(&state.pool)
+                .await?;
         }
     };
 

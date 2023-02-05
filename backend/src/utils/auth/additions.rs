@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use argon2::password_hash::SaltString;
 use argon2::{password_hash, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use rand;
-use validator::{ValidationErrors, Validate, ValidationError};
+use validator::{Validate, ValidationError, ValidationErrors};
 
 use super::models::ValidatedUserData;
 
@@ -33,10 +33,16 @@ pub fn validate_usernames(login: &str, username: &str) -> Result<(), ValidationE
     ValidatedUserData {
         login: login.to_string(),
         username: username.to_string(),
-    }.validate()
+    }
+    .validate()
 }
 
 pub fn is_ascii_or_latin_extended(text: &str) -> Result<(), ValidationError> {
-    if text.chars().all(|x| x as u32 <= 687) { Ok(()) }
-    else { Err(ValidationError::new("Non-ASCII and non-latin-extended characters detected")) }
+    if text.chars().all(|x| x as u32 <= 687) {
+        Ok(())
+    } else {
+        Err(ValidationError::new(
+            "Non-ASCII and non-latin-extended characters detected",
+        ))
+    }
 }

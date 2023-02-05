@@ -1,5 +1,5 @@
-use crate::{utils::auth::additions::is_ascii_or_latin_extended, modules::AppState};
 use crate::utils::auth::errors::*;
+use crate::{modules::AppState, utils::auth::additions::is_ascii_or_latin_extended};
 use anyhow::Context;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
 use axum_extra::extract::{
@@ -11,7 +11,7 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use secrecy::{ExposeSecret, Secret};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, query};
+use sqlx::{query, PgPool};
 use time::{Duration, OffsetDateTime};
 use tracing::trace;
 
@@ -66,11 +66,11 @@ where
         Ok(data.claims)
     }
 
-    async fn add_token_to_blacklist (&self, pool: &PgPool) -> Result<(), AuthError> {
+    async fn add_token_to_blacklist(&self, pool: &PgPool) -> Result<(), AuthError> {
         let exp = OffsetDateTime::from_unix_timestamp(self.exp() as i64)
             .context("Failed to convert timestamp to date and time with the timezone")
             .map_err(AuthError::Unexpected)?;
-    
+
         let _res = query!(
             r#"
                 insert into jwt_blacklist (token_id, expiry)
@@ -81,7 +81,7 @@ where
         )
         .execute(pool)
         .await?;
-    
+
         trace!("Adding token to blacklist");
         Ok(())
     }
@@ -91,16 +91,24 @@ impl<'s> AuthToken<'s> for Claims {
     const NAME: &'s str = "jwt";
     const JWT_EXPIRATION: Duration = Duration::seconds(15);
 
-    fn jti(&self) -> Uuid { self.jti }
-    fn exp(&self) -> u64 { self.exp }
+    fn jti(&self) -> Uuid {
+        self.jti
+    }
+    fn exp(&self) -> u64 {
+        self.exp
+    }
 }
 
 impl<'s> AuthToken<'s> for RefreshClaims {
     const NAME: &'s str = "refresh-jwt";
     const JWT_EXPIRATION: Duration = Duration::days(7);
 
-    fn jti(&self) -> Uuid { self.jti }
-    fn exp(&self) -> u64 { self.exp }
+    fn jti(&self) -> Uuid {
+        self.jti
+    }
+    fn exp(&self) -> u64 {
+        self.exp
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -194,8 +202,17 @@ where
 
 #[derive(Validate)]
 pub struct ValidatedUserData {
-    #[validate(non_control_character, custom = "is_ascii_or_latin_extended", does_not_contain = " ", length(min = 4, max = 20))]
+    #[validate(
+        non_control_character,
+        custom = "is_ascii_or_latin_extended",
+        does_not_contain = " ",
+        length(min = 4, max = 20)
+    )]
     pub login: String,
-    #[validate(non_control_character, custom = "is_ascii_or_latin_extended", length(min = 4, max = 20))]
+    #[validate(
+        non_control_character,
+        custom = "is_ascii_or_latin_extended",
+        length(min = 4, max = 20)
+    )]
     pub username: String,
 }

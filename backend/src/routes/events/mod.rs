@@ -1,5 +1,8 @@
 pub mod models;
 
+use crate::utils::auth::models::Claims;
+use crate::utils::events::errors::EventError;
+use crate::{modules::AppState, utils::events::models::Event};
 use axum::{
     extract::{Path, Query, State},
     routing::get,
@@ -7,9 +10,6 @@ use axum::{
 };
 use http::StatusCode;
 use sqlx::{query, query_as, types::Uuid, PgPool};
-use crate::{modules::AppState, utils::events::models::Event};
-use crate::utils::auth::models::Claims;
-use crate::utils::events::errors::EventError;
 
 use self::models::{CreateEvent, GetEventsQuery};
 
@@ -66,13 +66,10 @@ async fn put_new_event(
     Ok((StatusCode::CREATED, Json(id)))
 }
 
-
-
 async fn get_event(
     claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
-    
 ) -> Result<Json<Event>, EventError> {
     let event = query_as!(
         Event,
