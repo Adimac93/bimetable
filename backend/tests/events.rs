@@ -1,6 +1,6 @@
 use bimetable::{
     routes::events::models::{CreateEvent, GetEventsQuery},
-    utils::events::models::{EndsAt, Event, EventRules, TimeRules},
+    utils::events::models::{Event, EventRules, RecurrenceEndsAt, TimeRules},
 };
 use http::StatusCode;
 use serde_json::json;
@@ -26,7 +26,7 @@ fn create_event(pool: PgPool) {
         ends_at: Some(datetime!(2023-02-05 12:00 +1)),
         recurrence_rule: Some(EventRules::Weekly {
             time_rules: TimeRules {
-                ends_at: Some(EndsAt::Until(datetime!(2040-02-05 12:00 +1))),
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2040-02-05 12:00 +1))),
                 interval: 1,
             },
             week_map: 0b0010011,
