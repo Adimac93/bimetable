@@ -1,23 +1,12 @@
-CREATE TABLE recurrence_rules
-(
-    id        UUID DEFAULT gen_random_uuid(),
-    week_map  BIT,
-    interval  INT,
-    is_by_day BOOL,
-    PRIMARY KEY (id)
-);
-
 CREATE TABLE events
 (
     id                 UUID DEFAULT gen_random_uuid(),
     owner_id           UUID NOT NULL,
     name               TEXT NOT NULL,
-    starts_at          TIMETZ,
-    ends_at            TIMETZ,
-    date               DATE NOT NULL,
-    recurrence_rule_id UUID,
+    starts_at          TIMESTAMPTZ,
+    ends_at            TIMESTAMPTZ,
+    recurrence_rule    JSONB,
     PRIMARY KEY (id),
-    FOREIGN KEY (recurrence_rule_id) REFERENCES recurrence_rules (id),
     FOREIGN KEY (owner_id) REFERENCES users (id)
 );
 
