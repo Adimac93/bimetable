@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::{serde::timestamp, Duration};
 
+use crate::app_errors::DefaultContext;
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
     pub id: Uuid,
@@ -14,6 +16,13 @@ pub struct Event {
     pub ends_at: Option<OffsetDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurrence_rule: Option<Json<EventRules>>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct EventPart {
+    pub event_data: Event,
+    pub part_starts_at: Option<OffsetDateTime>,
+    pub part_length: Option<RecurrenceEndsAt>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -72,7 +81,7 @@ pub struct TimeRules {
 }
 
 impl TimeRules {
-    fn last_event_recurrence(
+    fn to_until(
         &self,
         event_starts_at: OffsetDateTime,
         event_ends_at: OffsetDateTime,
@@ -82,22 +91,11 @@ impl TimeRules {
             match rec_ends_at {
                 RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
                 RecurrenceEndsAt::Count(n) => {
-                    let event_duration: Duration = event_ends_at - event_starts_at; // overflow?
-                    let time_to_next_event: Duration = event_duration
-                        .checked_add(
-                            mult.checked_mul(
-                                i32::try_from(self.interval).context("Deep overflow!")?,
-                            )
-                            .context("Not too deep overflow!")?,
-                        )
-                        .context("Surface overflow!")?;
-                    let rec_ends_at: OffsetDateTime = event_starts_at
-                        .checked_add(
-                            time_to_next_event
-                                .checked_mul(i32::try_from(*n).context("Deep overflow!")?)
-                                .context("Not too deep overflow!")?,
-                        )
-                        .context("Surface overflow!")?;
+                    let event_duration: Duration = event_ends_at - event_starts_at;
+                    let time_to_next_event: Duration =
+                        event_duration.checked_add(mult.checked_mul(i32::try_from(self.interval).dc()?).dc()?).dc()?;
+                    let rec_ends_at: OffsetDateTime =
+                        event_starts_at.checked_add(time_to_next_event.checked_mul(i32::try_from(*n).dc()?).dc()?).dc()?;
                     return Ok(Some(rec_ends_at));
                 }
             }
