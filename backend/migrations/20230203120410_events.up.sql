@@ -11,18 +11,6 @@ CREATE TABLE events
     FOREIGN KEY (owner_id) REFERENCES users (id)
 );
 
-CREATE TABLE modified_events
-(
-    origin_id        UUID,
-    occurrence_id    INT,
-    name             TEXT NOT NULL,
-    description      TEXT NOT NULL,
-    starts_at        TIMESTAMPTZ,
-    ends_at          TIMESTAMPTZ,
-    PRIMARY KEY (origin_id, occurrence_id),
-    FOREIGN KEY (origin_id) ON DELETE CASCADE
-);
-
 CREATE TABLE user_events
 (
     user_id  UUID NOT NULL,
