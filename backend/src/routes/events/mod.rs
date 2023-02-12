@@ -2,6 +2,7 @@ pub mod models;
 
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
+use crate::utils::events::models::EventPart;
 use crate::{modules::AppState, utils::events::models::Event};
 use axum::{
     extract::{Path, Query, State},
@@ -135,3 +136,38 @@ async fn delete_event(
 
     Ok(StatusCode::NO_CONTENT)
 }
+
+// async fn modify_event_part(
+//     claims: Claims,
+//     State(pool): State<PgPool>,
+//     Json(body): Json<EventPart>,
+// ) -> Result<StatusCode, EventError> {
+//     // verify that the requested event part is in a correct format (ends after begins)
+//     body.verify_event_part()?;
+//     // translate count to until to gain additional information about how to make a change in the db
+//     // identify relations between event part and recurring event boundaries
+//     // based on that information, divide a recurring event into 2 or 3 parts with proper recurrence rules
+    
+//     query!(
+//         r#"
+//             UPDATE events SET
+//             name = $1,
+//             owner_id = $2,
+//             starts_at = $3,
+//             ends_at = $4,
+//             recurrence_rule = $5
+//             WHERE owner_id = $6 AND id = $7
+//         "#,
+//         body.name,
+//         body.owner_id,
+//         body.starts_at,
+//         body.ends_at,
+//         sqlx::types::Json(body.recurrence_rule) as _,
+//         claims.user_id,
+//         body.id,
+//     )
+//     .execute(&pool)
+//     .await?;
+
+//     Ok(StatusCode::OK)
+// }

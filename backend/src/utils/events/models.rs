@@ -21,7 +21,7 @@ pub struct Event {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EventPart {
     pub event_data: Event,
-    pub part_starts_at: Option<OffsetDateTime>,
+    pub part_starts_at: OffsetDateTime,
     pub part_length: Option<RecurrenceEndsAt>,
 }
 
