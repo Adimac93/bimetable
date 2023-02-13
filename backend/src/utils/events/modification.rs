@@ -1,5 +1,5 @@
 use sqlx::types::Json;
-use time::{Duration, OffsetDateTime, Weekday, Month, util::days_in_year_month};
+use time::{Duration, OffsetDateTime, Weekday, Month, util::{days_in_year_month, is_leap_year}, macros::datetime};
 use tracing::event;
 
 use crate::app_errors::DefaultContext;
@@ -23,7 +23,11 @@ impl EventPart {
         let event_ends_at = self.event_data.ends_at.as_ref().ok_or(EventError::NotFound)?;
         match rec_rules {
             EventRules::Yearly { time_rules, is_by_day } => {
-                todo!()
+                if *is_by_day {
+                    year_is_by_day_count_to_until(self.part_starts_at, self.part_length.as_ref(), time_rules.interval, *event_starts_at, *event_ends_at)
+                } else {
+                    todo!()
+                }
             }
             EventRules::Monthly { time_rules, is_by_day } => {
                 if *is_by_day {
@@ -166,5 +170,38 @@ fn add_months(val: OffsetDateTime, chg: u32) -> anyhow::Result<OffsetDateTime> {
 }
 
 fn nth_next_month(val: Month, chg: u32) -> anyhow::Result<Month> {
-    Month::try_from((((val as u32).checked_add(chg).dc()?) % 12 + 1) as u8).dc()
+    Month::try_from((((val as u32).checked_add(chg).dc()? - 1) % 12 + 1) as u8).dc()
+}
+
+fn year_is_by_day_count_to_until(
+    part_starts_at: OffsetDateTime,
+    part_ends_at: Option<&RecurrenceEndsAt>,
+    interval: u32,
+    event_starts_at: OffsetDateTime,
+    event_ends_at: OffsetDateTime,
+) -> anyhow::Result<Option<OffsetDateTime>> {
+    if let Some(rec_ends_at) = part_ends_at {
+        match rec_ends_at {
+            RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
+            RecurrenceEndsAt::Count(mut n) => {
+                match (part_starts_at.month(), part_starts_at.day()) {
+                    (Month::February, 29) => {
+                        let mut part_ends_until = part_starts_at;
+                        while n > 0 {
+                            part_ends_until = part_ends_until.replace_year(part_ends_until.year() + i32::try_from(n * interval).dc()?)?;
+                            if is_leap_year(part_ends_until.year()) {
+                                n -= 1;
+                            }
+                        }
+                        return Ok(Some(part_ends_until + (event_ends_at - event_starts_at)));
+                    }
+                    _ => {
+                        let base_value = part_starts_at.replace_year(part_starts_at.year() + i32::try_from(n * interval).dc()?)?;
+                        return Ok(Some(base_value + (event_ends_at - event_starts_at)));
+                    },
+                }
+            }
+        }
+    }
+    Ok(None) // never
 }
