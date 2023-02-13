@@ -1,5 +1,5 @@
 use sqlx::types::Json;
-use time::{Duration, OffsetDateTime, Weekday};
+use time::{Duration, OffsetDateTime, Weekday, Month, util::days_in_year_month};
 use tracing::event;
 
 use crate::app_errors::DefaultContext;
@@ -26,14 +26,18 @@ impl EventPart {
                 todo!()
             }
             EventRules::Monthly { time_rules, is_by_day } => {
-                todo!()
+                if *is_by_day {
+                    month_is_by_day_count_to_until(self.part_starts_at, self.part_length.as_ref(), time_rules.interval, *event_starts_at, *event_ends_at)
+                } else {
+                    todo!()
+                }
             }
             EventRules::Weekly { time_rules, week_map } => {
                 let string_week_map = format!("{:0>7b}", week_map % 128);
-                week_count_to_until(self.part_starts_at.clone(), self.part_length.as_ref(), time_rules.interval, string_week_map, event_starts_at.clone(), event_ends_at.clone())
+                week_count_to_until(self.part_starts_at, self.part_length.as_ref(), time_rules.interval, string_week_map, *event_starts_at, *event_ends_at)
             }
             EventRules::Daily { time_rules } => {
-                day_count_to_until(self.part_starts_at.clone(), self.part_length.as_ref(), time_rules.interval, event_starts_at.clone(), event_ends_at.clone())
+                day_count_to_until(self.part_starts_at, self.part_length.as_ref(), time_rules.interval, *event_starts_at, *event_ends_at)
             }
         }
     }
@@ -45,7 +49,7 @@ fn day_count_to_until(
     interval: u32,
     event_starts_at: OffsetDateTime,
     event_ends_at: OffsetDateTime,
-) -> Result<Option<OffsetDateTime>, anyhow::Error> {
+) -> anyhow::Result<Option<OffsetDateTime>> {
     if let Some(rec_ends_at) = part_ends_at {
         match rec_ends_at {
             RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
@@ -69,7 +73,7 @@ fn week_count_to_until(
     week_map: String,
     event_starts_at: OffsetDateTime,
     event_ends_at: OffsetDateTime,
-) -> Result<Option<OffsetDateTime>, anyhow::Error> {
+) -> anyhow::Result<Option<OffsetDateTime>> {
     if let Some(rec_ends_at) = part_ends_at {
         match rec_ends_at {
             RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
@@ -119,4 +123,48 @@ fn get_offset_from_the_map(week_map: &str, event_number: u8, start_at: u8) -> u8
         i += 1;
     }
     return i - start_at - 1
+}
+
+fn month_is_by_day_count_to_until(
+    part_starts_at: OffsetDateTime,
+    part_ends_at: Option<&RecurrenceEndsAt>,
+    interval: u32,
+    event_starts_at: OffsetDateTime,
+    event_ends_at: OffsetDateTime,
+) -> anyhow::Result<Option<OffsetDateTime>> {
+    if let Some(rec_ends_at) = part_ends_at {
+        match rec_ends_at {
+            RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
+            RecurrenceEndsAt::Count(mut n) => {
+                match part_starts_at.day() {
+                    1..=28 => {
+                        let base_value = add_months(part_starts_at, n * interval)?;
+                        return Ok(Some(base_value + (event_ends_at - event_starts_at)));
+                    },
+                    29..=31 => {
+                        let mut part_ends_until = part_starts_at;
+                        while n > 0 {
+                            part_ends_until = add_months(part_ends_until, interval)?;
+                            if days_in_year_month(part_ends_until.year(), part_ends_until.month()) <= part_starts_at.day() {
+                                n -= 1;
+                            }
+                        }
+                        return Ok(Some(part_ends_until + (event_ends_at - event_starts_at)));
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+    Ok(None) // never
+}
+
+fn add_months(val: OffsetDateTime, chg: u32) -> anyhow::Result<OffsetDateTime> {
+    let month_res = nth_next_month(val.month(), chg)?;
+    let year_number = (val.month() as u8 + chg as u8) / 12;
+    Ok(val.replace_year(val.year() + year_number as i32).dc()?.replace_month(month_res).dc()?)
+}
+
+fn nth_next_month(val: Month, chg: u32) -> anyhow::Result<Month> {
+    Month::try_from((((val as u32).checked_add(chg).dc()?) % 12 + 1) as u8).dc()
 }
