@@ -20,7 +20,7 @@ CREATE TABLE modified_events
     starts_at        TIMESTAMPTZ,
     ends_at          TIMESTAMPTZ,
     PRIMARY KEY (origin_id, occurrence_id),
-    FOREIGN KEY (origin_id) ON DELETE CASCADE
+    FOREIGN KEY (origin_id) REFERENCES events(id) ON DELETE CASCADE
 );
 
 CREATE TABLE user_events
