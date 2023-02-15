@@ -15,7 +15,7 @@ pub struct SettingsModel {
 }
 
 impl SettingsModel {
-    fn parse() -> Result<Self, ConfigError>{
+    fn parse() -> Result<Self, ConfigError> {
         let base_path = std::env::current_dir().expect("Failed to determine the current directory");
         let config_dir = base_path.join(CONFIG_DIR);
         let settings = Config::builder()
@@ -37,26 +37,21 @@ pub struct Settings {
 }
 
 impl Settings {
-    fn dev(model: Option<SettingsModel>) -> Self {
-        if let Some(model) = model {
-            let app = model.app.unwrap_or_else(|| {
-                warn!("Using default `app` settings!");
-                ApplicationSettings::default()
-            });
-            let jwt = model.jwt.unwrap_or_else(|| {
-                warn!("Using default `jwt` settings!");
-                JwtSettings::default()
-            });
-            let postgres = model.postgres.unwrap_or_else(|| {
-                let settings = PostgresSettings::default();
-                warn!("Using default `postgres` settings (env url)!");
-                settings
-            });
-            return Self {app,jwt,postgres};
-        }
-        let default = Self::default();
-        warn!("Using default configuration!");
-        default
+    fn dev(model: SettingsModel) -> Self {
+        let app = model.app.unwrap_or_else(|| {
+            warn!("Using default `app` settings!");
+            ApplicationSettings::default()
+        });
+        let jwt = model.jwt.unwrap_or_else(|| {
+            warn!("Using default `jwt` settings!");
+            JwtSettings::default()
+        });
+        let postgres = model.postgres.unwrap_or_else(|| {
+            let settings = PostgresSettings::default();
+            warn!("Using default `postgres` settings (env url)!");
+            settings
+        });
+        return Self { app, jwt, postgres };
     }
 
     fn prod() -> Self {
@@ -74,7 +69,7 @@ impl Default for Settings {
         let jwt = JwtSettings::default();
         let postgres = PostgresSettings::default();
 
-        Self {app,jwt,postgres}
+        Self { app, jwt, postgres }
     }
 }
 
@@ -106,7 +101,7 @@ impl Default for ApplicationSettings {
         Self {
             host: "127.0.0.1".to_string(),
             port: 3001,
-            origin: "http://127.0.0.1".to_string()
+            origin: "http://127.0.0.1".to_string(),
         }
     }
 }
@@ -240,8 +235,8 @@ impl TryFrom<String> for Environment {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
-            "development"|"dev"|"local" => Ok(Self::Development),
-            "production"|"prod"|"remote" => Ok(Self::Production),
+            "development" | "dev" | "local" => Ok(Self::Development),
+            "production" | "prod" | "remote" => Ok(Self::Production),
             other => Err(format!(
                 "{other} is not supported environment. Use either `local` or `production`"
             )),
@@ -257,13 +252,18 @@ pub fn get_config() -> Result<Settings, anyhow::Error> {
 
     return match environment {
         Environment::Development => {
-            let res = SettingsModel::parse().map_err(|e| error!("{e}\n - check {CONFIG_DIR}/{CONFIG_FILE_NAME}, reference at README.md"));
-            Ok(Settings::dev(res.ok()))
+            let res = SettingsModel::parse().map_err(|e| {
+                error!("{e}\n - check {CONFIG_DIR}/{CONFIG_FILE_NAME}, reference at README.md")
+            });
+            if let Ok(model) = res {
+                return Ok(Settings::dev(model));
+            }
+            let default = Settings::default();
+            warn!("Using default configuration!");
+            return Ok(default);
         }
 
-        Environment::Production => {
-            Ok(Settings::prod())
-        }
+        Environment::Production => Ok(Settings::prod()),
     };
 }
 
