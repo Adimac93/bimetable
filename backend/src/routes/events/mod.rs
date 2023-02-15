@@ -147,7 +147,7 @@ async fn delete_event(
 //     // translate count to until to gain additional information about how to make a change in the db
 //     // identify relations between event part and recurring event boundaries
 //     // based on that information, divide a recurring event into 2 or 3 parts with proper recurrence rules
-    
+
 //     query!(
 //         r#"
 //             UPDATE events SET

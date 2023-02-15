@@ -92,10 +92,16 @@ impl TimeRules {
                 RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
                 RecurrenceEndsAt::Count(n) => {
                     let event_duration: Duration = event_ends_at - event_starts_at;
-                    let time_to_next_event: Duration =
-                        event_duration.checked_add(mult.checked_mul(i32::try_from(self.interval).dc()?).dc()?).dc()?;
-                    let rec_ends_at: OffsetDateTime =
-                        event_starts_at.checked_add(time_to_next_event.checked_mul(i32::try_from(*n).dc()?).dc()?).dc()?;
+                    let time_to_next_event: Duration = event_duration
+                        .checked_add(mult.checked_mul(i32::try_from(self.interval).dc()?).dc()?)
+                        .dc()?;
+                    let rec_ends_at: OffsetDateTime = event_starts_at
+                        .checked_add(
+                            time_to_next_event
+                                .checked_mul(i32::try_from(*n).dc()?)
+                                .dc()?,
+                        )
+                        .dc()?;
                     return Ok(Some(rec_ends_at));
                 }
             }

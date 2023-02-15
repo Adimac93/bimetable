@@ -32,6 +32,4 @@ pub trait DefaultContext<C, T, E>: Context<T, E> {
     }
 }
 
-impl<C, T, E> DefaultContext<C, T, E> for C
-where
-    C: Context<T, E> {}
+impl<C, T, E> DefaultContext<C, T, E> for C where C: Context<T, E> {}
