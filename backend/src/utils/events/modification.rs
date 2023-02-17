@@ -69,7 +69,13 @@ impl EventPart {
                         *event_ends_at,
                     )
                 } else {
-                    todo!()
+                    month_count_to_until(
+                        self.part_starts_at,
+                        self.part_length.as_ref(),
+                        time_rules.interval,
+                        *event_starts_at,
+                        *event_ends_at,
+                    )
                 }
             }
             EventRules::Weekly {
@@ -236,6 +242,52 @@ fn month_is_by_day_count_to_until(
     Ok(None) // never
 }
 
+fn month_count_to_until(
+    part_starts_at: OffsetDateTime,
+    part_ends_at: Option<&RecurrenceEndsAt>,
+    interval: u32,
+    event_starts_at: OffsetDateTime,
+    event_ends_at: OffsetDateTime,
+) -> anyhow::Result<Option<OffsetDateTime>> {
+    if let Some(rec_ends_at) = part_ends_at {
+        match rec_ends_at {
+            RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
+            RecurrenceEndsAt::Count(mut n) => match part_starts_at.day() {
+                1..=28 => {
+                    let week_number = (part_starts_at.day() - 1) % 7;
+                    let target_weekday = part_starts_at.weekday();
+
+                    let target_month = add_months(part_starts_at, n * interval)?.replace_day(1).unwrap();
+                    let first_day_weekday = target_month.weekday();
+
+                    let offset = Duration::days(days_between_two_weekdays(first_day_weekday, target_weekday) as i64);
+
+                    return Ok(Some(target_month + Duration::days((week_number as i64) * 7) + offset + (event_ends_at - event_starts_at)));
+                }
+                29..=31 => {
+                    let mut part_ends_until = part_starts_at;
+                    let target_weekday = part_starts_at.weekday();
+                    let mut target_day = 0;
+                    while n > 0 {
+                        part_ends_until = add_months(part_ends_until, interval)?;
+                        let first_day_weekday = part_ends_until.replace_day(1).unwrap().weekday();
+                        target_day = 29 + days_between_two_weekdays(first_day_weekday, target_weekday);
+                        if days_in_year_month(part_ends_until.year(), part_ends_until.month())
+                            <= target_day
+                        {
+                            n -= 1;
+                        }
+                    }
+                    part_ends_until = part_ends_until.replace_day(target_day).dc()?;
+                    return Ok(Some(part_ends_until + (event_ends_at - event_starts_at)));
+                }
+                _ => unreachable!(),
+            },
+        }
+    }
+    Ok(None) // never
+}
+
 fn add_months(val: OffsetDateTime, chg: u32) -> anyhow::Result<OffsetDateTime> {
     let month_res = nth_next_month(val.month(), chg)?;
     let year_number = (val.month() as u8 + chg as u8) / 12;
@@ -248,6 +300,10 @@ fn add_months(val: OffsetDateTime, chg: u32) -> anyhow::Result<OffsetDateTime> {
 
 fn nth_next_month(val: Month, chg: u32) -> anyhow::Result<Month> {
     Month::try_from((((val as u32).checked_add(chg).dc()? - 1) % 12 + 1) as u8).dc()
+}
+
+fn days_between_two_weekdays(val_a: Weekday, val_b: Weekday) -> u8 {
+    (val_b.number_from_monday() - val_a.number_from_monday()) % 7
 }
 
 fn year_is_by_day_count_to_until(
