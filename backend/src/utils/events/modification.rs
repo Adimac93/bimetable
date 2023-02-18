@@ -1,7 +1,7 @@
 use sqlx::types::Json;
 use time::{
     macros::datetime,
-    util::{days_in_year_month, is_leap_year},
+    util::{days_in_year_month, is_leap_year, weeks_in_year},
     Duration, Month, OffsetDateTime, Weekday,
 };
 
@@ -53,7 +53,13 @@ impl EventPart {
                         *event_ends_at,
                     )
                 } else {
-                    todo!()
+                    year_count_to_until(
+                        self.part_starts_at,
+                        self.part_length.as_ref(),
+                        time_rules.interval,
+                        *event_starts_at,
+                        *event_ends_at,
+                    )
                 }
             }
             EventRules::Monthly {
@@ -335,6 +341,64 @@ fn year_is_by_day_count_to_until(
                             part_starts_at.year() + i32::try_from(n * interval).dc()?,
                         )?;
                         return Ok(Some(base_value + (event_ends_at - event_starts_at)));
+                    }
+                }
+            }
+        }
+    }
+    Ok(None) // never
+}
+
+fn year_count_to_until(
+    part_starts_at: OffsetDateTime,
+    part_ends_at: Option<&RecurrenceEndsAt>,
+    interval: u32,
+    event_starts_at: OffsetDateTime,
+    event_ends_at: OffsetDateTime,
+) -> anyhow::Result<Option<OffsetDateTime>> {
+    if let Some(rec_ends_at) = part_ends_at {
+        match rec_ends_at {
+            RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
+            RecurrenceEndsAt::Count(mut n) => {
+                // get the week number and the weekday
+                let target_weekday = part_starts_at.weekday();
+                let target_week = part_starts_at.monday_based_week();
+                let mut base_year = part_starts_at.replace_day(1)?.replace_month(Month::January)?;
+                // edge case happens when the event is at the beginning of the year, but is still in the last week of the previous year
+                if target_week >= 51 && part_starts_at.month() == Month::January {
+                    base_year = base_year.replace_year(base_year.year() - 1)?;
+                }
+
+                match target_week {
+                    52 => {
+                        // go to the target weekday of the 53rd week in a year
+
+                        let mut part_ends_until = part_starts_at;
+                        while n > 0 {
+                            part_ends_until = part_ends_until.replace_year(
+                                part_ends_until.year() + i32::try_from(n * interval).dc()?,
+                            )?;
+                            if weeks_in_year(part_ends_until.year()) == 53 {
+                                n -= 1;
+                            }
+                        }
+                        let first_monday = part_ends_until + Duration::days(days_between_two_weekdays(part_ends_until.weekday(), Weekday::Monday) as i64);
+                        return Ok(Some(
+                            first_monday
+                            + Duration::weeks(target_week as i64)
+                            + Duration::days(days_between_two_weekdays(Weekday::Monday, target_weekday) as i64)
+                            + (event_ends_at - event_starts_at)
+                        ));
+                    }
+                    _ => {
+                        base_year = base_year.replace_year(part_starts_at.year() + i32::try_from(n * interval).dc()?)?;
+                        let first_monday = base_year + Duration::days(days_between_two_weekdays(base_year.weekday(), Weekday::Monday) as i64);
+                        return Ok(Some(
+                            first_monday
+                            + Duration::weeks(target_week as i64)
+                            + Duration::days(days_between_two_weekdays(Weekday::Monday, target_weekday) as i64)
+                            + (event_ends_at - event_starts_at)
+                        ));
                     }
                 }
             }
