@@ -89,6 +89,9 @@ impl EventPart {
                 week_map,
             } => {
                 let string_week_map = format!("{:0>7b}", week_map % 128);
+                if week_map % 128 == 0 {
+                    return Err(EventError::InvalidEventFormat).dc();
+                }
                 week_count_to_until(
                     self.part_starts_at,
                     self.part_length.as_ref(),
@@ -135,7 +138,11 @@ fn day_count_to_until(
                 //             .dc()?,
                 //     )
                 //     .dc()?;
-                return Ok(Some(part_starts_at + Duration::days((*n * interval) as i64) + (event_ends_at - event_starts_at)));
+                return Ok(Some(
+                    part_starts_at
+                    .checked_add(Duration::days((*n as i64).checked_mul(interval as i64).dc()?)).dc()?
+                    .checked_add(event_ends_at - event_starts_at).dc()?
+                ));
             }
         }
     }
@@ -153,11 +160,12 @@ fn week_count_to_until(
     if let Some(rec_ends_at) = part_ends_at {
         match rec_ends_at {
             RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
-            RecurrenceEndsAt::Count(mut n) => {
+            RecurrenceEndsAt::Count(n) => {
                 // get an amount of events in 1 week
                 let week_event_num = get_amount_from_week_map(&week_map);
                 // calculate the number of week intervals passed with integer division
-                let mut weeks_passed = (n / week_event_num as u32) * interval;
+                // the value cannot be 0, it's been verified earlier
+                let mut weeks_passed = (n / week_event_num as u32).checked_mul(interval).dc()?;
                 // - this is the amount of weeks passed, from the first Monday after the part starts
                 // calculate the modulo between these numbers and seek the nth occurence of the event in one week, where n is the modulo + 1
                 // n has already been verified to be greater than 0, so no overflow (underflow) happens
@@ -170,17 +178,14 @@ fn week_count_to_until(
 
                 // check whether last events carry over to the next week interval
                 if part_starts_at.weekday().number_days_from_monday() + offset_res > 6 {
-                    weeks_passed += interval - 1
+                    weeks_passed = weeks_passed.checked_add(interval - 1).dc()?;
                 };
 
-                println!("dbg: week_event_num = {week_event_num}, weeks_passed = {weeks_passed}, modulo = {modulo}, offset_res = {offset_res}");
-
-                let rec_ends_at = part_starts_at
-                    + Duration::weeks(weeks_passed as i64)
-                    + Duration::days(offset_res as i64)
-                    + (event_ends_at - event_starts_at);
-
-                return Ok(Some(rec_ends_at));
+                return Ok(Some(part_starts_at
+                    .checked_add(Duration::weeks(weeks_passed as i64)).dc()?
+                    .checked_add(Duration::days(offset_res as i64)).dc()?
+                    .checked_add(event_ends_at - event_starts_at).dc()?
+                ));
             }
         }
     }
@@ -189,13 +194,6 @@ fn week_count_to_until(
 
 fn get_amount_from_week_map(week_map: &str) -> u8 {
     week_map.chars().map(|x| x as u8 - 48).sum::<u8>()
-}
-
-fn get_amount_from_week_map_from(week_map: &str, weekday: Weekday) -> u8 {
-    (&week_map[(weekday.number_days_from_monday() as usize)..=6])
-        .chars()
-        .map(|x| x as u8 - 48)
-        .sum::<u8>()
 }
 
 fn get_offset_from_the_map(week_map: &str, event_number: u8, start_at: u8) -> u8 {
@@ -265,12 +263,16 @@ fn month_count_to_until(
                     let week_number = (part_starts_at.day() - 1) / 7;
                     let target_weekday = part_starts_at.weekday();
 
-                    let target_month = add_months(part_starts_at, n * interval)?.replace_day(1)?;
+                    let target_month = add_months(part_starts_at, n.checked_mul(interval).dc()?)?.replace_day(1)?;
                     let first_day_weekday = target_month.weekday();
 
                     let offset = Duration::days(days_between_two_weekdays(first_day_weekday, target_weekday) as i64);
 
-                    return Ok(Some(target_month + Duration::days((week_number as i64) * 7) + offset + (event_ends_at - event_starts_at)));
+                    return Ok(Some(
+                        target_month
+                        .checked_add(Duration::weeks(week_number as i64)).dc()?
+                        .checked_add(offset).dc()?
+                        .checked_add(event_ends_at - event_starts_at).dc()?));
                 }
                 29..=31 => {
                     let mut part_ends_until = part_starts_at;
@@ -287,7 +289,7 @@ fn month_count_to_until(
                         }
                     }
                     part_ends_until = part_ends_until.replace_day(target_day).dc()?;
-                    return Ok(Some(part_ends_until + (event_ends_at - event_starts_at)));
+                    return Ok(Some(part_ends_until.checked_add(event_ends_at - event_starts_at).dc()?));
                 }
                 _ => unreachable!(),
             },
@@ -298,9 +300,9 @@ fn month_count_to_until(
 
 fn add_months(val: OffsetDateTime, chg: u32) -> anyhow::Result<OffsetDateTime> {
     let month_res = nth_next_month(val.month(), chg)?;
-    let year_number = ((val.month() as u8 + chg as u8) - 1) / 12;
+    let year_number = (((val.month() as u32).checked_add(chg)).dc()? - 1) / 12;
     Ok(val
-        .replace_year(val.year() + year_number as i32)
+        .replace_year(val.year().checked_add(year_number as i32).dc()?)
         .dc()?
         .replace_month(month_res)
         .dc()?)
@@ -311,7 +313,7 @@ fn nth_next_month(val: Month, chg: u32) -> anyhow::Result<Month> {
 }
 
 fn days_between_two_weekdays(val_a: Weekday, val_b: Weekday) -> u8 {
-    (((val_b.number_from_monday() as i8) - (val_a.number_from_monday() as i8)).rem_euclid(7)) as u8
+    ((val_b.number_from_monday() as i8) - (val_a.number_from_monday() as i8)).rem_euclid(7) as u8
 }
 
 fn year_is_by_day_count_to_until(
@@ -330,19 +332,22 @@ fn year_is_by_day_count_to_until(
                         let mut part_ends_until = part_starts_at.replace_day(1)?;
                         while n > 0 {
                             part_ends_until = part_ends_until.replace_year(
-                                part_ends_until.year() + i32::try_from(n * interval).dc()?,
+                                part_ends_until.year().checked_add(i32::try_from(n.checked_mul(interval).dc()?).dc()?).dc()?,
                             )?;
                             if is_leap_year(part_ends_until.year()) {
                                 n -= 1;
                             }
                         }
-                        return Ok(Some(part_ends_until.replace_day(part_starts_at.day())? + (event_ends_at - event_starts_at)));
+                        return Ok(Some(
+                            part_ends_until
+                            .replace_day(part_starts_at.day())?
+                            .checked_add(event_ends_at - event_starts_at).dc()?));
                     }
                     _ => {
                         let base_value = part_starts_at.replace_year(
-                            part_starts_at.year() + i32::try_from(n * interval).dc()?,
+                            part_starts_at.year().checked_add(i32::try_from(n.checked_mul(interval).dc()?).dc()?).dc()?,
                         )?;
-                        return Ok(Some(base_value + (event_ends_at - event_starts_at)));
+                        return Ok(Some(base_value.checked_add(event_ends_at - event_starts_at).dc()?));
                     }
                 }
             }
@@ -367,8 +372,12 @@ fn year_count_to_until(
                 let target_week = part_starts_at.iso_week() - 1;
                 let mut base_year = part_starts_at.replace_day(1)?.replace_month(Month::January)?;
                 // edge case happens when the event is at the beginning of the year, but is still in the last week of the previous year
+                // the same coule happen when the event is at the end of the year, but target week is 0
                 if target_week >= 51 && part_starts_at.month() == Month::January {
-                    base_year = base_year.replace_year(base_year.year() - 1)?;
+                    base_year = base_year.replace_year(base_year.year().checked_sub(1).dc()?)?;
+                }
+                else if target_week == 0 && part_starts_at.month() == Month::December {
+                    base_year = base_year.replace_year(base_year.year().checked_add(1).dc()?)?;
                 }
 
                 match target_week {
@@ -376,7 +385,7 @@ fn year_count_to_until(
                         let mut part_ends_until = base_year;
                         while n > 0 {
                             part_ends_until = part_ends_until.replace_year(
-                                part_ends_until.year() + i32::try_from(interval).dc()?,
+                                part_ends_until.year().checked_add(i32::try_from(interval).dc()?).dc()?,
                             )?;
                             if weeks_in_year(part_ends_until.year()) == 53 {
                                 n -= 1;
@@ -385,19 +394,19 @@ fn year_count_to_until(
                         let first_monday = part_ends_until + Duration::days(days_between_two_weekdays(part_ends_until.weekday(), Weekday::Monday) as i64);
                         return Ok(Some(
                             first_monday
-                            + Duration::weeks((target_week - first_monday.iso_week() + 1) as i64)
-                            + Duration::days(days_between_two_weekdays(Weekday::Monday, target_weekday) as i64)
-                            + (event_ends_at - event_starts_at)
+                            .checked_add(Duration::weeks(((target_week as i8) - (first_monday.iso_week() as i8) + 1) as i64)).dc()?
+                            .checked_add(Duration::days(days_between_two_weekdays(Weekday::Monday, target_weekday) as i64)).dc()?
+                            .checked_add(event_ends_at - event_starts_at).dc()?
                         ));
                     }
                     _ => {
-                        base_year = base_year.replace_year(base_year.year() + i32::try_from(n * interval).dc()?)?;
+                        base_year = base_year.replace_year(base_year.year().checked_add(i32::try_from(n.checked_mul(interval).dc()?).dc()?).dc()?)?;
                         let first_monday = base_year + Duration::days(days_between_two_weekdays(base_year.weekday(), Weekday::Monday) as i64);
                         return Ok(Some(
                             first_monday
-                            + Duration::weeks((target_week - first_monday.iso_week() + 1) as i64)
-                            + Duration::days(days_between_two_weekdays(Weekday::Monday, target_weekday) as i64)
-                            + (event_ends_at - event_starts_at)
+                            .checked_add(Duration::weeks((target_week - first_monday.iso_week() + 1) as i64)).dc()?
+                            .checked_add(Duration::days(days_between_two_weekdays(Weekday::Monday, target_weekday) as i64)).dc()?
+                            .checked_add(event_ends_at - event_starts_at).dc()?
                         ));
                     }
                 }
