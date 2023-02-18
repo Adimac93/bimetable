@@ -29,7 +29,9 @@ async fn get_events(
 ) -> Result<Json<Vec<Event>>, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let events = q.get_many(claims.user_id, query.starts_at, query.ends_at).await?;
+    let events = q
+        .get_many(claims.user_id, query.starts_at, query.ends_at)
+        .await?;
     Ok(Json(events))
 }
 
@@ -40,7 +42,15 @@ async fn put_new_event(
 ) -> Result<(StatusCode, Json<Uuid>), EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let event_id = q.create(claims.user_id, body.name, body.description, body.starts_at, body.ends_at).await?;
+    let event_id = q
+        .create(
+            claims.user_id,
+            body.name,
+            body.description,
+            body.starts_at,
+            body.ends_at,
+        )
+        .await?;
 
     Ok((StatusCode::CREATED, Json(event_id)))
 }
@@ -52,7 +62,10 @@ async fn get_event(
 ) -> Result<Json<Event>, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let event = q.get(claims.user_id, id).await?.ok_or(EventError::NotFound)?;
+    let event = q
+        .get(claims.user_id, id)
+        .await?
+        .ok_or(EventError::NotFound)?;
 
     Ok(Json(event))
 }

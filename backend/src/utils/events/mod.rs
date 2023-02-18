@@ -1,9 +1,10 @@
 use crate::modules::database::PgQuery;
+use crate::utils::events::models::{Event, EventRules};
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{query, query_as};
 use uuid::Uuid;
-use crate::utils::events::models::{Event, EventRules};
 
+pub mod additions;
 pub mod errors;
 pub mod models;
 pub mod modification;
@@ -95,7 +96,6 @@ impl<'c> PgQuery<'c, EventQuery> {
             event.ends_at,
             user_id,
             event.id,
-
         )
         .execute(&mut *self.conn)
         .await?;
