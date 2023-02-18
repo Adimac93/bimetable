@@ -31,20 +31,22 @@ fn create_event(pool: PgPool) {
             },
             week_map: 0b0010011,
         }),
+        description: "Test description".into(),
     };
     let rec = query_as!(
         Event,
         r#"
-            INSERT INTO events (name, owner_id, starts_at, ends_at , recurrence_rule)
+            INSERT INTO events (name, owner_id, starts_at, ends_at , recurrence_rule, description)
             VALUES
-            ($1, $2, $3, $4, $5)
-            RETURNING id, owner_id, name, starts_at, ends_at, recurrence_rule as "recurrence_rule: _";
+            ($1, $2, $3, $4, $5, $6)
+            RETURNING id, owner_id, name, starts_at, ends_at, recurrence_rule as "recurrence_rule: _", description;
         "#,
         body.name,
         user_id,
         body.starts_at,
         body.ends_at,
-        sqlx::types::Json(body.recurrence_rule) as _
+        sqlx::types::Json(body.recurrence_rule) as _,
+        body.description,
     )
     .fetch_one(&pool)
     .await.unwrap();
