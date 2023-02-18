@@ -15,6 +15,7 @@ pub struct GetEventsQuery {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateEvent {
     pub name: String,
+    pub description: String,
     #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
     pub starts_at: Option<OffsetDateTime>,
     #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]

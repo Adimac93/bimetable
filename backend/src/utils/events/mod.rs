@@ -1,8 +1,8 @@
 use crate::modules::database::PgQuery;
-use crate::routes::events::models::Event;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{query, query_as};
 use uuid::Uuid;
+use crate::utils::events::models::{Event, EventRules};
 
 pub mod errors;
 pub mod models;
@@ -13,20 +13,24 @@ pub struct EventQuery {}
 impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create(
         &mut self,
+        user_id: Uuid,
         name: String,
-        starts_at: OffsetDateTime,
-        ends_at: OffsetDateTime,
+        description: String,
+        starts_at: Option<OffsetDateTime>,
+        ends_at: Option<OffsetDateTime>,
     ) -> sqlx::Result<Uuid> {
         let id = query!(
             r#"
-                INSERT INTO events (starts_at, ends_at, name)
+                INSERT INTO events (owner_id, name, description, starts_at, ends_at)
                 VALUES
-                ($1, $2, $3)
-                RETURNING id;
+                ($1, $2, $3, $4, $5)
+                RETURNING id
             "#,
+            user_id,
+            name,
+            description,
             starts_at,
             ends_at,
-            name,
         )
         .fetch_one(&mut *self.conn)
         .await?
@@ -35,14 +39,15 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(id)
     }
 
-    pub async fn get(&mut self, id: Uuid) -> sqlx::Result<Option<Event>> {
+    pub async fn get(&mut self, user_id: Uuid, id: Uuid) -> sqlx::Result<Option<Event>> {
         let event = query_as!(
             Event,
             r#"
-                SELECT *
+                SELECT id, owner_id, name, description, starts_at, ends_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<EventRules>"
                 FROM events
-                WHERE id = $1;
+                WHERE owner_id = $1 AND id = $2;
             "#,
+            user_id,
             id,
         )
         .fetch_optional(&mut *self.conn)
@@ -53,16 +58,18 @@ impl<'c> PgQuery<'c, EventQuery> {
 
     pub async fn get_many(
         &mut self,
-        starts_at: OffsetDateTime,
-        ends_at: OffsetDateTime,
+        user_id: Uuid,
+        starts_at: Option<OffsetDateTime>,
+        ends_at: Option<OffsetDateTime>,
     ) -> sqlx::Result<Vec<Event>> {
         let events = query_as!(
             Event,
             r#"
-            SELECT *
+            SELECT id, owner_id, name, description, starts_at, ends_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<EventRules>"
             FROM events
-            WHERE starts_at >= $1 AND ends_at <= $2;
+            WHERE owner_id = $1 AND starts_at >= $2 AND ends_at <= $3;
         "#,
+            user_id,
             starts_at,
             ends_at,
         )
@@ -72,19 +79,23 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(events)
     }
 
-    pub async fn update(&mut self, event: Event) -> sqlx::Result<()> {
+    pub async fn update(&mut self, user_id: Uuid, event: Event) -> sqlx::Result<()> {
         query!(
             r#"
                 UPDATE events SET
-                starts_at = $2,
-                ends_at = $3,
-                name = $4
-                WHERE id = $1;
+                name = $1,
+                description = $2,
+                starts_at = $3,
+                ends_at = $4
+                WHERE owner_id = $5 AND id = $6
             "#,
-            event.id,
+            event.name,
+            event.description,
             event.starts_at,
             event.ends_at,
-            event.name,
+            user_id,
+            event.id,
+
         )
         .execute(&mut *self.conn)
         .await?;
@@ -92,12 +103,13 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(())
     }
 
-    pub async fn delete(&mut self, id: Uuid) -> sqlx::Result<()> {
+    pub async fn delete(&mut self, user_id: Uuid, id: Uuid) -> sqlx::Result<()> {
         query!(
             r#"
                 DELETE FROM events
-                WHERE id = $1;
+                WHERE owner_id = $1 AND id = $2
             "#,
+            user_id,
             id
         )
         .execute(&mut *self.conn)

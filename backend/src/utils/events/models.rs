@@ -10,6 +10,7 @@ pub struct Event {
     pub id: Uuid,
     pub owner_id: Uuid,
     pub name: String,
+    pub description: String,
     #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
     pub starts_at: Option<OffsetDateTime>,
     #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
