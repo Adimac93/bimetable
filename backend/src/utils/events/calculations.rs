@@ -1,6 +1,5 @@
 use sqlx::types::Json;
 use time::{
-    macros::datetime,
     util::{days_in_year_month, is_leap_year, weeks_in_year},
     Duration, Month, OffsetDateTime, Weekday,
 };
@@ -12,15 +11,14 @@ use super::{
         add_months, days_between_two_weekdays, get_amount_from_week_map, get_offset_from_the_map,
     },
     errors::EventError,
-    models::{EventPart, EventRules, RecurrenceEndsAt, TimeRules},
+    models::{EventPart, EventRules, RecurrenceEndsAt},
 };
 
 struct CountToUntilData {
     part_starts_at: OffsetDateTime,
     count: u32,
     interval: u32,
-    event_starts_at: OffsetDateTime,
-    event_ends_at: OffsetDateTime,
+    event_duration: Duration,
 }
 
 impl CountToUntilData {
@@ -28,15 +26,13 @@ impl CountToUntilData {
         part_starts_at: OffsetDateTime,
         count: u32,
         interval: u32,
-        event_starts_at: OffsetDateTime,
-        event_ends_at: OffsetDateTime,
+        event_duration: Duration,
     ) -> Self {
         Self {
             part_starts_at,
             count,
             interval,
-            event_starts_at,
-            event_ends_at,
+            event_duration,
         }
     }
 }
@@ -58,30 +54,35 @@ impl EventPart {
             .recurrence_rule
             .as_ref()
             .ok_or(EventError::NotFound)?;
+
         let event_starts_at = self
             .event_data
             .starts_at
             .as_ref()
             .ok_or(EventError::NotFound)?;
+
         let event_ends_at = self
             .event_data
             .ends_at
             .as_ref()
             .ok_or(EventError::NotFound)?;
+
         let Some(part_ends_at) = self.part_length.as_ref() else {
             return Ok(None)
         };
+
         let count = match part_ends_at {
             RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
             RecurrenceEndsAt::Count(n) => *n,
         };
+
         let mut conv_data = CountToUntilData::new(
             self.part_starts_at,
             count,
             0,
-            *event_starts_at,
-            *event_ends_at,
+            *event_ends_at - *event_starts_at,
         );
+        
         match rec_rules {
             EventRules::Yearly {
                 time_rules,
@@ -134,7 +135,7 @@ fn day_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<Offs
                     .dc()?,
             ))
             .dc()?
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
+            .checked_add(conv_data.event_duration)
             .dc()?,
     ))
 }
@@ -170,7 +171,7 @@ fn week_count_to_until(
             .dc()?
             .checked_add(Duration::days(bonus_days_passed as i64))
             .dc()?
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
+            .checked_add(conv_data.event_duration)
             .dc()?,
     ))
 }
@@ -192,9 +193,7 @@ fn month_is_by_day_count_to_until_easy_days(
         conv_data.part_starts_at,
         conv_data.count.checked_mul(conv_data.interval).dc()?,
     )?;
-    Ok(Some(
-        base_date + (conv_data.event_ends_at - conv_data.event_starts_at),
-    ))
+    Ok(Some(base_date + (conv_data.event_duration)))
 }
 
 fn month_is_by_day_count_to_until_hard_days(
@@ -210,8 +209,7 @@ fn month_is_by_day_count_to_until_hard_days(
         }
     }
     Ok(Some(
-        monthly_step.replace_day(conv_data.part_starts_at.day())?
-            + (conv_data.event_ends_at - conv_data.event_starts_at),
+        monthly_step.replace_day(conv_data.part_starts_at.day())? + (conv_data.event_duration),
     ))
 }
 
@@ -245,7 +243,7 @@ fn month_count_to_until_easy_days(
             .dc()?
             .checked_add(Duration::days(days_passed as i64))
             .dc()?
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
+            .checked_add(conv_data.event_duration)
             .dc()?,
     ))
 }
@@ -267,9 +265,7 @@ fn month_count_to_until_hard_days(
         if conv_data.count == 0 {
             monthly_step = monthly_step.replace_day(target_day).dc()?;
             return Ok(Some(
-                monthly_step
-                    .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
-                    .dc()?,
+                monthly_step.checked_add(conv_data.event_duration).dc()?,
             ));
         }
     }
@@ -311,7 +307,7 @@ fn year_is_by_day_count_to_until_feb_29(
     Ok(Some(
         yearly_step
             .replace_day(conv_data.part_starts_at.day())?
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
+            .checked_add(conv_data.event_duration)
             .dc()?,
     ))
 }
@@ -329,9 +325,7 @@ fn year_is_by_day_count_to_until_other_days(
             .dc()?,
     )?;
     return Ok(Some(
-        target_date
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
-            .dc()?,
+        target_date.checked_add(conv_data.event_duration).dc()?,
     ));
 }
 
@@ -346,7 +340,7 @@ fn year_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<Off
 fn year_count_to_until_easy_days(
     conv_data: CountToUntilData,
 ) -> anyhow::Result<Option<OffsetDateTime>> {
-    let (target_weekday, target_week, mut base_year) = yearly_conv_data(&conv_data)?;
+    let (target_weekday, target_week, base_year) = yearly_conv_data(&conv_data)?;
 
     let target_year = base_year.replace_year(
         base_year
@@ -370,7 +364,7 @@ fn year_count_to_until_easy_days(
                 days_between_two_weekdays(Weekday::Monday, target_weekday) as i64,
             ))
             .dc()?
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
+            .checked_add(conv_data.event_duration)
             .dc()?,
     ))
 }
@@ -406,7 +400,7 @@ fn year_count_to_until_hard_days(
                 days_between_two_weekdays(Weekday::Monday, target_weekday) as i64,
             ))
             .dc()?
-            .checked_add(conv_data.event_ends_at - conv_data.event_starts_at)
+            .checked_add(conv_data.event_duration)
             .dc()?,
     ))
 }
@@ -431,12 +425,16 @@ fn yearly_conv_data(conv_data: &CountToUntilData) -> anyhow::Result<(Weekday, u8
 }
 
 mod recurrence_tests {
+    #[cfg(test)]
+    use time::macros::datetime;
+    #[cfg(test)]
     use uuid::Uuid;
-
-    use crate::utils::events::models::Event;
-
+    #[cfg(test)]
+    use crate::utils::events::models::{Event, TimeRules};
+    #[cfg(test)]
     use super::*;
 
+    #[cfg(test)]
     fn create_test_event_part(
         event_starts_at: OffsetDateTime,
         event_ends_at: OffsetDateTime,

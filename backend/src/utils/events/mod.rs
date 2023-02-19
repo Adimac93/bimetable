@@ -5,9 +5,9 @@ use sqlx::{query, query_as};
 use uuid::Uuid;
 
 pub mod additions;
+pub mod calculations;
 pub mod errors;
 pub mod models;
-pub mod calculations;
 
 pub struct EventQuery {}
 
