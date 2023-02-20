@@ -1,5 +1,5 @@
-use crate::modules::AppState;
 use crate::utils::auth::errors::*;
+use crate::{modules::AppState, utils::auth::additions::is_ascii_or_latin_extended};
 use anyhow::Context;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
 use axum_extra::extract::{
@@ -11,11 +11,15 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use secrecy::{ExposeSecret, Secret};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use time::Duration;
+use sqlx::{query, PgPool};
+use time::{Duration, OffsetDateTime};
+use tracing::trace;
 
+use crate::modules::extensions::jwt::TokenSecrets;
 use uuid::Uuid;
 use validator::Validate;
 
+#[async_trait]
 pub trait AuthToken<'s>
 where
     Self: DeserializeOwned + Serialize + Send + Sized,
@@ -23,6 +27,8 @@ where
     const NAME: &'s str;
     const JWT_EXPIRATION: Duration;
 
+    fn jti(&self) -> Uuid;
+    fn exp(&self) -> u64;
     fn generate_cookie(token: String) -> Cookie<'s> {
         Cookie::build(Self::NAME, token)
             .http_only(true)
@@ -59,18 +65,50 @@ where
 
         Ok(data.claims)
     }
+
+    async fn add_token_to_blacklist(&self, pool: &PgPool) -> Result<(), AuthError> {
+        let exp = OffsetDateTime::from_unix_timestamp(self.exp() as i64)
+            .context("Failed to convert timestamp to date and time with the timezone")
+            .map_err(AuthError::Unexpected)?;
+
+        let _res = query!(
+            r#"
+                insert into jwt_blacklist (token_id, expiry)
+                values ($1, $2)
+            "#,
+            self.jti(),
+            exp,
+        )
+        .execute(pool)
+        .await?;
+
+        trace!("Adding token to blacklist");
+        Ok(())
+    }
 }
 
-#[async_trait]
 impl<'s> AuthToken<'s> for Claims {
     const NAME: &'s str = "jwt";
     const JWT_EXPIRATION: Duration = Duration::seconds(15);
+
+    fn jti(&self) -> Uuid {
+        self.jti
+    }
+    fn exp(&self) -> u64 {
+        self.exp
+    }
 }
 
-#[async_trait]
 impl<'s> AuthToken<'s> for RefreshClaims {
     const NAME: &'s str = "refresh-jwt";
     const JWT_EXPIRATION: Duration = Duration::days(7);
+
+    fn jti(&self) -> Uuid {
+        self.jti
+    }
+    fn exp(&self) -> u64 {
+        self.exp
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -93,14 +131,19 @@ impl Claims {
 }
 
 #[async_trait]
-impl FromRequestParts<AppState> for Claims {
+impl<S> FromRequestParts<S> for Claims
+where
+    S: Send + Sync,
+{
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        req: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        verify_token::<Self>(req, &state.jwt.access.0).await
+    async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let secret = req
+            .extensions
+            .get::<TokenSecrets>()
+            .context("Failed to get JWT secrets")?
+            .to_owned();
+        verify_token::<Self>(req, &secret.access.0).await
     }
 }
 
@@ -124,14 +167,19 @@ impl RefreshClaims {
 }
 
 #[async_trait]
-impl FromRequestParts<AppState> for RefreshClaims {
+impl<S> FromRequestParts<S> for RefreshClaims
+where
+    S: Send + Sync,
+{
     type Rejection = AuthError;
 
-    async fn from_request_parts(
-        req: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        verify_token::<Self>(req, &state.jwt.refresh.0).await
+    async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let secret = req
+            .extensions
+            .get::<TokenSecrets>()
+            .context("Failed to get JWT secrets")?
+            .to_owned();
+        verify_token::<Self>(req, &secret.refresh.0).await
     }
 }
 
@@ -152,34 +200,19 @@ where
     Ok(claims)
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct LoginCredentials {
+#[derive(Validate)]
+pub struct ValidatedUserData {
+    #[validate(
+        non_control_character,
+        custom = "is_ascii_or_latin_extended",
+        does_not_contain = " ",
+        length(min = 4, max = 20)
+    )]
     pub login: String,
-    pub password: String,
-}
-
-impl LoginCredentials {
-    pub fn new(login: &str, password: &str) -> Self {
-        Self {
-            login: login.into(),
-            password: password.into(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Validate)]
-pub struct RegisterCredentials {
-    pub login: String,
-    pub password: String,
+    #[validate(
+        non_control_character,
+        custom = "is_ascii_or_latin_extended",
+        length(min = 4, max = 20)
+    )]
     pub username: String,
-}
-
-impl RegisterCredentials {
-    pub fn new(login: &str, password: &str, username: &str) -> Self {
-        Self {
-            login: login.into(),
-            password: password.into(),
-            username: username.into(),
-        }
-    }
 }

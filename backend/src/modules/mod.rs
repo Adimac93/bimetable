@@ -1,16 +1,17 @@
 use self::{
     database::get_postgres_pool,
-    extractors::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets},
+    extensions::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets},
 };
 use crate::config::get_config;
 use axum::extract::FromRef;
+use core::fmt::Display;
 use secrecy::Secret;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use tracing::{error, info};
 
 pub mod database;
-pub mod extractors;
+pub mod extensions;
 
 pub struct Core {
     pub addr: SocketAddr,
@@ -61,22 +62,48 @@ impl Modules {
         }
     }
 
-    pub fn state(self) -> AppState {
+    pub fn state(&self) -> AppState {
         AppState::new(self)
+    }
+
+    pub fn extensions(&self) -> AppExtensions {
+        AppExtensions::new(self)
     }
 }
 
 #[derive(Clone, FromRef)]
 pub struct AppState {
     pub pool: PgPool,
-    pub jwt: TokenSecrets,
 }
 
 impl AppState {
-    fn new(modules: Modules) -> Self {
+    fn new(modules: &Modules) -> Self {
         Self {
-            pool: modules.pool,
-            jwt: modules.jwt,
+            pool: modules.pool.clone(),
         }
+    }
+}
+
+impl Display for AppState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "postgres pool")
+    }
+}
+
+pub struct AppExtensions {
+    pub jwt: TokenSecrets,
+}
+
+impl AppExtensions {
+    fn new(modules: &Modules) -> Self {
+        Self {
+            jwt: modules.jwt.clone(),
+        }
+    }
+}
+
+impl Display for AppExtensions {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "token secrets")
     }
 }
