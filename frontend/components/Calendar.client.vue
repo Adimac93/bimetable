@@ -3,13 +3,15 @@
     <table class="calendar">
         <thead>
             <tr>
-                <th colspan="7"><div class="header">
-                    <button @click="changeMonth(-1)">&lt;</button>
-                    <span>
-                        {{ monthStart.format("MMM YYYY") }}
-                    </span>
-                    <button @click="changeMonth(1)">&gt;</button>
-                </div></th>
+                <th colspan="7">
+                    <div class="header">
+                        <button @click="changeMonth(-1)">&lt;</button>
+                        <span>
+                            {{ monthStart.format("MMM YYYY") }}
+                        </span>
+                        <button @click="changeMonth(1)">&gt;</button>
+                    </div>
+                </th>
             </tr>
             <tr>
                 <th v-for="weekday in weekdays">{{ weekday }}</th>
@@ -21,13 +23,8 @@
                     <template v-if="'offset' in day">
                         <td v-if="day.offset" :colspan="day.offset"></td>
                     </template>
-                    <CalendarCell
-                        v-else
-                        :day="day.date.date()"
-                        :highlight="day.date.isSame(today, 'day')"
-                        :events="day.events"
-                        @activate="selectCell(day.date, day.events)"
-                    />
+                    <CalendarCell v-else :day="day.date.date()" :highlight="day.date.isSame(today, 'day')"
+                        :events="day.events" @activate="selectCell(day.date, day.events)" />
                 </template>
             </tr>
         </tbody>
