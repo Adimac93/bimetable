@@ -11,7 +11,8 @@ use super::{
         add_months, days_between_two_weekdays, get_amount_from_week_map, get_offset_from_the_map,
     },
     errors::EventError,
-    models::{EventPart, EventRules, RecurrenceEndsAt},
+    event_range::{get_daily_events, get_weekly_events},
+    models::{Event, EventPart, EventRules, RecurrenceEndsAt, TimeRange},
 };
 
 struct CountToUntilData {
@@ -37,6 +38,32 @@ impl CountToUntilData {
     }
 }
 
+pub struct EventRangeData {
+    pub part_starts_at: OffsetDateTime,
+    pub part_ends_at: OffsetDateTime,
+    pub interval: u32,
+    pub event_starts_at: OffsetDateTime,
+    pub event_ends_at: OffsetDateTime,
+}
+
+impl EventRangeData {
+    fn new(
+        part_starts_at: OffsetDateTime,
+        part_ends_at: OffsetDateTime,
+        interval: u32,
+        event_starts_at: OffsetDateTime,
+        event_ends_at: OffsetDateTime,
+    ) -> Self {
+        Self {
+            part_starts_at,
+            part_ends_at,
+            interval,
+            event_starts_at,
+            event_ends_at,
+        }
+    }
+}
+
 impl EventPart {
     pub fn verify_event_part(&self) -> Result<(), EventError> {
         match self.part_length {
@@ -48,24 +75,8 @@ impl EventPart {
         }
     }
 
-    fn count_to_until(&self) -> Result<Option<OffsetDateTime>, anyhow::Error> {
-        let Json(rec_rules) = self
-            .event_data
-            .recurrence_rule
-            .as_ref()
-            .ok_or(EventError::NotFound)?;
-
-        let event_starts_at = self
-            .event_data
-            .starts_at
-            .as_ref()
-            .ok_or(EventError::NotFound)?;
-
-        let event_ends_at = self
-            .event_data
-            .ends_at
-            .as_ref()
-            .ok_or(EventError::NotFound)?;
+    fn count_to_until(&self) -> Result<Option<OffsetDateTime>, EventError> {
+        let (rec_rules, event_starts_at, event_ends_at) = self.get_recurrence_data()?;
 
         let Some(part_ends_at) = self.part_length.as_ref() else {
             return Ok(None)
@@ -80,9 +91,8 @@ impl EventPart {
             self.part_starts_at,
             count,
             0,
-            *event_ends_at - *event_starts_at,
+            event_ends_at - event_starts_at,
         );
-        
         match rec_rules {
             EventRules::Yearly {
                 time_rules,
@@ -113,9 +123,9 @@ impl EventPart {
                 conv_data.interval = time_rules.interval;
                 let string_week_map = format!("{:0>7b}", week_map % 128);
                 if week_map % 128 == 0 {
-                    return Err(EventError::InvalidEventFormat).dc();
+                    return Err(EventError::InvalidEventFormat);
                 }
-                week_count_to_until(conv_data, string_week_map)
+                week_count_to_until(conv_data, &string_week_map)
             }
             EventRules::Daily { time_rules } => {
                 conv_data.interval = time_rules.interval;
@@ -123,9 +133,82 @@ impl EventPart {
             }
         }
     }
+
+    fn get_event_range(&self) -> Result<Vec<TimeRange>, EventError> {
+        let (rec_rules, event_starts_at, event_ends_at) = self.get_recurrence_data()?;
+
+        let part_ends_at = self.part_length.as_ref().ok_or(EventError::NotFound)?;
+
+        let part_ends_at = match part_ends_at {
+            RecurrenceEndsAt::Until(t) => *t,
+            RecurrenceEndsAt::Count(n) => self.count_to_until()?.dc()?,
+        };
+
+        let mut range_data = EventRangeData::new(
+            self.part_starts_at,
+            part_ends_at,
+            0,
+            event_starts_at,
+            event_ends_at,
+        );
+
+        match rec_rules {
+            EventRules::Yearly {
+                time_rules,
+                is_by_day,
+            } => {
+                range_data.interval = time_rules.interval;
+                if *is_by_day {
+                    todo!()
+                } else {
+                    todo!()
+                }
+            }
+            EventRules::Monthly {
+                time_rules,
+                is_by_day,
+            } => {
+                range_data.interval = time_rules.interval;
+                if *is_by_day {
+                    todo!()
+                } else {
+                    todo!()
+                }
+            }
+            EventRules::Weekly {
+                time_rules,
+                week_map,
+            } => {
+                range_data.interval = time_rules.interval;
+                let string_week_map = format!("{:0>7b}", week_map % 128);
+                if week_map % 128 == 0 {
+                    return Err(EventError::InvalidEventFormat);
+                }
+                Ok(get_weekly_events(range_data, &string_week_map))
+            }
+            EventRules::Daily { time_rules } => {
+                range_data.interval = time_rules.interval;
+                Ok(get_daily_events(range_data))
+            }
+        }
+    }
+
+    fn get_recurrence_data(&self) -> anyhow::Result<(&EventRules, OffsetDateTime, OffsetDateTime)> {
+        let Json(rec_rules) = self
+            .event_data
+            .recurrence_rule
+            .as_ref()
+            .ok_or(EventError::NotFound)?;
+
+        let event_starts_at = self.event_data.starts_at.ok_or(EventError::NotFound)?;
+
+        let event_ends_at = self.event_data.ends_at.ok_or(EventError::NotFound)?;
+
+        Ok((rec_rules, event_starts_at, event_ends_at))
+    }
 }
 
-fn day_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<OffsetDateTime>> {
+fn day_count_to_until(conv_data: CountToUntilData) -> Result<Option<OffsetDateTime>, EventError> {
     Ok(Some(
         conv_data
             .part_starts_at
@@ -142,10 +225,10 @@ fn day_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<Offs
 
 fn week_count_to_until(
     conv_data: CountToUntilData,
-    week_map: String,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+    week_map: &str,
+) -> Result<Option<OffsetDateTime>, EventError> {
     // get amount of event recurrences in 1 week
-    let week_event_num = get_amount_from_week_map(&week_map);
+    let week_event_num = get_amount_from_week_map(week_map);
 
     // calculate the number of full week intervals
     let mut weeks_passed = (conv_data.count / week_event_num as u32)
@@ -154,7 +237,7 @@ fn week_count_to_until(
 
     // calculate the amount of days passed in the last interval
     let bonus_days_passed = get_offset_from_the_map(
-        &week_map,
+        week_map,
         ((conv_data.count - 1) % week_event_num as u32) as u8 + 1,
         conv_data.part_starts_at.weekday().number_days_from_monday(),
     );
@@ -178,7 +261,7 @@ fn week_count_to_until(
 
 fn month_is_by_day_count_to_until(
     conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+) -> Result<Option<OffsetDateTime>, EventError> {
     if conv_data.part_starts_at.day() <= 28 {
         month_is_by_day_count_to_until_easy_days(conv_data)
     } else {
@@ -188,7 +271,7 @@ fn month_is_by_day_count_to_until(
 
 fn month_is_by_day_count_to_until_easy_days(
     conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+) -> Result<Option<OffsetDateTime>, EventError> {
     let base_date = add_months(
         conv_data.part_starts_at,
         conv_data.count.checked_mul(conv_data.interval).dc()?,
@@ -198,8 +281,8 @@ fn month_is_by_day_count_to_until_easy_days(
 
 fn month_is_by_day_count_to_until_hard_days(
     mut conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
-    let mut monthly_step = conv_data.part_starts_at.replace_day(1)?;
+) -> Result<Option<OffsetDateTime>, EventError> {
+    let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
     while conv_data.count > 0 {
         monthly_step = add_months(monthly_step, conv_data.interval)?;
         if days_in_year_month(monthly_step.year(), monthly_step.month())
@@ -209,11 +292,14 @@ fn month_is_by_day_count_to_until_hard_days(
         }
     }
     Ok(Some(
-        monthly_step.replace_day(conv_data.part_starts_at.day())? + (conv_data.event_duration),
+        monthly_step
+            .replace_day(conv_data.part_starts_at.day())
+            .dc()?
+            + (conv_data.event_duration),
     ))
 }
 
-fn month_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<OffsetDateTime>> {
+fn month_count_to_until(conv_data: CountToUntilData) -> Result<Option<OffsetDateTime>, EventError> {
     if conv_data.part_starts_at.day() <= 28 {
         month_count_to_until_easy_days(conv_data)
     } else {
@@ -223,14 +309,15 @@ fn month_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<Of
 
 fn month_count_to_until_easy_days(
     conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+) -> Result<Option<OffsetDateTime>, EventError> {
     let week_number = (conv_data.part_starts_at.day() - 1) / 7;
 
     let first_target_month_day = add_months(
         conv_data.part_starts_at,
         conv_data.count.checked_mul(conv_data.interval).dc()?,
     )?
-    .replace_day(1)?;
+    .replace_day(1)
+    .dc()?;
 
     let days_passed = days_between_two_weekdays(
         first_target_month_day.weekday(),
@@ -250,8 +337,8 @@ fn month_count_to_until_easy_days(
 
 fn month_count_to_until_hard_days(
     mut conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
-    let mut monthly_step = conv_data.part_starts_at.replace_day(1)?;
+) -> Result<Option<OffsetDateTime>, EventError> {
+    let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
     loop {
         monthly_step = add_months(monthly_step, conv_data.interval)?;
         let target_day =
@@ -273,7 +360,7 @@ fn month_count_to_until_hard_days(
 
 fn year_is_by_day_count_to_until(
     conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+) -> Result<Option<OffsetDateTime>, EventError> {
     if (
         conv_data.part_starts_at.month(),
         conv_data.part_starts_at.day(),
@@ -287,18 +374,21 @@ fn year_is_by_day_count_to_until(
 
 fn year_is_by_day_count_to_until_feb_29(
     mut conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
-    let mut yearly_step = conv_data.part_starts_at.replace_day(1)?;
+) -> Result<Option<OffsetDateTime>, EventError> {
+    let mut yearly_step = conv_data.part_starts_at.replace_day(1).dc()?;
 
     while conv_data.count > 0 {
-        yearly_step = yearly_step.replace_year(
-            yearly_step
-                .year()
-                .checked_add(i32::try_from(
-                    conv_data.count.checked_mul(conv_data.interval).dc()?,
-                )?)
-                .dc()?,
-        )?;
+        yearly_step = yearly_step
+            .replace_year(
+                yearly_step
+                    .year()
+                    .checked_add(
+                        i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?)
+                            .dc()?,
+                    )
+                    .dc()?,
+            )
+            .dc()?;
         if is_leap_year(yearly_step.year()) {
             conv_data.count -= 1;
         }
@@ -306,7 +396,8 @@ fn year_is_by_day_count_to_until_feb_29(
 
     Ok(Some(
         yearly_step
-            .replace_day(conv_data.part_starts_at.day())?
+            .replace_day(conv_data.part_starts_at.day())
+            .dc()?
             .checked_add(conv_data.event_duration)
             .dc()?,
     ))
@@ -314,22 +405,25 @@ fn year_is_by_day_count_to_until_feb_29(
 
 fn year_is_by_day_count_to_until_other_days(
     conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
-    let target_date = conv_data.part_starts_at.replace_year(
-        conv_data
-            .part_starts_at
-            .year()
-            .checked_add(i32::try_from(
-                conv_data.count.checked_mul(conv_data.interval).dc()?,
-            )?)
-            .dc()?,
-    )?;
+) -> Result<Option<OffsetDateTime>, EventError> {
+    let target_date = conv_data
+        .part_starts_at
+        .replace_year(
+            conv_data
+                .part_starts_at
+                .year()
+                .checked_add(
+                    i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?).dc()?,
+                )
+                .dc()?,
+        )
+        .dc()?;
     return Ok(Some(
         target_date.checked_add(conv_data.event_duration).dc()?,
     ));
 }
 
-fn year_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<OffsetDateTime>> {
+fn year_count_to_until(conv_data: CountToUntilData) -> Result<Option<OffsetDateTime>, EventError> {
     if conv_data.part_starts_at.iso_week() == 53 {
         year_count_to_until_hard_days(conv_data)
     } else {
@@ -339,17 +433,19 @@ fn year_count_to_until(conv_data: CountToUntilData) -> anyhow::Result<Option<Off
 
 fn year_count_to_until_easy_days(
     conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+) -> Result<Option<OffsetDateTime>, EventError> {
     let (target_weekday, target_week, base_year) = yearly_conv_data(&conv_data)?;
 
-    let target_year = base_year.replace_year(
-        base_year
-            .year()
-            .checked_add(i32::try_from(
-                conv_data.count.checked_mul(conv_data.interval).dc()?,
-            )?)
-            .dc()?,
-    )?;
+    let target_year = base_year
+        .replace_year(
+            base_year
+                .year()
+                .checked_add(
+                    i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?).dc()?,
+                )
+                .dc()?,
+        )
+        .dc()?;
 
     let first_monday = target_year
         + Duration::days(days_between_two_weekdays(target_year.weekday(), Weekday::Monday) as i64);
@@ -371,17 +467,19 @@ fn year_count_to_until_easy_days(
 
 fn year_count_to_until_hard_days(
     mut conv_data: CountToUntilData,
-) -> anyhow::Result<Option<OffsetDateTime>> {
+) -> Result<Option<OffsetDateTime>, EventError> {
     let (target_weekday, target_week, base_year) = yearly_conv_data(&conv_data)?;
     let mut yearly_step = base_year;
 
     while conv_data.count > 0 {
-        yearly_step = yearly_step.replace_year(
-            yearly_step
-                .year()
-                .checked_add(i32::try_from(conv_data.interval).dc()?)
-                .dc()?,
-        )?;
+        yearly_step = yearly_step
+            .replace_year(
+                yearly_step
+                    .year()
+                    .checked_add(i32::try_from(conv_data.interval).dc()?)
+                    .dc()?,
+            )
+            .dc()?;
         if weeks_in_year(yearly_step.year()) == 53 {
             conv_data.count -= 1;
         }
@@ -426,13 +524,13 @@ fn yearly_conv_data(conv_data: &CountToUntilData) -> anyhow::Result<(Weekday, u8
 
 mod recurrence_tests {
     #[cfg(test)]
-    use time::macros::datetime;
-    #[cfg(test)]
-    use uuid::Uuid;
+    use super::*;
     #[cfg(test)]
     use crate::utils::events::models::{Event, TimeRules};
     #[cfg(test)]
-    use super::*;
+    use time::macros::datetime;
+    #[cfg(test)]
+    use uuid::Uuid;
 
     #[cfg(test)]
     fn create_test_event_part(

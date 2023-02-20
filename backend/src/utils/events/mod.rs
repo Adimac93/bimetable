@@ -7,6 +7,7 @@ use uuid::Uuid;
 pub mod additions;
 pub mod calculations;
 pub mod errors;
+pub mod event_range;
 pub mod models;
 
 pub struct EventQuery {}

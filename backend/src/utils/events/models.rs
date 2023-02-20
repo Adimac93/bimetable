@@ -110,3 +110,8 @@ impl TimeRules {
         Ok(None) // never
     }
 }
+
+pub struct TimeRange {
+    pub starts_at: OffsetDateTime,
+    pub ends_at: OffsetDateTime,
+}
