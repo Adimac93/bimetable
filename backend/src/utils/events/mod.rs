@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub mod additions;
 pub mod calculations;
+pub mod count_to_until;
 pub mod errors;
 pub mod event_range;
 pub mod models;

@@ -112,6 +112,12 @@ impl TimeRules {
 }
 
 pub struct TimeRange {
-    pub starts_at: OffsetDateTime,
-    pub ends_at: OffsetDateTime,
+    pub start: OffsetDateTime,
+    pub end: OffsetDateTime,
+}
+
+impl TimeRange {
+    pub fn new(start: OffsetDateTime, end: OffsetDateTime) -> Self {
+        Self { start, end }
+    }
 }
