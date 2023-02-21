@@ -18,18 +18,18 @@ pub fn get_offset_from_the_map(week_map: &str, mut event_number: u8, start_at: u
     return 7;
 }
 
-pub fn add_months(val: OffsetDateTime, chg: u32) -> anyhow::Result<OffsetDateTime> {
+pub fn add_months(val: OffsetDateTime, chg: i32) -> anyhow::Result<OffsetDateTime> {
     let month_res = nth_next_month(val.month(), chg)?;
-    let year_number = (((val.month() as u32).checked_add(chg)).dc()? - 1) / 12;
+    let year_offset = (((val.month() as i32).checked_add(chg)).dc()? - 1).div_euclid(12);
     Ok(val
-        .replace_year(val.year().checked_add(year_number as i32).dc()?)
+        .replace_year(val.year().checked_add(year_offset as i32).dc()?)
         .dc()?
         .replace_month(month_res)
         .dc()?)
 }
 
-fn nth_next_month(val: Month, chg: u32) -> anyhow::Result<Month> {
-    Month::try_from((((val as u32).checked_add(chg).dc()? - 1) % 12 + 1) as u8).dc()
+fn nth_next_month(val: Month, chg: i32) -> anyhow::Result<Month> {
+    Month::try_from((((val as i32).checked_add(chg).dc()? - 1).rem_euclid(12) + 1) as u8).dc()
 }
 
 pub fn yearly_conv_data(

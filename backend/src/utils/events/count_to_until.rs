@@ -82,7 +82,7 @@ fn month_is_by_day_count_to_until_easy_days(
 ) -> Result<Option<OffsetDateTime>, EventError> {
     let base_date = add_months(
         conv_data.part_starts_at,
-        conv_data.count.checked_mul(conv_data.interval).dc()?,
+        conv_data.count.checked_mul(conv_data.interval).dc()? as i32,
     )?;
     Ok(Some(base_date + (conv_data.event_duration)))
 }
@@ -92,7 +92,7 @@ fn month_is_by_day_count_to_until_hard_days(
 ) -> Result<Option<OffsetDateTime>, EventError> {
     let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
     while conv_data.count > 0 {
-        monthly_step = add_months(monthly_step, conv_data.interval)?;
+        monthly_step = add_months(monthly_step, conv_data.interval as i32)?;
         if days_in_year_month(monthly_step.year(), monthly_step.month())
             >= conv_data.part_starts_at.day()
         {
@@ -124,7 +124,7 @@ fn month_count_to_until_easy_days(
 
     let first_target_month_day = add_months(
         conv_data.part_starts_at,
-        conv_data.count.checked_mul(conv_data.interval).dc()?,
+        conv_data.count.checked_mul(conv_data.interval).dc()? as i32,
     )?
     .replace_day(1)
     .dc()?;
@@ -149,7 +149,7 @@ fn month_count_to_until_hard_days(
 ) -> Result<Option<OffsetDateTime>, EventError> {
     let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
     loop {
-        monthly_step = add_months(monthly_step, conv_data.interval)?;
+        monthly_step = add_months(monthly_step, conv_data.interval as i32)?;
         let target_day = monthly_step
             .weekday()
             .cyclic_time_to(conv_data.part_starts_at.weekday()) as u8

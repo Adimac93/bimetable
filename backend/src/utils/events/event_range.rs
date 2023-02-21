@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use time::{
     ext::NumericalDuration,
     util::{days_in_year_month, weeks_in_year},
@@ -13,8 +15,8 @@ use super::{
 
 pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
     let day_amount = (range_data.range.start - range_data.event_range.end).whole_days();
-    let mut offset_from_origin_event =
-        (day_amount - day_amount % range_data.interval as i64).days()
+    let mut offset_from_origin_event = (day_amount - day_amount % range_data.interval as i64)
+        .days()
         + (range_data.interval as i64).days();
 
     let mut res = Vec::new();
@@ -38,13 +40,23 @@ pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<Time
 
     let mut res = Vec::new();
 
-    while range_data.event_range.start + offset_from_origin_event < range_data.range.end {
-        let weekly_start_step = range_data.event_range.start + offset_from_origin_event;
-        let weekly_end_step = range_data.event_range.end + offset_from_origin_event;
-        let week_start = dbg!(weekly_end_step
-            - (time::Weekday::Monday.cyclic_time_to(weekly_end_step.weekday()) as i64).days());
+    let first_week_start = (range_data.event_range.start
+        - (time::Weekday::Monday.cyclic_time_to((range_data.event_range.start).weekday()) as i64)
+            .days())
+    .replace_time(time::Time::MIDNIGHT);
+
+    while first_week_start + offset_from_origin_event < range_data.range.end {
+        let weekly_start_step = range_data.event_range.start + offset_from_origin_event
+            - (time::Weekday::Monday.cyclic_time_to(range_data.event_range.start.weekday()) as i64)
+                .days();
+        let weekly_end_step =
+            weekly_start_step + (range_data.event_range.end - range_data.event_range.start);
+
         for i in 0..7 {
-            if &week_map[i..=i] == "1" && week_start + (i as i64).days() > range_data.range.start {
+            if &week_map[i..=i] == "1"
+                && weekly_start_step + (i as i64).days() < range_data.range.end
+                && weekly_end_step + (i as i64).days() > range_data.range.start
+            {
                 res.push(TimeRange::new(
                     weekly_start_step + (i as i64).days(),
                     weekly_end_step + (i as i64).days(),
@@ -60,30 +72,45 @@ pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<Time
 
 pub fn get_monthly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
     let month_amount = (
-        range_data.range.start.year(),
-        range_data.range.start.month(),
+        range_data.event_range.end.year(),
+        range_data.event_range.end.month(),
     )
         .time_to((
-            range_data.event_range.end.year(),
-            range_data.event_range.end.month(),
-        )) as u32;
-    let offset_from_origin_event = month_amount - month_amount % range_data.interval;
-    let first_month_day = range_data.event_range.start.replace_day(1).unwrap();
-    let mut monthly_step = add_months(first_month_day, offset_from_origin_event).unwrap();
+            range_data.range.start.year(),
+            range_data.range.start.month(),
+        ));
+    let offset_from_origin_event = max(
+        month_amount - month_amount.rem_euclid(range_data.interval as i32),
+        0,
+    );
+    let month_start = range_data
+        .event_range
+        .start
+        .replace_day(1)
+        .unwrap()
+        .replace_time(time::Time::MIDNIGHT);
+    let mut monthly_step = add_months(month_start, offset_from_origin_event as i32).unwrap();
+    let offset_from_month_start = range_data.event_range.start - month_start;
 
     let mut res = Vec::new();
 
-    while monthly_step < range_data.range.end {
+    while monthly_step + offset_from_month_start < range_data.range.end {
         if days_in_year_month(monthly_step.year(), monthly_step.month())
             >= range_data.event_range.start.day()
+            && monthly_step
+                + offset_from_month_start
+                + (range_data.event_range.end - range_data.event_range.start)
+                > range_data.range.start
         {
             res.push(TimeRange::new(
-                monthly_step,
-                monthly_step + (range_data.event_range.end - range_data.event_range.start),
+                monthly_step + offset_from_month_start,
+                monthly_step
+                    + offset_from_month_start
+                    + (range_data.event_range.end - range_data.event_range.start),
             ));
         };
 
-        monthly_step = add_months(monthly_step, range_data.interval).unwrap();
+        monthly_step = add_months(monthly_step, range_data.interval as i32).unwrap();
     }
 
     res
@@ -91,27 +118,35 @@ pub fn get_monthly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
 
 pub fn get_monthly_events_by_weekday(range_data: EventRangeData) -> Vec<TimeRange> {
     let month_amount = (
-        range_data.range.start.year(),
-        range_data.range.start.month(),
+        range_data.event_range.end.year(),
+        range_data.event_range.end.month(),
     )
         .time_to((
-            range_data.event_range.end.year(),
-            range_data.event_range.end.month(),
-        )) as u32;
-    let offset_from_origin_event = month_amount - month_amount % range_data.interval;
+            range_data.range.start.year(),
+            range_data.range.start.month(),
+        ));
+    let offset_from_origin_event = max(
+        month_amount - month_amount.rem_euclid(range_data.interval as i32),
+        0,
+    );
     let first_month_day = range_data.event_range.start.replace_day(1).unwrap();
-    let mut monthly_step = add_months(first_month_day, offset_from_origin_event).unwrap();
+    let mut monthly_step = add_months(first_month_day, offset_from_origin_event as i32).unwrap();
 
     let target_weekday = range_data.event_range.start.weekday();
-    let target_week_number = (range_data.event_range.start.day() - 1) % 7;
+    let target_week_number = (range_data.event_range.start.day() - 1) / 7;
 
     let mut res = Vec::new();
 
-    while monthly_step < range_data.range.end {
+    while monthly_step.replace_time(time::Time::MIDNIGHT) < range_data.range.end {
         let target_day = monthly_step.weekday().cyclic_time_to(target_weekday) as u8
             + 7 * target_week_number
             + 1;
-        if days_in_year_month(monthly_step.year(), monthly_step.month()) >= target_day {
+        if days_in_year_month(monthly_step.year(), monthly_step.month()) >= target_day
+            && monthly_step.replace_day(target_day).unwrap() < range_data.range.end
+            && monthly_step.replace_day(target_day).unwrap()
+                + (range_data.event_range.end - range_data.event_range.start)
+                > range_data.range.start
+        {
             res.push(TimeRange::new(
                 monthly_step.replace_day(target_day).unwrap(),
                 monthly_step.replace_day(target_day).unwrap()
@@ -119,7 +154,7 @@ pub fn get_monthly_events_by_weekday(range_data: EventRangeData) -> Vec<TimeRang
             ));
         };
 
-        monthly_step = add_months(monthly_step, range_data.interval).unwrap();
+        monthly_step = add_months(monthly_step, range_data.interval as i32).unwrap();
     }
 
     res
@@ -127,12 +162,18 @@ pub fn get_monthly_events_by_weekday(range_data: EventRangeData) -> Vec<TimeRang
 
 pub fn get_yearly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
     let year_amount = range_data.event_range.end.year() - range_data.range.start.year();
-    let offset_from_origin_event = year_amount - year_amount % range_data.interval as i32;
+    let offset_from_origin_event = max(
+        year_amount - year_amount.rem_euclid(range_data.interval as i32),
+        0,
+    );
     let mut yearly_step = range_data
         .event_range
         .start
         .replace_day(1)
         .unwrap()
+        .replace_month(Month::January)
+        .unwrap()
+        .replace_time(time::Time::MIDNIGHT)
         .replace_year(range_data.event_range.start.year() + offset_from_origin_event)
         .unwrap();
 
@@ -141,10 +182,32 @@ pub fn get_yearly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
     while yearly_step < range_data.range.end {
         if days_in_year_month(yearly_step.year(), yearly_step.month())
             >= range_data.event_range.start.day()
+            && range_data
+                .event_range
+                .start
+                .replace_year(yearly_step.year())
+                .unwrap()
+                < range_data.range.end
+            && range_data
+                .event_range
+                .start
+                .replace_year(yearly_step.year())
+                .unwrap()
+                + (range_data.event_range.end - range_data.event_range.start)
+                > range_data.range.start
         {
             res.push(TimeRange::new(
-                yearly_step,
-                yearly_step + (range_data.event_range.end - range_data.event_range.start),
+                range_data
+                    .event_range
+                    .start
+                    .replace_year(yearly_step.year())
+                    .unwrap(),
+                range_data
+                    .event_range
+                    .start
+                    .replace_year(yearly_step.year())
+                    .unwrap()
+                    + (range_data.event_range.end - range_data.event_range.start),
             ));
         };
 
@@ -159,11 +222,14 @@ pub fn get_yearly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
 pub fn get_yearly_events_by_weekday(
     range_data: EventRangeData,
 ) -> Result<Vec<TimeRange>, EventError> {
-    let (target_weekday, target_week_number, range_base_year) =
-        yearly_conv_data(range_data.range.start)?;
-    let (.., event_base_year) = yearly_conv_data(range_data.event_range.start)?;
+    let (.., range_base_year) = yearly_conv_data(range_data.range.start)?;
+    let (target_weekday, target_week_number, event_base_year) =
+        yearly_conv_data(range_data.event_range.start)?;
     let year_amount = range_base_year.year() - event_base_year.year();
-    let offset_from_origin_event = year_amount - year_amount % range_data.interval as i32;
+    let offset_from_origin_event = max(
+        year_amount - year_amount.rem_euclid(range_data.interval as i32),
+        0,
+    );
     let mut yearly_step = range_data
         .event_range
         .start
@@ -180,9 +246,9 @@ pub fn get_yearly_events_by_weekday(
         let first_monday =
             yearly_step + ((yearly_step.weekday().cyclic_time_to(Weekday::Monday)) as i64).days();
 
-        if weeks_in_year(yearly_step.year()) >= target_week_number {
-            let target_time = yearly_step
-                + (target_week_number as i64 - first_monday.iso_week() as i64).weeks()
+        if weeks_in_year(yearly_step.year()) >= target_week_number + 1 {
+            let target_time = first_monday
+                + (target_week_number as i64 - first_monday.iso_week() as i64 + 1).weeks()
                 + (Weekday::Monday.cyclic_time_to(target_weekday) as i64).days();
             res.push(TimeRange::new(
                 target_time,
@@ -199,12 +265,12 @@ pub fn get_yearly_events_by_weekday(
 }
 
 #[cfg(test)]
-mod test_tests {
+mod event_range_tests {
     use sqlx::types::Json;
-    use time::{OffsetDateTime, macros::datetime};
+    use time::{macros::datetime, OffsetDateTime};
     use uuid::Uuid;
 
-    use crate::utils::events::models::{RecurrenceEndsAt, EventRules, EventPart, Event, TimeRules};
+    use crate::utils::events::models::{Event, EventPart, EventRules, RecurrenceEndsAt, TimeRules};
 
     use super::*;
 
@@ -248,9 +314,18 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-02-21 22:45 +1), datetime!(2023-02-22 0:00 +1)),
-                TimeRange::new(datetime!(2023-02-23 22:45 +1), datetime!(2023-02-24 0:00 +1)),
-                TimeRange::new(datetime!(2023-02-25 22:45 +1), datetime!(2023-02-26 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-02-21 22:45 +1),
+                    datetime!(2023-02-22 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-02-23 22:45 +1),
+                    datetime!(2023-02-24 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-02-25 22:45 +1),
+                    datetime!(2023-02-26 0:00 +1)
+                ),
             ]
         )
     }
@@ -271,24 +346,29 @@ mod test_tests {
             RecurrenceEndsAt::Until(datetime!(2023-03-15 0:00 +1)),
         );
 
-        /*
-        -------
-        ----xx-
-        -|-----
-        -x
-          x-xx-
-        -------
-        -x|-xx-
-        */
-
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-02-28 22:45 +1), datetime!(2023-03-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-01 22:45 +1), datetime!(2023-03-02 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-03 22:45 +1), datetime!(2023-03-04 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-04 22:45 +1), datetime!(2023-03-05 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-14 22:45 +1), datetime!(2023-03-15 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-02-28 22:45 +1),
+                    datetime!(2023-03-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-01 22:45 +1),
+                    datetime!(2023-03-02 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-03 22:45 +1),
+                    datetime!(2023-03-04 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-04 22:45 +1),
+                    datetime!(2023-03-05 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-14 22:45 +1),
+                    datetime!(2023-03-15 0:00 +1)
+                ),
             ]
         )
     }
@@ -309,27 +389,37 @@ mod test_tests {
             RecurrenceEndsAt::Until(datetime!(2023-03-22 0:00 +1)),
         );
 
-        /*
-        -------
-        ----xx-
-        -|-----
-        -x
-          x-xx-
-        -------
-        -xx-xx-
-        --|----
-        */
-
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-03-01 22:45 +1), datetime!(2023-03-02 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-03 22:45 +1), datetime!(2023-03-04 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-04 22:45 +1), datetime!(2023-03-05 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-14 22:45 +1), datetime!(2023-03-15 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-15 22:45 +1), datetime!(2023-03-16 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-17 22:45 +1), datetime!(2023-03-18 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-18 22:45 +1), datetime!(2023-03-19 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-03-01 22:45 +1),
+                    datetime!(2023-03-02 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-03 22:45 +1),
+                    datetime!(2023-03-04 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-04 22:45 +1),
+                    datetime!(2023-03-05 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-14 22:45 +1),
+                    datetime!(2023-03-15 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-15 22:45 +1),
+                    datetime!(2023-03-16 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-17 22:45 +1),
+                    datetime!(2023-03-18 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-18 22:45 +1),
+                    datetime!(2023-03-19 0:00 +1)
+                ),
             ]
         )
     }
@@ -353,8 +443,14 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-04-17 22:45 +1), datetime!(2023-04-18 0:00 +1)),
-                TimeRange::new(datetime!(2023-06-17 22:45 +1), datetime!(2023-06-18 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-04-17 22:45 +1),
+                    datetime!(2023-04-18 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-06-17 22:45 +1),
+                    datetime!(2023-06-18 0:00 +1)
+                ),
             ]
         )
     }
@@ -378,13 +474,34 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-01-31 22:45 +1), datetime!(2023-02-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-03-31 22:45 +1), datetime!(2023-04-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-05-31 22:45 +1), datetime!(2023-06-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-07-31 22:45 +1), datetime!(2023-08-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-08-31 22:45 +1), datetime!(2023-09-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-10-31 22:45 +1), datetime!(2023-11-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-12-31 22:45 +1), datetime!(2024-01-01 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-01-31 22:45 +1),
+                    datetime!(2023-02-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-31 22:45 +1),
+                    datetime!(2023-04-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-05-31 22:45 +1),
+                    datetime!(2023-06-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-07-31 22:45 +1),
+                    datetime!(2023-08-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-08-31 22:45 +1),
+                    datetime!(2023-09-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-10-31 22:45 +1),
+                    datetime!(2023-11-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-12-31 22:45 +1),
+                    datetime!(2024-01-01 0:00 +1)
+                ),
             ]
         )
     }
@@ -408,11 +525,26 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-04-21 22:45 +1), datetime!(2023-04-22 0:00 +1)),
-                TimeRange::new(datetime!(2023-06-16 22:45 +1), datetime!(2023-06-17 0:00 +1)),
-                TimeRange::new(datetime!(2023-08-18 22:45 +1), datetime!(2023-08-18 0:00 +1)),
-                TimeRange::new(datetime!(2023-10-20 22:45 +1), datetime!(2023-10-21 0:00 +1)),
-                TimeRange::new(datetime!(2023-12-15 22:45 +1), datetime!(2023-12-16 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-04-21 22:45 +1),
+                    datetime!(2023-04-22 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-06-16 22:45 +1),
+                    datetime!(2023-06-17 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-08-18 22:45 +1),
+                    datetime!(2023-08-19 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-10-20 22:45 +1),
+                    datetime!(2023-10-21 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-12-15 22:45 +1),
+                    datetime!(2023-12-16 0:00 +1)
+                ),
             ]
         )
     }
@@ -421,7 +553,7 @@ mod test_tests {
     fn monthly_range_by_weekday_2() {
         let data = create_test_event_part(
             datetime!(2023-01-29 22:45 +1),
-            datetime!(2023-01-29 0:00 +1),
+            datetime!(2023-01-30 0:00 +1),
             EventRules::Monthly {
                 time_rules: TimeRules {
                     ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -436,10 +568,22 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-04-30 22:45 +1), datetime!(2023-05-01 0:00 +1)),
-                TimeRange::new(datetime!(2023-07-30 22:45 +1), datetime!(2023-07-31 0:00 +1)),
-                TimeRange::new(datetime!(2023-10-29 22:45 +1), datetime!(2023-10-30 0:00 +1)),
-                TimeRange::new(datetime!(2023-12-31 22:45 +1), datetime!(2024-01-01 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-04-30 22:45 +1),
+                    datetime!(2023-05-01 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-07-30 22:45 +1),
+                    datetime!(2023-07-31 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-10-29 22:45 +1),
+                    datetime!(2023-10-30 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2023-12-31 22:45 +1),
+                    datetime!(2024-01-01 0:00 +1)
+                ),
             ]
         )
     }
@@ -463,9 +607,18 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1)),
-                TimeRange::new(datetime!(2025-01-29 22:45 +1), datetime!(2025-01-30 0:00 +1)),
-                TimeRange::new(datetime!(2027-01-29 22:45 +1), datetime!(2027-01-30 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-01-29 22:45 +1),
+                    datetime!(2023-01-30 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2025-01-29 22:45 +1),
+                    datetime!(2025-01-30 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2027-01-29 22:45 +1),
+                    datetime!(2027-01-30 0:00 +1)
+                ),
             ]
         )
     }
@@ -489,9 +642,18 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1)),
-                TimeRange::new(datetime!(2025-01-26 22:45 +1), datetime!(2025-01-27 0:00 +1)),
-                TimeRange::new(datetime!(2027-01-31 22:45 +1), datetime!(2027-02-01 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-01-29 22:45 +1),
+                    datetime!(2023-01-30 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2025-01-26 22:45 +1),
+                    datetime!(2025-01-27 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2027-01-31 22:45 +1),
+                    datetime!(2027-02-01 0:00 +1)
+                ),
             ]
         )
     }
@@ -514,9 +676,10 @@ mod test_tests {
 
         assert_eq!(
             data.get_event_range().unwrap(),
-            vec![
-                TimeRange::new(datetime!(2026-12-28 22:45 +1), datetime!(2026-12-29 0:00 +1)),
-            ]
+            vec![TimeRange::new(
+                datetime!(2026-12-28 22:45 +1),
+                datetime!(2026-12-29 0:00 +1)
+            ),]
         )
     }
 
@@ -539,11 +702,26 @@ mod test_tests {
         assert_eq!(
             data.get_event_range().unwrap(),
             vec![
-                TimeRange::new(datetime!(2023-01-02 22:45 +1), datetime!(2023-01-03 0:00 +1)),
-                TimeRange::new(datetime!(2024-01-01 22:45 +1), datetime!(2024-01-02 0:00 +1)),
-                TimeRange::new(datetime!(2024-12-30 22:45 +1), datetime!(2024-12-31 0:00 +1)),
-                TimeRange::new(datetime!(2025-12-29 22:45 +1), datetime!(2025-12-30 0:00 +1)),
-                TimeRange::new(datetime!(2027-01-04 22:45 +1), datetime!(2027-01-05 0:00 +1)),
+                TimeRange::new(
+                    datetime!(2023-01-02 22:45 +1),
+                    datetime!(2023-01-03 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2024-01-01 22:45 +1),
+                    datetime!(2024-01-02 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2024-12-30 22:45 +1),
+                    datetime!(2024-12-31 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2025-12-29 22:45 +1),
+                    datetime!(2025-12-30 0:00 +1)
+                ),
+                TimeRange::new(
+                    datetime!(2027-01-04 22:45 +1),
+                    datetime!(2027-01-05 0:00 +1)
+                ),
             ]
         )
     }
@@ -566,9 +744,10 @@ mod test_tests {
 
         assert_eq!(
             data.get_event_range().unwrap(),
-            vec![
-                TimeRange::new(datetime!(2027-01-16 22:45 +1), datetime!(2027-01-17 0:00 +1)),
-            ]
+            vec![TimeRange::new(
+                datetime!(2027-01-16 22:45 +1),
+                datetime!(2027-01-17 0:00 +1)
+            ),]
         )
     }
 }
