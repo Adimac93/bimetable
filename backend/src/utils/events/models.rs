@@ -111,6 +111,7 @@ impl TimeRules {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct TimeRange {
     pub start: OffsetDateTime,
     pub end: OffsetDateTime,

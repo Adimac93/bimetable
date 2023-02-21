@@ -56,7 +56,7 @@ impl EventRangeData {
         Self {
             range: TimeRange::new(part_starts_at, part_ends_at),
             interval,
-            event_range: TimeRange::new(event_starts_at, event_starts_at),
+            event_range: TimeRange::new(event_starts_at, event_ends_at),
         }
     }
 }
@@ -138,7 +138,7 @@ impl EventPart {
 
         let part_ends_at = match part_ends_at {
             RecurrenceEndsAt::Until(t) => *t,
-            RecurrenceEndsAt::Count(n) => self.count_to_until()?.dc()?,
+            RecurrenceEndsAt::Count(_n) => self.count_to_until()?.dc()?,
         };
 
         let mut range_data = EventRangeData::new(
