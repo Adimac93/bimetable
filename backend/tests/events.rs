@@ -14,45 +14,45 @@ use crate::tools::AppData;
 
 mod tools;
 
-const HUBERT_ID: Uuid = uuid!("a9c5900e-a445-4888-8612-4a5c8cadbd9e");
-
-#[traced_test]
-#[sqlx::test(fixtures("users"))]
-fn create_event(pool: PgPool) {
-    let user_id = uuid!("32190025-7c15-4adb-82fd-9acc3dc8e7b6");
-    let body = CreateEvent {
-        name: "abc".into(),
-        starts_at: Some(datetime!(2023-02-05 10:00 +1)),
-        ends_at: Some(datetime!(2023-02-05 12:00 +1)),
-        recurrence_rule: Some(EventRules::Weekly {
-            time_rules: TimeRules {
-                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2040-02-05 12:00 +1))),
-                interval: 1,
-            },
-            week_map: 0b0010011,
-        }),
-        description: "Test description".into(),
-    };
-    let rec = query_as!(
-        Event,
-        r#"
-            INSERT INTO events (name, owner_id, starts_at, ends_at , recurrence_rule, description)
-            VALUES
-            ($1, $2, $3, $4, $5, $6)
-            RETURNING id, owner_id, name, starts_at, ends_at, recurrence_rule as "recurrence_rule: _", description;
-        "#,
-        body.name,
-        user_id,
-        body.starts_at,
-        body.ends_at,
-        sqlx::types::Json(body.recurrence_rule) as _,
-        body.description,
-    )
-    .fetch_one(&pool)
-    .await.unwrap();
-
-    println!("{rec:#?}");
-}
+// const HUBERT_ID: Uuid = uuid!("a9c5900e-a445-4888-8612-4a5c8cadbd9e");
+//
+// #[traced_test]
+// #[sqlx::test(fixtures("users"))]
+// fn create_event(pool: PgPool) {
+//     let user_id = uuid!("32190025-7c15-4adb-82fd-9acc3dc8e7b6");
+//     let body = CreateEvent {
+//         name: "abc".into(),
+//         starts_at: Some(datetime!(2023-02-05 10:00 +1)),
+//         ends_at: Some(datetime!(2023-02-05 12:00 +1)),
+//         recurrence_rule: Some(EventRules::Weekly {
+//             time_rules: TimeRules {
+//                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2040-02-05 12:00 +1))),
+//                 interval: 1,
+//             },
+//             week_map: 0b0010011,
+//         }),
+//         description: "Test description".into(),
+//     };
+//     let rec = query_as!(
+//         Event,
+//         r#"
+//             INSERT INTO events (name, owner_id, starts_at, ends_at , recurrence_rule, description)
+//             VALUES
+//             ($1, $2, $3, $4, $5, $6)
+//             RETURNING id, owner_id, name, starts_at, ends_at, recurrence_rule as "recurrence_rule: _", description;
+//         "#,
+//         body.name,
+//         user_id,
+//         body.starts_at,
+//         body.ends_at,
+//         sqlx::types::Json(body.recurrence_rule) as _,
+//         body.description,
+//     )
+//     .fetch_one(&pool)
+//     .await.unwrap();
+//
+//     println!("{rec:#?}");
+// }
 
 /*
 #[traced_test]

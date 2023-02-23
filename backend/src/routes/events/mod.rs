@@ -10,9 +10,10 @@ use axum::{
 };
 use http::StatusCode;
 use sqlx::{types::Uuid, PgPool};
+use time::{Duration, OffsetDateTime};
 
 use crate::modules::database::PgQuery;
-use crate::utils::events::EventQuery;
+use crate::utils::events::{EventPayload, EventQuery, UserEvent};
 
 use self::models::{CreateEvent, GetEventsQuery};
 
@@ -26,11 +27,14 @@ async fn get_events(
     claims: Claims,
     State(pool): State<PgPool>,
     Query(query): Query<GetEventsQuery>,
-) -> Result<Json<Vec<Event>>, EventError> {
-    let mut conn = pool.acquire().await?;
+) -> Result<Json<EventPayload>, EventError> {
+    let mut conn = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    // for dev purposes
+    let starts_at = query.starts_at.unwrap_or(OffsetDateTime::UNIX_EPOCH);
+    let ends_at = query.ends_at.unwrap_or(OffsetDateTime::now_utc().saturating_add(Duration::days(365)));
     let events = q
-        .get_many(claims.user_id, query.starts_at, query.ends_at)
+        .get_many(claims.user_id, starts_at, ends_at)
         .await?;
     Ok(Json(events))
 }
@@ -59,7 +63,7 @@ async fn get_event(
     claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Event>, EventError> {
+) -> Result<Json<UserEvent>, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
     let event = q
@@ -77,7 +81,7 @@ async fn put_event(
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.update(claims.user_id, body).await?;
+    q.update_event(claims.user_id, body).await?;
 
     Ok(StatusCode::OK)
 }
@@ -89,7 +93,7 @@ async fn delete_event(
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.delete(claims.user_id, id).await?;
+    q.perm_delete(claims.user_id, id).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
