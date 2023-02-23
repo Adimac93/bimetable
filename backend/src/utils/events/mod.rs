@@ -1,4 +1,4 @@
-⚗️use serde::Serialize;
+use serde::Serialize;
 use crate::modules::database::PgQuery;
 use crate::utils::events::models::{Event, EventRules};
 use sqlx::types::time::OffsetDateTime;
