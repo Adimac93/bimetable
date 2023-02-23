@@ -7,7 +7,7 @@
                     <div class="header">
                         <button @click="changeMonth(-1)">&lt;</button>
                         <span>
-                            {{ monthStart.format("MMM YYYY") }}
+                            {{ monthStart.format('MMM YYYY') }}
                         </span>
                         <button @click="changeMonth(1)">&gt;</button>
                     </div>
@@ -23,8 +23,13 @@
                     <template v-if="'offset' in day">
                         <td v-if="day.offset" :colspan="day.offset"></td>
                     </template>
-                    <CalendarCell v-else :day="day.date.date()" :highlight="day.date.isSame(today, 'day')"
-                        :events="day.events" @activate="selectCell(day.date, day.events)" />
+                    <CalendarCell
+                        v-else
+                        :day="day.date.date()"
+                        :highlight="day.date.isSame(today, 'day')"
+                        :events="day.events"
+                        @activate="selectCell(day.date, day.events)"
+                    />
                 </template>
             </tr>
         </tbody>
@@ -32,36 +37,38 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from "@/utils/dayjs";
-import type { CalendarEvent } from "@/utils/CalendarEvent";
+import dayjs from '@/utils/dayjs';
+import type { CalendarEvent } from '@/utils/CalendarEvent';
 
-type CalendarSpace = { date: dayjs.Dayjs, events: CalendarEvent[] } | {
-    offset: number
-};
+type CalendarSpace =
+    | { date: dayjs.Dayjs; events: CalendarEvent[] }
+    | {
+          offset: number;
+      };
 
 function getDateString(date: dayjs.Dayjs) {
-    return date.format("YYYY-MM-DD");
+    return date.format('YYYY-MM-DD');
 }
 
 interface Event {
-    name: string,
-    startTime: number,
-    endTime: number,
-};
+    name: string;
+    startTime: number;
+    endTime: number;
+}
 
 const props = defineProps<{
-    events: Event[]
+    events: Event[];
 }>();
 
 const emit = defineEmits<{
-    (event: "select", data: { date: dayjs.Dayjs, events: CalendarEvent[] } | null): void
+    (event: 'select', data: { date: dayjs.Dayjs; events: CalendarEvent[] } | null): void;
 }>();
 
 function selectCell(date: dayjs.Dayjs, events: CalendarEvent[]) {
     if (!events.length) {
-        emit("select", null);
+        emit('select', null);
     } else {
-        emit("select", { date, events });
+        emit('select', { date, events });
     }
 }
 
@@ -72,10 +79,10 @@ const eventMap = computed(() => {
         const newEvent: CalendarEvent = {
             name: event.name,
             when: {
-                day: dayjs(event.startTime).startOf("day"),
+                day: dayjs(event.startTime).startOf('day'),
                 startTime: dayjs(event.startTime),
                 endTime: dayjs(event.endTime),
-            }
+            },
         };
 
         const dateString = getDateString(newEvent.when.day);
@@ -88,11 +95,10 @@ const eventMap = computed(() => {
     return eventMap;
 });
 
-
 const weekdays = dayjs.weekdaysMin(true);
 
 const today = dayjs();
-const monthStart = ref(dayjs().date(1).startOf("day"));
+const monthStart = ref(dayjs().date(1).startOf('day'));
 const daysInMonth = computed(() => monthStart.value.daysInMonth());
 const days = computed(() => {
     const days: CalendarSpace[][] = [];
@@ -102,7 +108,7 @@ const days = computed(() => {
     }
 
     for (let i = 0; i < daysInMonth.value; i++) {
-        const day = monthStart.value.add(i, "days");
+        const day = monthStart.value.add(i, 'days');
         const weekDay = day.weekday();
         if (weekDay == 0) {
             days.push([]);
@@ -118,7 +124,7 @@ const days = computed(() => {
 });
 
 function changeMonth(offset: number) {
-    monthStart.value = monthStart.value.add(offset, "months");
+    monthStart.value = monthStart.value.add(offset, 'months');
 }
 </script>
 
