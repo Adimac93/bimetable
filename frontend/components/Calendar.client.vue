@@ -38,7 +38,7 @@
 
 <script setup lang="ts">
 import dayjs from '@/utils/dayjs';
-import type { CalendarEvent } from '@/utils/CalendarEvent';
+import { CalendarEvent } from '@/utils/CalendarEvent';
 
 type CalendarSpace =
     | { date: dayjs.Dayjs; events: CalendarEvent[] }
@@ -76,16 +76,9 @@ const eventMap = computed(() => {
     const eventMap = new Map<string, CalendarEvent[]>();
 
     for (const event of props.events) {
-        const newEvent: CalendarEvent = {
-            name: event.name,
-            when: {
-                day: dayjs(event.startTime).startOf('day'),
-                startTime: dayjs(event.startTime),
-                endTime: dayjs(event.endTime),
-            },
-        };
+        const newEvent = new CalendarEvent(event.name, dayjs(event.startTime), dayjs(event.endTime));
 
-        const dateString = getDateString(newEvent.when.day);
+        const dateString = getDateString(newEvent.day);
         if (eventMap.has(dateString)) {
             eventMap.get(dateString)!.push(newEvent);
         } else {

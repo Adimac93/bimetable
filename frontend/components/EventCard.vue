@@ -1,15 +1,15 @@
 <template>
     <div class="event-card">
-        <div class="relative-time">{{ event.when.startTime?.fromNow() }}</div>
+        <div class="relative-time">{{ (event.startTime ?? event.day)?.fromNow() }}</div>
         <h3 class="heading">{{ event.name }}</h3>
         <div class="info">
-            <div class="timing" v-if="event.when.startTime && event.when.endTime">
-                <div class="timing-date">{{ event.when.day.format("DD MMM YYYY") }}</div>
-                <div class="timing-time">{{ event.when.startTime.format("HH:MM") }} - {{ event.when.endTime.format("HH:MM") }}</div>
+            <div class="timing" v-if="event.startTime && event.endTime">
+                <div class="timing-date">{{ event.day.format('DD MMM YYYY') }}</div>
+                <div class="timing-time">
+                    {{ event.startTime.format('HH:MM') }} - {{ event.endTime.format('HH:MM') }}
+                </div>
             </div>
-            <div class="notes">
-                There are supposed to be notes here. However, they are not in the test data I made.
-            </div>
+            <div class="notes">There are supposed to be notes here. However, they are not in the test data I made.</div>
         </div>
     </div>
 </template>
@@ -18,9 +18,8 @@
 import type { CalendarEvent } from '@/utils/CalendarEvent';
 
 const props = defineProps<{
-    event: CalendarEvent
+    event: CalendarEvent;
 }>();
-
 </script>
 
 <style scoped lang="scss">
