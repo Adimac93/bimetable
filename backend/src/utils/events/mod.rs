@@ -4,6 +4,7 @@ use crate::utils::events::models::{Event, EventRules};
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{query, query_as, Acquire, Connection};
 use uuid::Uuid;
+use crate::routes::events::models::CreateEvent;
 
 pub mod additions;
 pub mod calculations;
@@ -117,23 +118,21 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create(
         &mut self,
         user_id: Uuid,
-        name: String,
-        description: String,
-        starts_at: Option<OffsetDateTime>,
-        ends_at: Option<OffsetDateTime>,
+        event: CreateEvent
     ) -> sqlx::Result<Uuid> {
         let id = query!(
             r#"
-                INSERT INTO events (owner_id, name, description, starts_at, ends_at)
+                INSERT INTO events (owner_id, name, description, starts_at, ends_at, recurrence_rule)
                 VALUES
-                ($1, $2, $3, $4, $5)
+                ($1, $2, $3, $4, $5, $6)
                 RETURNING id
             "#,
             user_id,
-            name,
-            description,
-            starts_at,
-            ends_at,
+            event.data.name,
+            event.data.description,
+            event.data.starts_at,
+            event.data.ends_at,
+            event.recurrence_rule as _
         )
             .fetch_one(&mut *self.conn)
             .await?

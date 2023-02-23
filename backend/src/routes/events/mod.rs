@@ -49,10 +49,7 @@ async fn put_new_event(
     let event_id = q
         .create(
             claims.user_id,
-            body.name,
-            body.description,
-            body.starts_at,
-            body.ends_at,
+            body
         )
         .await?;
 
