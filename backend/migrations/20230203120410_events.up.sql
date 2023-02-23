@@ -19,7 +19,7 @@ CREATE TABLE event_overrides
     event_id           UUID        NOT NULL,
     override_starts_at TIMESTAMPTZ NOT NULL,
     override_ends_at   TIMESTAMPTZ NOT NULL,
-    created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP AT TIME ZONE 'UTC',
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     name               TEXT,
     description        TEXT,
     starts_at          TIMESTAMPTZ,
