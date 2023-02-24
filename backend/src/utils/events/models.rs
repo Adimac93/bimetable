@@ -1,9 +1,10 @@
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::{serde::timestamp, Duration};
 
 use crate::app_errors::DefaultContext;
+
+use super::{errors::EventError, calculations::{CountToUntilData, EventRangeData}, count_to_until::{year_is_by_day_count_to_until, year_count_to_until, month_is_by_day_count_to_until, month_count_to_until, week_count_to_until, day_count_to_until}, event_range::{get_monthly_events_by_day, get_yearly_events_by_weekday, get_weekly_events, get_daily_events}};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
@@ -21,9 +22,8 @@ pub struct Event {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EventPart {
-    pub event_data: Event,
-    pub part_starts_at: OffsetDateTime,
-    pub part_length: Option<RecurrenceEndsAt>,
+    pub starts_at: OffsetDateTime,
+    pub length: Option<RecurrenceEndsAt>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,24 +47,115 @@ pub enum EventRules {
 }
 
 impl EventRules {
-    pub fn rule(&self, starts_at: OffsetDateTime, ends_at: OffsetDateTime) {
+    pub fn count_to_until(&self, part: &EventPart, event: &TimeRange) -> Result<Option<OffsetDateTime>, EventError> {
+        let Some(part_ends_at) = part.length.as_ref() else {
+            return Ok(None)
+        };
+
+        let count = match part_ends_at {
+            RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
+            RecurrenceEndsAt::Count(n) => *n,
+        };
+
+        let mut conv_data = CountToUntilData::new(
+            part.starts_at,
+            count,
+            0,
+            event.duration(),
+        );
         match self {
             EventRules::Yearly {
                 time_rules,
                 is_by_day,
-            } => todo!(),
+            } => {
+                conv_data.interval = time_rules.interval;
+                if *is_by_day {
+                    year_is_by_day_count_to_until(conv_data)
+                } else {
+                    year_count_to_until(conv_data)
+                }
+            }
             EventRules::Monthly {
                 time_rules,
                 is_by_day,
-            } => todo!(),
+            } => {
+                conv_data.interval = time_rules.interval;
+                if *is_by_day {
+                    month_is_by_day_count_to_until(conv_data)
+                } else {
+                    month_count_to_until(conv_data)
+                }
+            }
             EventRules::Weekly {
                 time_rules,
                 week_map,
             } => {
-                format!("{:0>7b}", week_map % 128);
-                todo!();
+                conv_data.interval = time_rules.interval;
+                let string_week_map = format!("{:0>7b}", week_map % 128);
+                if week_map % 128 == 0 {
+                    return Err(EventError::InvalidEventFormat);
+                }
+                week_count_to_until(conv_data, &string_week_map)
             }
-            EventRules::Daily { time_rules } => todo!(),
+            EventRules::Daily { time_rules } => {
+                conv_data.interval = time_rules.interval;
+                day_count_to_until(conv_data)
+            }
+        }
+    }
+
+    pub fn get_event_range(&self, part: &EventPart, event: &TimeRange) -> Result<Vec<TimeRange>, EventError> {
+        let part_ends_at = part.length.as_ref().ok_or(EventError::NotFound)?;
+
+        let part_ends_at = match part_ends_at {
+            RecurrenceEndsAt::Until(t) => *t,
+            RecurrenceEndsAt::Count(_n) => self.count_to_until(part, event)?.dc()?,
+        };
+
+        let mut range_data = EventRangeData::new(
+            part.starts_at,
+            part_ends_at,
+            0,
+            event.start,
+            event.end,
+        );
+
+        match self {
+            EventRules::Yearly {
+                time_rules,
+                is_by_day,
+            } => {
+                range_data.interval = time_rules.interval;
+                if *is_by_day {
+                    // year and 12 months are the same
+                    range_data.interval *= 12;
+                    Ok(get_monthly_events_by_day(range_data, *is_by_day))
+                } else {
+                    get_yearly_events_by_weekday(range_data)
+                }
+            }
+            EventRules::Monthly {
+                time_rules,
+                is_by_day,
+            } => {
+                range_data.interval = time_rules.interval;
+                Ok(get_monthly_events_by_day(range_data, *is_by_day))
+            }
+            EventRules::Weekly {
+                time_rules,
+                week_map,
+            } => {
+                range_data.interval = time_rules.interval;
+                let string_week_map = format!("{:0>7b}", week_map % 128);
+                if week_map % 128 == 0 {
+                    return Err(EventError::InvalidEventFormat);
+                }
+                Ok(get_weekly_events(range_data, &string_week_map))
+            }
+            EventRules::Daily { time_rules } => {
+                range_data.interval = time_rules.interval;
+                Ok(get_daily_events(range_data))
+            }
         }
     }
 }
@@ -79,36 +170,6 @@ pub enum RecurrenceEndsAt {
 pub struct TimeRules {
     pub ends_at: Option<RecurrenceEndsAt>,
     pub interval: u32,
-}
-
-impl TimeRules {
-    fn to_until(
-        &self,
-        event_starts_at: OffsetDateTime,
-        event_ends_at: OffsetDateTime,
-        mult: Duration,
-    ) -> Result<Option<OffsetDateTime>, anyhow::Error> {
-        if let Some(rec_ends_at) = &self.ends_at {
-            match rec_ends_at {
-                RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
-                RecurrenceEndsAt::Count(n) => {
-                    let event_duration: Duration = event_ends_at - event_starts_at;
-                    let time_to_next_event: Duration = event_duration
-                        .checked_add(mult.checked_mul(i32::try_from(self.interval).dc()?).dc()?)
-                        .dc()?;
-                    let rec_ends_at: OffsetDateTime = event_starts_at
-                        .checked_add(
-                            time_to_next_event
-                                .checked_mul(i32::try_from(*n).dc()?)
-                                .dc()?,
-                        )
-                        .dc()?;
-                    return Ok(Some(rec_ends_at));
-                }
-            }
-        }
-        Ok(None) // never
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

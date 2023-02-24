@@ -147,45 +147,22 @@ mod event_range_tests {
 
     use super::*;
 
-    fn create_test_event_part(
-        event_starts_at: OffsetDateTime,
-        event_ends_at: OffsetDateTime,
-        recurrence_rule: EventRules,
-        part_starts_at: OffsetDateTime,
-        part_length: RecurrenceEndsAt,
-    ) -> EventPart {
-        EventPart {
-            event_data: Event {
-                id: Uuid::new_v4(),
-                owner_id: Uuid::new_v4(),
-                name: "Test event".into(),
-                starts_at: Some(event_starts_at),
-                ends_at: Some(event_ends_at),
-                recurrence_rule: Some(Json(recurrence_rule)),
-                description: "Test description".into(),
-            },
-            part_starts_at,
-            part_length: Some(part_length),
-        }
-    }
-
     #[test]
     fn daily_range() {
-        let data = create_test_event_part(
-            datetime!(2023-02-17 22:45 +1),
-            datetime!(2023-02-18 0:00 +1),
-            EventRules::Daily {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
+        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let rec_rules = EventRules::Daily {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-02-21 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2023-02-27 22:45 +1)),
-        );
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-02-21 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2023-02-27 22:45 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-02-21 22:45 +1),
@@ -205,22 +182,21 @@ mod event_range_tests {
 
     #[test]
     fn weekly_range_1() {
-        let data = create_test_event_part(
-            datetime!(2023-02-17 22:45 +1),
-            datetime!(2023-02-18 0:00 +1),
-            EventRules::Weekly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                week_map: 54,
+        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let rec_rules = EventRules::Weekly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-02-21 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2023-03-15 0:00 +1)),
-        );
+            week_map: 54,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-02-21 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2023-03-15 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-02-28 22:45 +1),
@@ -248,22 +224,21 @@ mod event_range_tests {
 
     #[test]
     fn weekly_range_2() {
-        let data = create_test_event_part(
-            datetime!(2023-02-17 22:45 +1),
-            datetime!(2023-02-18 0:00 +1),
-            EventRules::Weekly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                week_map: 54,
+        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let rec_rules = EventRules::Weekly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-03-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2023-03-22 0:00 +1)),
-        );
+            week_map: 54,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-03-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2023-03-22 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-03-01 22:45 +1),
@@ -299,22 +274,21 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_day_1() {
-        let data = create_test_event_part(
-            datetime!(2023-02-17 22:45 +1),
-            datetime!(2023-02-18 0:00 +1),
-            EventRules::Monthly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                is_by_day: true,
+        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let rec_rules = EventRules::Monthly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-03-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2023-08-17 22:45 +1)),
-        );
+            is_by_day: true,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-03-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2023-08-17 22:45 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-04-17 22:45 +1),
@@ -330,22 +304,21 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_day_2() {
-        let data = create_test_event_part(
-            datetime!(2023-01-31 22:45 +1),
-            datetime!(2023-02-01 0:00 +1),
-            EventRules::Monthly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 1,
-                },
-                is_by_day: true,
+        let event = TimeRange::new(datetime!(2023-01-31 22:45 +1), datetime!(2023-02-01 0:00 +1));
+        let rec_rules = EventRules::Monthly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 1,
             },
-            datetime!(2023-01-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2024-01-01 0:00 +1)),
-        );
+            is_by_day: true,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-01-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2024-01-01 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-31 22:45 +1),
@@ -381,22 +354,21 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_weekday_1() {
-        let data = create_test_event_part(
-            datetime!(2023-02-17 22:45 +1),
-            datetime!(2023-02-18 0:00 +1),
-            EventRules::Monthly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                is_by_day: false,
+        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let rec_rules = EventRules::Monthly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-02-28 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2023-12-19 0:00 +1)),
-        );
+            is_by_day: false,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-02-28 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2023-12-19 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-04-21 22:45 +1),
@@ -424,22 +396,21 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_weekday_2() {
-        let data = create_test_event_part(
-            datetime!(2023-01-29 22:45 +1),
-            datetime!(2023-01-30 0:00 +1),
-            EventRules::Monthly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 1,
-                },
-                is_by_day: false,
+        let event = TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1));
+        let rec_rules = EventRules::Monthly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 1,
             },
-            datetime!(2023-02-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2024-01-01 0:00 +1)),
-        );
+            is_by_day: false,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-02-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2024-01-01 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-04-30 22:45 +1),
@@ -463,22 +434,21 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_day() {
-        let data = create_test_event_part(
-            datetime!(2023-01-29 22:45 +1),
-            datetime!(2023-01-30 0:00 +1),
-            EventRules::Yearly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                is_by_day: true,
+        let event = TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1));
+        let rec_rules = EventRules::Yearly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-01-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1)),
-        );
+            is_by_day: true,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-01-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-29 22:45 +1),
@@ -498,22 +468,21 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_1() {
-        let data = create_test_event_part(
-            datetime!(2023-01-29 22:45 +1),
-            datetime!(2023-01-30 0:00 +1),
-            EventRules::Yearly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                is_by_day: false,
+        let event = TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1));
+        let rec_rules = EventRules::Yearly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2023-01-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1)),
-        );
+            is_by_day: false,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-01-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-29 22:45 +1),
@@ -533,22 +502,21 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_2() {
-        let data = create_test_event_part(
-            datetime!(2020-12-28 22:45 +1),
-            datetime!(2020-12-29 0:00 +1),
-            EventRules::Yearly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 1,
-                },
-                is_by_day: false,
+        let event = TimeRange::new(datetime!(2020-12-28 22:45 +1), datetime!(2020-12-29 0:00 +1));
+        let rec_rules = EventRules::Yearly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 1,
             },
-            datetime!(2023-01-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1)),
-        );
+            is_by_day: false,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-01-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![TimeRange::new(
                 datetime!(2026-12-28 22:45 +1),
                 datetime!(2026-12-29 0:00 +1)
@@ -558,22 +526,21 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_3() {
-        let data = create_test_event_part(
-            datetime!(2023-01-02 22:45 +1),
-            datetime!(2023-01-03 0:00 +1),
-            EventRules::Yearly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 1,
-                },
-                is_by_day: false,
+        let event = TimeRange::new(datetime!(2023-01-02 22:45 +1), datetime!(2023-01-03 0:00 +1));
+        let rec_rules = EventRules::Yearly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 1,
             },
-            datetime!(2023-01-01 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2027-02-01 0:00 +1)),
-        );
+            is_by_day: false,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2023-01-01 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2027-02-01 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-02 22:45 +1),
@@ -601,22 +568,21 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_4() {
-        let data = create_test_event_part(
-            datetime!(2023-01-14 22:45 +1),
-            datetime!(2023-01-15 0:00 +1),
-            EventRules::Yearly {
-                time_rules: TimeRules {
-                    ends_at: Some(RecurrenceEndsAt::Count(50)),
-                    interval: 2,
-                },
-                is_by_day: false,
+        let event = TimeRange::new(datetime!(2023-01-14 22:45 +1), datetime!(2023-01-15 0:00 +1));
+        let rec_rules = EventRules::Yearly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(50)),
+                interval: 2,
             },
-            datetime!(2027-01-16 0:00 +1),
-            RecurrenceEndsAt::Until(datetime!(2027-01-17 0:00 +1)),
-        );
+            is_by_day: false,
+        };
+        let part = EventPart {
+            starts_at: datetime!(2027-01-16 0:00 +1),
+            length: Some(RecurrenceEndsAt::Until(datetime!(2027-01-17 0:00 +1))),
+        };
 
         assert_eq!(
-            data.get_event_range().unwrap(),
+            rec_rules.get_event_range(&part, &event).unwrap(),
             vec![TimeRange::new(
                 datetime!(2027-01-16 22:45 +1),
                 datetime!(2027-01-17 0:00 +1)
