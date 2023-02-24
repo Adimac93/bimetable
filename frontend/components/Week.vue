@@ -1,6 +1,6 @@
 <template>
     <div class="scroll-outer" ref="outer">
-        <div class="scroll-inner" ref="inner" @touchstart="onTouchStart" @touchmove="onTouchMove">
+        <div class="scroll-inner" ref="inner" @touchstart="onTouchStart" @touchmove="onTouchMove" @wheel="onWheel">
             <div v-for="hour in hours" class="horizontal line" :style="{ 'grid-row': hour + 2 }"></div>
             <DayTimeline
                 :events="props.events"
@@ -79,6 +79,7 @@ function onTouchMove(event: TouchEvent) {
 
     let scale = distanceY / startDistance;
     let newHeight = startHeight * scale;
+    // FIXME: clientHeight doesn't take into account the height of the header with week names
     const maxNewHeight = outer.value!.clientHeight;
 
     if (newHeight < maxNewHeight) {
@@ -88,6 +89,52 @@ function onTouchMove(event: TouchEvent) {
 
     inner.value!.style.height = newHeight + "px";
     outer.value!.scrollTop = scale * (startPinchY + startScrollY) - pinchY;
+}
+
+let startMouseY = 0;
+let cumulativeDeltaY = 0;
+
+function onWheel(event: WheelEvent) {
+    if (!event.altKey) {
+        // Since there's no "wheelstart" event, we have to reset manually.
+        // One condition to reset is when the alt key is no longer pressed.
+        startMouseY = 0;
+        return;
+    }
+    event.preventDefault();
+
+    // That's arbitrary but seems to work well
+    const deltaY = -event.deltaY / 100;
+    const mouseY = event.clientY;
+
+    // Another condition to reset is the mouse has moved.
+    if (mouseY !== startMouseY) {
+        startMouseY = mouseY;
+        startHeight = inner.value!.offsetHeight;
+        startScrollY = outer.value!.scrollTop;
+        cumulativeDeltaY = 0;
+    }
+
+    cumulativeDeltaY += deltaY;
+
+    let scale = 1 + cumulativeDeltaY;
+    let newHeight = startHeight * scale;
+    const maxNewHeight = outer.value!.clientHeight;
+
+    if (newHeight < maxNewHeight) {
+        scale *= maxNewHeight / newHeight;
+        newHeight = maxNewHeight;
+
+        // Here we also have to reset some things.
+        // Otherwise when you scroll past the limit you have to undo that
+        // before scrolling in the opposite direction does anythin visible.
+        startHeight = inner.value!.offsetHeight;
+        startScrollY = outer.value!.scrollTop;
+        cumulativeDeltaY = 0;
+    }
+
+    inner.value!.style.height = newHeight + "px";
+    outer.value!.scrollTop = scale * (startScrollY + startMouseY) - startMouseY;
 }
 </script>
 
