@@ -7,7 +7,7 @@ use crate::app_errors::DefaultContext;
 
 use super::{
     additions::{
-        add_months, get_amount_from_week_map, get_offset_from_the_map, yearly_conv_data,
+        get_amount_from_week_map, get_offset_from_the_map, yearly_conv_data, AddMonths,
         CyclicTimeTo,
     },
     calculations::CountToUntilData,
@@ -80,10 +80,9 @@ pub fn month_is_by_day_count_to_until(
 fn month_is_by_day_count_to_until_easy_days(
     conv_data: CountToUntilData,
 ) -> Result<Option<OffsetDateTime>, EventError> {
-    let base_date = add_months(
-        conv_data.part_starts_at,
-        conv_data.count.checked_mul(conv_data.interval).dc()? as i32,
-    )?;
+    let base_date = conv_data
+        .part_starts_at
+        .add_months(conv_data.count.checked_mul(conv_data.interval).dc()? as i32)?;
     Ok(Some(base_date + (conv_data.event_duration)))
 }
 
@@ -92,7 +91,7 @@ fn month_is_by_day_count_to_until_hard_days(
 ) -> Result<Option<OffsetDateTime>, EventError> {
     let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
     while conv_data.count > 0 {
-        monthly_step = add_months(monthly_step, conv_data.interval as i32)?;
+        monthly_step = monthly_step.add_months(conv_data.interval as i32)?;
         if days_in_year_month(monthly_step.year(), monthly_step.month())
             >= conv_data.part_starts_at.day()
         {
@@ -122,12 +121,11 @@ fn month_count_to_until_easy_days(
 ) -> Result<Option<OffsetDateTime>, EventError> {
     let week_number = (conv_data.part_starts_at.day() - 1) / 7;
 
-    let first_target_month_day = add_months(
-        conv_data.part_starts_at,
-        conv_data.count.checked_mul(conv_data.interval).dc()? as i32,
-    )?
-    .replace_day(1)
-    .dc()?;
+    let first_target_month_day = conv_data
+        .part_starts_at
+        .add_months(conv_data.count.checked_mul(conv_data.interval).dc()? as i32)?
+        .replace_day(1)
+        .dc()?;
 
     let days_passed = first_target_month_day
         .weekday()
@@ -149,7 +147,7 @@ fn month_count_to_until_hard_days(
 ) -> Result<Option<OffsetDateTime>, EventError> {
     let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
     loop {
-        monthly_step = add_months(monthly_step, conv_data.interval as i32)?;
+        monthly_step = monthly_step.add_months(conv_data.interval as i32)?;
         let target_day = monthly_step
             .weekday()
             .cyclic_time_to(conv_data.part_starts_at.weekday()) as u8

@@ -1,7 +1,7 @@
+use crate::utils::events::models::EventRules;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::serde::timestamp;
-use crate::utils::events::models::EventRules;
 
 // Core data models
 #[derive(Debug, Deserialize, Serialize)]
@@ -42,7 +42,7 @@ pub struct CreateEvent {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpdateEvent {
     pub event_id: Uuid,
-    pub data: OptionalEventData
+    pub data: OptionalEventData,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -56,13 +56,13 @@ pub struct OverrideEvent {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeleteEvent {
     event_id: Uuid,
-    is_permanent: bool
+    is_permanent: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DeleteOverride {
     override_id: Uuid,
-    is_permanent: bool
+    is_permanent: bool,
 }
 
 // Receive payloads
@@ -70,25 +70,24 @@ pub struct DeleteOverride {
 pub struct Events {
     owned: Vec<Event>,
     shared: Vec<Event>,
-
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
     pub id: Uuid,
     pub data: EventData,
-    pub recurrences: Vec<RecurrenceEvent> // Option<Vec<T>> ?
+    pub recurrences: Vec<RecurrenceEvent>, // Option<Vec<T>> ?
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RecurrenceEvent {
     pub starts_at: OffsetDateTime,
     pub ends_at: OffsetDateTime,
-    pub recurrence_override: Option<Override>
+    pub recurrence_override: Option<Override>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Override {
     pub data: OptionalEventData,
-    created_at: OffsetDateTime
+    created_at: OffsetDateTime,
 }

@@ -1,13 +1,12 @@
 use std::cmp::max;
 
-use time::{
-    ext::NumericalDuration,
-    util::{days_in_year_month, weeks_in_year},
-    Month, Weekday,
-};
+use time::{ext::NumericalDuration, util::weeks_in_year, Month, Weekday};
 
 use super::{
-    additions::{add_months, yearly_conv_data, CyclicTimeTo, TimeTo},
+    additions::{
+        iso_year_start, next_good_month, next_good_month_by_weekday, AddMonths, CyclicTimeTo,
+        TimeStart, TimeTo,
+    },
     calculations::EventRangeData,
     errors::EventError,
     models::TimeRange,
@@ -15,19 +14,17 @@ use super::{
 
 pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
     let day_amount = (range_data.range.start - range_data.event_range.end).whole_days();
-    let mut offset_from_origin_event = (day_amount - day_amount % range_data.interval as i64)
-        .days()
-        + (range_data.interval as i64).days();
+    let offset_from_origin_event = (day_amount - day_amount % range_data.interval as i64).days();
 
+    let mut daily_event = range_data.event_range + offset_from_origin_event;
     let mut res = Vec::new();
 
-    while range_data.event_range.start + offset_from_origin_event < range_data.range.end {
-        res.push(TimeRange::new(
-            range_data.event_range.start + offset_from_origin_event,
-            range_data.event_range.end + offset_from_origin_event,
-        ));
+    while !daily_event.is_after(&range_data.range) {
+        if daily_event.is_overlapping(&range_data.range) {
+            res.push(daily_event);
+        }
 
-        offset_from_origin_event += (range_data.interval as i64).days();
+        daily_event += (range_data.interval as i64).days();
     }
 
     res
@@ -35,185 +32,73 @@ pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
 
 pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<TimeRange> {
     let week_amount = (range_data.range.start - range_data.event_range.end).whole_weeks();
-    let mut offset_from_origin_event =
-        (week_amount - week_amount % range_data.interval as i64).weeks();
+    let offset_from_origin_event = (week_amount - week_amount % range_data.interval as i64).weeks();
+    let offset_from_week_start =
+        (time::Weekday::Monday.cyclic_time_to(range_data.event_range.start.weekday()) as i64)
+            .days();
 
     let mut res = Vec::new();
 
-    let first_week_start = (range_data.event_range.start
-        - (time::Weekday::Monday.cyclic_time_to((range_data.event_range.start).weekday()) as i64)
-            .days())
-    .replace_time(time::Time::MIDNIGHT);
+    let weekly_event_start =
+        range_data.event_range.start + offset_from_origin_event - offset_from_week_start;
+    let mut weekly_event =
+        TimeRange::new_relative(weekly_event_start, range_data.event_range.duration());
 
-    while first_week_start + offset_from_origin_event < range_data.range.end {
-        let weekly_start_step = range_data.event_range.start + offset_from_origin_event
-            - (time::Weekday::Monday.cyclic_time_to(range_data.event_range.start.weekday()) as i64)
-                .days();
-        let weekly_end_step =
-            weekly_start_step + (range_data.event_range.end - range_data.event_range.start);
+    while !weekly_event.is_after(&range_data.range) {
+        week_map.chars().enumerate().for_each(|(i, elem)| {
+            if elem == '1' && (weekly_event + (i as i64).days()).is_overlapping(&range_data.range) {
+                res.push(weekly_event + (i as i64).days());
+            }
+        });
 
-        for i in 0..7 {
-            if &week_map[i..=i] == "1"
-                && weekly_start_step + (i as i64).days() < range_data.range.end
-                && weekly_end_step + (i as i64).days() > range_data.range.start
-            {
-                res.push(TimeRange::new(
-                    weekly_start_step + (i as i64).days(),
-                    weekly_end_step + (i as i64).days(),
-                ));
-            };
-        }
-
-        offset_from_origin_event += (range_data.interval as i64).weeks();
+        weekly_event += (range_data.interval as i64).weeks();
     }
 
     res
 }
 
-pub fn get_monthly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
-    let month_amount = (
-        range_data.event_range.end.year(),
-        range_data.event_range.end.month(),
-    )
-        .time_to((
-            range_data.range.start.year(),
-            range_data.range.start.month(),
-        ));
+pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) -> Vec<TimeRange> {
+    let (event_end_year, event_end_month, _) = range_data.event_range.end.to_calendar_date();
+    let (range_start_year, range_start_month, _) = range_data.range.start.to_calendar_date();
+
+    let month_amount =
+        (event_end_year, event_end_month).time_to((range_start_year, range_start_month));
+
     let offset_from_origin_event = max(
         month_amount - month_amount.rem_euclid(range_data.interval as i32),
         0,
     );
+
     let month_start = range_data
         .event_range
         .start
-        .replace_day(1)
-        .unwrap()
-        .replace_time(time::Time::MIDNIGHT);
-    let mut monthly_step = add_months(month_start, offset_from_origin_event as i32).unwrap();
-    let offset_from_month_start = range_data.event_range.start - month_start;
-
-    let mut res = Vec::new();
-
-    while monthly_step + offset_from_month_start < range_data.range.end {
-        if days_in_year_month(monthly_step.year(), monthly_step.month())
-            >= range_data.event_range.start.day()
-            && monthly_step
-                + offset_from_month_start
-                + (range_data.event_range.end - range_data.event_range.start)
-                > range_data.range.start
-        {
-            res.push(TimeRange::new(
-                monthly_step + offset_from_month_start,
-                monthly_step
-                    + offset_from_month_start
-                    + (range_data.event_range.end - range_data.event_range.start),
-            ));
-        };
-
-        monthly_step = add_months(monthly_step, range_data.interval as i32).unwrap();
-    }
-
-    res
-}
-
-pub fn get_monthly_events_by_weekday(range_data: EventRangeData) -> Vec<TimeRange> {
-    let month_amount = (
-        range_data.event_range.end.year(),
-        range_data.event_range.end.month(),
-    )
-        .time_to((
-            range_data.range.start.year(),
-            range_data.range.start.month(),
-        ));
-    let offset_from_origin_event = max(
-        month_amount - month_amount.rem_euclid(range_data.interval as i32),
-        0,
-    );
-    let first_month_day = range_data.event_range.start.replace_day(1).unwrap();
-    let mut monthly_step = add_months(first_month_day, offset_from_origin_event as i32).unwrap();
-
-    let target_weekday = range_data.event_range.start.weekday();
-    let target_week_number = (range_data.event_range.start.day() - 1) / 7;
-
-    let mut res = Vec::new();
-
-    while monthly_step.replace_time(time::Time::MIDNIGHT) < range_data.range.end {
-        let target_day = monthly_step.weekday().cyclic_time_to(target_weekday) as u8
-            + 7 * target_week_number
-            + 1;
-        if days_in_year_month(monthly_step.year(), monthly_step.month()) >= target_day
-            && monthly_step.replace_day(target_day).unwrap() < range_data.range.end
-            && monthly_step.replace_day(target_day).unwrap()
-                + (range_data.event_range.end - range_data.event_range.start)
-                > range_data.range.start
-        {
-            res.push(TimeRange::new(
-                monthly_step.replace_day(target_day).unwrap(),
-                monthly_step.replace_day(target_day).unwrap()
-                    + (range_data.event_range.end - range_data.event_range.start),
-            ));
-        };
-
-        monthly_step = add_months(monthly_step, range_data.interval as i32).unwrap();
-    }
-
-    res
-}
-
-pub fn get_yearly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
-    let year_amount = range_data.event_range.end.year() - range_data.range.start.year();
-    let offset_from_origin_event = max(
-        year_amount - year_amount.rem_euclid(range_data.interval as i32),
-        0,
-    );
-    let mut yearly_step = range_data
-        .event_range
-        .start
-        .replace_day(1)
-        .unwrap()
-        .replace_month(Month::January)
-        .unwrap()
-        .replace_time(time::Time::MIDNIGHT)
-        .replace_year(range_data.event_range.start.year() + offset_from_origin_event)
+        .month_start()
+        .add_months(offset_from_origin_event)
         .unwrap();
+    let mut monthly_step = range_data.event_range.start;
+
+    while monthly_step < month_start {
+        if is_by_day {
+            monthly_step = next_good_month(monthly_step, range_data.interval as i32);
+        } else {
+            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i32);
+        }
+    }
 
     let mut res = Vec::new();
 
-    while yearly_step < range_data.range.end {
-        if days_in_year_month(yearly_step.year(), yearly_step.month())
-            >= range_data.event_range.start.day()
-            && range_data
-                .event_range
-                .start
-                .replace_year(yearly_step.year())
-                .unwrap()
-                < range_data.range.end
-            && range_data
-                .event_range
-                .start
-                .replace_year(yearly_step.year())
-                .unwrap()
-                + (range_data.event_range.end - range_data.event_range.start)
-                > range_data.range.start
-        {
-            res.push(TimeRange::new(
-                range_data
-                    .event_range
-                    .start
-                    .replace_year(yearly_step.year())
-                    .unwrap(),
-                range_data
-                    .event_range
-                    .start
-                    .replace_year(yearly_step.year())
-                    .unwrap()
-                    + (range_data.event_range.end - range_data.event_range.start),
-            ));
+    while monthly_step < range_data.range.end {
+        let monthly_event =
+            TimeRange::new_relative(monthly_step, range_data.event_range.duration());
+        if monthly_event.is_overlapping(&range_data.range) {
+            res.push(monthly_event);
         };
 
-        yearly_step = yearly_step
-            .replace_year(yearly_step.year() + range_data.interval as i32)
-            .unwrap();
+        if is_by_day {
+            monthly_step = next_good_month(monthly_step, range_data.interval as i32);
+        } else {
+            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i32);
+        }
     }
 
     res
@@ -222,43 +107,31 @@ pub fn get_yearly_events_by_day(range_data: EventRangeData) -> Vec<TimeRange> {
 pub fn get_yearly_events_by_weekday(
     range_data: EventRangeData,
 ) -> Result<Vec<TimeRange>, EventError> {
-    let (.., range_base_year) = yearly_conv_data(range_data.range.start)?;
-    let (target_weekday, target_week_number, event_base_year) =
-        yearly_conv_data(range_data.event_range.start)?;
-    let year_amount = range_base_year.year() - event_base_year.year();
+    let (range_base_year, ..) = range_data.range.start.to_iso_week_date();
+    let (event_base_year, target_week_number, target_weekday) =
+        range_data.event_range.start.to_iso_week_date();
+    let year_amount = range_base_year - event_base_year;
     let offset_from_origin_event = max(
         year_amount - year_amount.rem_euclid(range_data.interval as i32),
         0,
     );
-    let mut yearly_step = range_data
-        .event_range
-        .start
-        .replace_day(1)
-        .unwrap()
-        .replace_month(Month::January)
-        .unwrap()
-        .replace_year(range_data.event_range.start.year() + offset_from_origin_event)
-        .unwrap();
 
+    let mut yearly_step = event_base_year + offset_from_origin_event;
+    let offset_from_iso_year_start = (target_week_number as i64 - 1).weeks()
+        + (Weekday::Monday.cyclic_time_to(target_weekday) as i64).days();
     let mut res = Vec::new();
 
-    while yearly_step < range_data.range.end {
-        let first_monday =
-            yearly_step + ((yearly_step.weekday().cyclic_time_to(Weekday::Monday)) as i64).days();
+    while iso_year_start(yearly_step) < range_data.range.end {
+        if weeks_in_year(yearly_step) >= target_week_number {
+            let target_day = iso_year_start(yearly_step) + offset_from_iso_year_start;
 
-        if weeks_in_year(yearly_step.year()) >= target_week_number + 1 {
-            let target_time = first_monday
-                + (target_week_number as i64 - first_monday.iso_week() as i64 + 1).weeks()
-                + (Weekday::Monday.cyclic_time_to(target_weekday) as i64).days();
-            res.push(TimeRange::new(
-                target_time,
-                target_time + (range_data.event_range.end - range_data.event_range.start),
+            res.push(TimeRange::new_relative(
+                target_day.replace_time(range_data.event_range.start.time()),
+                range_data.event_range.duration(),
             ));
         };
 
-        yearly_step = yearly_step
-            .replace_year(yearly_step.year() + range_data.interval as i32)
-            .unwrap();
+        yearly_step += range_data.interval as i32;
     }
 
     Ok(res)

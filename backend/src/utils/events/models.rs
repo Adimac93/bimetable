@@ -111,7 +111,7 @@ impl TimeRules {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct TimeRange {
     pub start: OffsetDateTime,
     pub end: OffsetDateTime,
@@ -120,5 +120,32 @@ pub struct TimeRange {
 impl TimeRange {
     pub fn new(start: OffsetDateTime, end: OffsetDateTime) -> Self {
         Self { start, end }
+    }
+
+    pub fn new_relative(start: OffsetDateTime, length: Duration) -> Self {
+        Self::new(start, start + length)
+    }
+
+    pub fn checked_add(self, rhs: Duration) -> Option<Self> {
+        Some(Self::new(
+            self.start.checked_add(rhs)?,
+            self.end.checked_add(rhs)?,
+        ))
+    }
+
+    pub fn is_before(&self, other: &Self) -> bool {
+        self.end <= other.start
+    }
+
+    pub fn is_overlapping(&self, other: &Self) -> bool {
+        self.start < other.end && self.end > other.start
+    }
+
+    pub fn is_after(&self, other: &Self) -> bool {
+        self.start >= other.end
+    }
+
+    pub fn duration(&self) -> Duration {
+        self.end - self.start
     }
 }

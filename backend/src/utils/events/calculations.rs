@@ -10,8 +10,8 @@ use super::{
     },
     errors::EventError,
     event_range::{
-        get_daily_events, get_monthly_events_by_day, get_monthly_events_by_weekday,
-        get_weekly_events, get_yearly_events_by_day, get_yearly_events_by_weekday,
+        get_daily_events, get_monthly_events_by_day, get_weekly_events,
+        get_yearly_events_by_weekday,
     },
     models::{EventPart, EventRules, RecurrenceEndsAt, TimeRange},
 };
@@ -156,7 +156,9 @@ impl EventPart {
             } => {
                 range_data.interval = time_rules.interval;
                 if *is_by_day {
-                    Ok(get_yearly_events_by_day(range_data))
+                    // year and 12 months are the same
+                    range_data.interval *= 12;
+                    Ok(get_monthly_events_by_day(range_data, *is_by_day))
                 } else {
                     get_yearly_events_by_weekday(range_data)
                 }
@@ -166,11 +168,7 @@ impl EventPart {
                 is_by_day,
             } => {
                 range_data.interval = time_rules.interval;
-                if *is_by_day {
-                    Ok(get_monthly_events_by_day(range_data))
-                } else {
-                    Ok(get_monthly_events_by_weekday(range_data))
-                }
+                Ok(get_monthly_events_by_day(range_data, *is_by_day))
             }
             EventRules::Weekly {
                 time_rules,

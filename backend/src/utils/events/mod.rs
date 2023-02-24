@@ -1,10 +1,10 @@
-use serde::Serialize;
 use crate::modules::database::PgQuery;
+use crate::routes::events::models::CreateEvent;
 use crate::utils::events::models::{Event, EventRules};
+use serde::Serialize;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::{query, query_as, Acquire, Connection};
 use uuid::Uuid;
-use crate::routes::events::models::CreateEvent;
 
 pub mod additions;
 pub mod calculations;
@@ -17,7 +17,7 @@ pub mod models;
 pub struct EventPayload {
     owned: Vec<UserEvent>,
     shared: Vec<SharedEvent>,
-    overrides: Vec<Override>
+    overrides: Vec<Override>,
 }
 
 #[derive(Serialize)]
@@ -112,7 +112,11 @@ impl<'c> PgQuery<'c, EventQuery> {
             .fetch_all(&mut *self.conn)
             .await?;
 
-        Ok(EventPayload { owned: events, shared: shared_events, overrides })
+        Ok(EventPayload {
+            owned: events,
+            shared: shared_events,
+            overrides,
+        })
     }
 
     pub async fn create(
@@ -192,8 +196,8 @@ impl<'c> PgQuery<'c, EventQuery> {
             user_id,
             event.id,
         )
-            .execute(&mut *self.conn)
-            .await?;
+        .execute(&mut *self.conn)
+        .await?;
 
         Ok(())
     }
@@ -211,8 +215,8 @@ impl<'c> PgQuery<'c, EventQuery> {
             user_id,
             event_id
         )
-            .execute(&mut *self.conn)
-            .await?;
+        .execute(&mut *self.conn)
+        .await?;
 
         Ok(())
     }
@@ -225,8 +229,8 @@ impl<'c> PgQuery<'c, EventQuery> {
             user_id,
             event_id
         )
-            .execute(&mut *self.conn)
-            .await?;
+        .execute(&mut *self.conn)
+        .await?;
 
         Ok(())
     }

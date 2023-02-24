@@ -32,10 +32,10 @@ async fn get_events(
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
     // for dev purposes
     let starts_at = query.starts_at.unwrap_or(OffsetDateTime::UNIX_EPOCH);
-    let ends_at = query.ends_at.unwrap_or(OffsetDateTime::now_utc().saturating_add(Duration::days(365)));
-    let events = q
-        .get_many(claims.user_id, starts_at, ends_at)
-        .await?;
+    let ends_at = query
+        .ends_at
+        .unwrap_or(OffsetDateTime::now_utc().saturating_add(Duration::days(365)));
+    let events = q.get_many(claims.user_id, starts_at, ends_at).await?;
     Ok(Json(events))
 }
 
