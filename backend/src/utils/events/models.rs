@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::{serde::timestamp, Duration};
 
-use crate::app_errors::DefaultContext;
-
 use super::{
     calculations::{CountToUntilData, EventRangeData},
     count_to_until::{
@@ -60,29 +58,26 @@ pub enum EventRules {
 impl EventRules {
     pub fn count_to_until(
         &self,
-        part: &EventPart,
+        part_starts_at: OffsetDateTime,
+        count: u32,
         event: &TimeRange,
-    ) -> Result<Option<OffsetDateTime>, EventError> {
-        let Some(part_ends_at) = part.length.as_ref() else {
-            return Ok(None)
+    ) -> Result<OffsetDateTime, EventError> {
+        let mut conv_data = CountToUntilData {
+            part_starts_at,
+            count,
+            interval: 0,
+            event_duration: event.duration(),
         };
-
-        let count = match part_ends_at {
-            RecurrenceEndsAt::Until(t) => return Ok(Some(*t)),
-            RecurrenceEndsAt::Count(n) => *n,
-        };
-
-        let mut conv_data = CountToUntilData::new(part.starts_at, count, 0, event.duration());
-        let res = match self {
+        match self {
             EventRules::Yearly {
                 time_rules,
                 is_by_day,
             } => {
                 conv_data.interval = time_rules.interval;
                 if *is_by_day {
-                    yearly_conv_by_day(conv_data)?
+                    yearly_conv_by_day(conv_data)
                 } else {
-                    yearly_conv_by_weekday(conv_data)?
+                    yearly_conv_by_weekday(conv_data)
                 }
             }
             EventRules::Monthly {
@@ -91,9 +86,9 @@ impl EventRules {
             } => {
                 conv_data.interval = time_rules.interval;
                 if *is_by_day {
-                    monthly_conv_by_day(conv_data)?
+                    monthly_conv_by_day(conv_data)
                 } else {
-                    monthly_conv_by_weekday(conv_data)?
+                    monthly_conv_by_weekday(conv_data)
                 }
             }
             EventRules::Weekly {
@@ -105,30 +100,33 @@ impl EventRules {
                 if week_map % 128 == 0 {
                     return Err(EventError::InvalidEventFormat);
                 }
-                weekly_conv(conv_data, &string_week_map)?
+                weekly_conv(conv_data, &string_week_map)
             }
             EventRules::Daily { time_rules } => {
                 conv_data.interval = time_rules.interval;
-                daily_conv(conv_data)?
+                daily_conv(conv_data)
             }
-        };
-        Ok(Some(res))
+        }
     }
 
     pub fn get_event_range(
         &self,
-        part: &EventPart,
-        event: &TimeRange,
+        part: TimeRange,
+        event: TimeRange,
     ) -> Result<Vec<TimeRange>, EventError> {
-        let part_ends_at = part.length.as_ref().ok_or(EventError::NotFound)?;
+        let t_rules = self.time_rules();
 
-        let part_ends_at = match part_ends_at {
-            RecurrenceEndsAt::Until(t) => *t,
-            RecurrenceEndsAt::Count(_n) => self.count_to_until(part, event)?.dc()?,
+        let mut range_data = EventRangeData {
+            range: part,
+            event_range: event,
+            rec_ends_at: None,
+            interval: t_rules.interval,
         };
 
-        let mut range_data =
-            EventRangeData::new(part.starts_at, part_ends_at, 0, event.start, event.end);
+        range_data.rec_ends_at = t_rules.ends_at.as_ref().and_then(|x| match x {
+            RecurrenceEndsAt::Count(n) => Some(self.count_to_until(part.start, *n, &event).ok()?),
+            RecurrenceEndsAt::Until(t) => Some(*t),
+        });
 
         match self {
             EventRules::Yearly {
@@ -168,15 +166,25 @@ impl EventRules {
             }
         }
     }
+
+    fn time_rules(&self) -> TimeRules {
+        let res = match self {
+            EventRules::Yearly { time_rules, .. } => time_rules,
+            EventRules::Monthly { time_rules, .. } => time_rules,
+            EventRules::Weekly { time_rules, .. } => time_rules,
+            EventRules::Daily { time_rules } => time_rules,
+        };
+        res.clone()
+    }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum RecurrenceEndsAt {
     Until(OffsetDateTime),
     Count(u32),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TimeRules {
     pub ends_at: Option<RecurrenceEndsAt>,
     pub interval: u32,
@@ -210,6 +218,10 @@ impl TimeRange {
 
     pub fn is_overlapping(&self, other: &Self) -> bool {
         self.start < other.end && self.end > other.start
+    }
+
+    pub fn is_contained(&self, other: &Self) -> bool {
+        other.start <= self.start && other.end >= self.end
     }
 
     pub fn is_after(&self, other: &Self) -> bool {

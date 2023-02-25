@@ -141,9 +141,7 @@ pub fn yearly_conv_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateT
 
 #[cfg(test)]
 mod recurrence_tests {
-    use crate::utils::events::models::{
-        EventPart, EventRules, RecurrenceEndsAt, TimeRange, TimeRules,
-    };
+    use crate::utils::events::models::{EventRules, RecurrenceEndsAt, TimeRange, TimeRules};
     use time::macros::datetime;
 
     #[test]
@@ -158,14 +156,12 @@ mod recurrence_tests {
                 interval: 3,
             },
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-02-21 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(7)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2023-03-14 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2023-02-21 10:00 +1), 7, &event)
+                .unwrap(),
+            datetime!(2023-03-14 12:15 +1)
         )
     }
 
@@ -182,14 +178,12 @@ mod recurrence_tests {
             },
             week_map: 86,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-02-27 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(5)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2023-03-15 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2023-02-27 10:00 +1), 5, &event)
+                .unwrap(),
+            datetime!(2023-03-15 12:15 +1)
         )
     }
 
@@ -206,14 +200,12 @@ mod recurrence_tests {
             },
             week_map: 86,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-03-01 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(7)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2023-03-27 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2023-03-01 10:00 +1), 7, &event)
+                .unwrap(),
+            datetime!(2023-03-27 12:15 +1)
         )
     }
 
@@ -230,14 +222,12 @@ mod recurrence_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-04-18 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(2)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2023-08-18 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2023-04-18 10:00 +1), 2, &event)
+                .unwrap(),
+            datetime!(2023-08-18 12:15 +1)
         )
     }
 
@@ -254,14 +244,12 @@ mod recurrence_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2025-11-29 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(15)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2032-07-29 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2025-11-29 10:00 +1), 15, &event)
+                .unwrap(),
+            datetime!(2032-07-29 12:15 +1)
         )
     }
 
@@ -278,14 +266,12 @@ mod recurrence_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-04-15 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(2)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2023-08-19 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2023-04-15 10:00 +1), 2, &event)
+                .unwrap(),
+            datetime!(2023-08-19 12:15 +1)
         )
     }
 
@@ -302,14 +288,12 @@ mod recurrence_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-05-30 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(2)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2023-10-31 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2023-05-30 10:00 +1), 2, &event)
+                .unwrap(),
+            datetime!(2023-10-31 12:15 +1)
         )
     }
 
@@ -326,14 +310,12 @@ mod recurrence_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2025-02-18 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(2)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2029-02-18 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2025-02-18 10:00 +1), 2, &event)
+                .unwrap(),
+            datetime!(2029-02-18 12:15 +1)
         )
     }
 
@@ -350,14 +332,12 @@ mod recurrence_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2028-02-29 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(1)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2032-02-29 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2028-02-29 10:00 +1), 1, &event)
+                .unwrap(),
+            datetime!(2032-02-29 12:15 +1)
         )
     }
 
@@ -374,14 +354,12 @@ mod recurrence_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2025-02-15 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(2)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2029-02-17 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2025-02-15 10:00 +1), 2, &event)
+                .unwrap(),
+            datetime!(2029-02-17 12:15 +1)
         )
     }
 
@@ -398,14 +376,12 @@ mod recurrence_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2022-01-01 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(1)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2022-12-31 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2022-01-01 10:00 +1), 1, &event)
+                .unwrap(),
+            datetime!(2022-12-31 12:15 +1)
         )
     }
 
@@ -422,14 +398,12 @@ mod recurrence_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2026-12-31 10:00 +1),
-            length: Some(RecurrenceEndsAt::Count(1)),
-        };
 
         assert_eq!(
-            rec_rules.count_to_until(&part, &event).unwrap(),
-            Some(datetime!(2032-12-30 12:15 +1))
+            rec_rules
+                .count_to_until(datetime!(2026-12-31 10:00 +1), 1, &event)
+                .unwrap(),
+            datetime!(2032-12-30 12:15 +1)
         )
     }
 }

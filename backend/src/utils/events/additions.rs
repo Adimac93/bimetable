@@ -1,6 +1,9 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-use time::{ext::NumericalDuration, util::weeks_in_year, Duration, Month, OffsetDateTime, Weekday};
+use time::{
+    ext::NumericalDuration, macros::datetime, util::weeks_in_year, Duration, Month, OffsetDateTime,
+    Weekday,
+};
 
 use crate::app_errors::DefaultContext;
 
@@ -243,6 +246,10 @@ pub fn iso_year_start(year: i32) -> OffsetDateTime {
     } else {
         time - (Weekday::Monday.time_to(weekday) as i64).days()
     }
+}
+
+pub fn max_date_time() -> OffsetDateTime {
+    datetime!(9999-12-31 23:59:59.999999999 UTC)
 }
 
 #[cfg(test)]

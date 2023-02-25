@@ -4,8 +4,8 @@ use time::{ext::NumericalDuration, util::weeks_in_year, Weekday};
 
 use super::{
     additions::{
-        iso_year_start, next_good_month, next_good_month_by_weekday, AddTime, CyclicTimeTo,
-        TimeStart, TimeTo,
+        iso_year_start, max_date_time, next_good_month, next_good_month_by_weekday, AddTime,
+        CyclicTimeTo, TimeStart, TimeTo,
     },
     calculations::EventRangeData,
     errors::EventError,
@@ -14,12 +14,18 @@ use super::{
 
 pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
     let day_amount = (range_data.range.start - range_data.event_range.end).whole_days();
-    let offset_from_origin_event = (day_amount - day_amount % range_data.interval as i64).days();
+    let offset_from_origin_event = max(
+        day_amount - day_amount.rem_euclid(range_data.interval as i64),
+        0,
+    )
+    .days();
 
     let mut daily_event = range_data.event_range + offset_from_origin_event;
     let mut res = Vec::new();
 
-    while !daily_event.is_after(&range_data.range) {
+    while !daily_event.is_after(&range_data.range)
+        && daily_event.start < range_data.rec_ends_at.unwrap_or(max_date_time())
+    {
         if daily_event.is_overlapping(&range_data.range) {
             res.push(daily_event);
         }
@@ -32,7 +38,11 @@ pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
 
 pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<TimeRange> {
     let week_amount = (range_data.range.start - range_data.event_range.end).whole_weeks();
-    let offset_from_origin_event = (week_amount - week_amount % range_data.interval as i64).weeks();
+    let offset_from_origin_event = max(
+        week_amount - week_amount.rem_euclid(range_data.interval as i64),
+        0,
+    )
+    .weeks();
     let offset_from_week_start =
         (time::Weekday::Monday.cyclic_time_to(range_data.event_range.start.weekday()) as i64)
             .days();
@@ -44,7 +54,9 @@ pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<Time
     let mut weekly_event =
         TimeRange::new_relative(weekly_event_start, range_data.event_range.duration());
 
-    while !weekly_event.is_after(&range_data.range) {
+    while !weekly_event.is_after(&range_data.range)
+        && weekly_event.start < range_data.rec_ends_at.unwrap_or(max_date_time())
+    {
         week_map.chars().enumerate().for_each(|(i, elem)| {
             if elem == '1' && (weekly_event + (i as i64).days()).is_overlapping(&range_data.range) {
                 res.push(weekly_event + (i as i64).days());
@@ -87,7 +99,9 @@ pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) ->
 
     let mut res = Vec::new();
 
-    while monthly_step < range_data.range.end {
+    while monthly_step < range_data.range.end
+        && monthly_step < range_data.rec_ends_at.unwrap_or(max_date_time())
+    {
         let monthly_event =
             TimeRange::new_relative(monthly_step, range_data.event_range.duration());
         if monthly_event.is_overlapping(&range_data.range) {
@@ -121,7 +135,9 @@ pub fn get_yearly_events_by_weekday(
         + (Weekday::Monday.cyclic_time_to(target_weekday) as i64).days();
     let mut res = Vec::new();
 
-    while iso_year_start(yearly_step) < range_data.range.end {
+    while iso_year_start(yearly_step) < range_data.range.end
+        && iso_year_start(yearly_step) < range_data.rec_ends_at.unwrap_or(max_date_time())
+    {
         if weeks_in_year(yearly_step) >= target_week_number {
             let target_day = iso_year_start(yearly_step) + offset_from_iso_year_start;
 
@@ -141,7 +157,7 @@ pub fn get_yearly_events_by_weekday(
 mod event_range_tests {
     use time::macros::datetime;
 
-    use crate::utils::events::models::{EventPart, EventRules, RecurrenceEndsAt, TimeRules};
+    use crate::utils::events::models::{EventRules, RecurrenceEndsAt, TimeRules};
 
     use super::*;
 
@@ -157,13 +173,13 @@ mod event_range_tests {
                 interval: 2,
             },
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-02-21 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2023-02-27 22:45 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-02-21 0:00 +1),
+            end: datetime!(2023-02-27 22:45 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-02-21 22:45 +1),
@@ -194,13 +210,13 @@ mod event_range_tests {
             },
             week_map: 54,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-02-21 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2023-03-15 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-02-21 0:00 +1),
+            end: datetime!(2023-03-15 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-02-28 22:45 +1),
@@ -239,13 +255,13 @@ mod event_range_tests {
             },
             week_map: 54,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-03-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2023-03-22 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-03-01 0:00 +1),
+            end: datetime!(2023-03-22 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-03-01 22:45 +1),
@@ -292,13 +308,13 @@ mod event_range_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-03-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2023-08-17 22:45 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-03-01 0:00 +1),
+            end: datetime!(2023-08-17 22:45 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-04-17 22:45 +1),
@@ -325,13 +341,13 @@ mod event_range_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-01-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2024-01-01 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-01-01 0:00 +1),
+            end: datetime!(2024-01-01 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-31 22:45 +1),
@@ -378,13 +394,13 @@ mod event_range_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-02-28 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2023-12-19 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-02-28 0:00 +1),
+            end: datetime!(2023-12-19 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-04-21 22:45 +1),
@@ -423,13 +439,13 @@ mod event_range_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-02-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2024-01-01 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-02-01 0:00 +1),
+            end: datetime!(2024-01-01 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-04-30 22:45 +1),
@@ -464,13 +480,13 @@ mod event_range_tests {
             },
             is_by_day: true,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-01-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-01-01 0:00 +1),
+            end: datetime!(2029-01-01 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-29 22:45 +1),
@@ -501,13 +517,13 @@ mod event_range_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-01-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-01-01 0:00 +1),
+            end: datetime!(2029-01-01 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-29 22:45 +1),
@@ -538,13 +554,13 @@ mod event_range_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-01-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2029-01-01 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-01-01 0:00 +1),
+            end: datetime!(2029-01-01 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![TimeRange::new(
                 datetime!(2026-12-28 22:45 +1),
                 datetime!(2026-12-29 0:00 +1)
@@ -565,13 +581,13 @@ mod event_range_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2023-01-01 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2027-02-01 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2023-01-01 0:00 +1),
+            end: datetime!(2027-02-01 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![
                 TimeRange::new(
                     datetime!(2023-01-02 22:45 +1),
@@ -610,13 +626,13 @@ mod event_range_tests {
             },
             is_by_day: false,
         };
-        let part = EventPart {
-            starts_at: datetime!(2027-01-16 0:00 +1),
-            length: Some(RecurrenceEndsAt::Until(datetime!(2027-01-17 0:00 +1))),
+        let part = TimeRange {
+            start: datetime!(2027-01-16 0:00 +1),
+            end: datetime!(2027-01-17 0:00 +1),
         };
 
         assert_eq!(
-            rec_rules.get_event_range(&part, &event).unwrap(),
+            rec_rules.get_event_range(part, event).unwrap(),
             vec![TimeRange::new(
                 datetime!(2027-01-16 22:45 +1),
                 datetime!(2027-01-17 0:00 +1)
