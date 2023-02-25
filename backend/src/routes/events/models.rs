@@ -44,11 +44,18 @@ pub struct EventData {
 // Queries
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetEventsQuery {
-    #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
-    pub starts_at: Option<OffsetDateTime>,
-    #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
-    pub ends_at: Option<OffsetDateTime>,
-    pub include_shared: bool,
+    #[serde(with = "timestamp")]
+    pub starts_at: OffsetDateTime,
+    #[serde(with = "timestamp")]
+    pub ends_at: OffsetDateTime,
+    pub filter: EventFilter,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum EventFilter {
+    All,
+    Owned,
+    Shared,
 }
 
 // Send payloads
@@ -60,13 +67,11 @@ pub struct CreateEvent {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpdateEvent {
-    pub id: Uuid,
     pub data: OptionalEventData,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OverrideEvent {
-    pub event_id: Uuid,
     pub override_starts_at: OffsetDateTime,
     pub override_ends_at: OffsetDateTime,
     pub data: OptionalEventData,
@@ -95,6 +100,39 @@ impl Events {
     pub fn new(events: HashMap<Uuid, Event>, entries: Vec<Entry>) -> Self {
         Self { events, entries }
     }
+
+    pub fn merge(self, other: Self) -> Self {
+        let mut entries = vec![];
+        let mut i = 0;
+        let mut j = 0;
+
+        while i < self.entries.len() && j < other.entries.len() {
+            if self.entries[i].starts_at < other.entries[j].starts_at {
+                entries.push(self.entries[i].clone());
+                i += 1;
+            } else {
+                entries.push(other.entries[j].clone());
+                j += 1;
+            }
+        }
+
+        while i < self.entries.len() {
+            entries.push(self.entries[i].clone());
+            i += 1;
+        }
+
+        while j < other.entries.len() {
+            entries.push(other.entries[j].clone());
+            j += 1;
+        }
+
+        let mut left = self.events;
+        let right = other.events;
+        left.extend(right);
+        let events = left;
+
+        Events::new(events, entries)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -108,6 +146,7 @@ pub enum EventPrivileges {
     Owned,
     Shared { can_edit: bool },
 }
+
 impl Event {
     pub fn new(mode: EventPrivileges, payload: EventPayload) -> Self {
         match mode {

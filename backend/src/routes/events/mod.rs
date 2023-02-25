@@ -1,96 +1,127 @@
 pub mod models;
-
+use crate::modules::AppState;
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
-use crate::{modules::AppState, utils::events::models::Event};
 use axum::{
     extract::{Path, Query, State},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use http::StatusCode;
+use serde_json::json;
+use sqlx::types::JsonValue;
 use sqlx::{types::Uuid, PgPool};
-use time::{Duration, OffsetDateTime};
+use time::OffsetDateTime;
 
 use crate::modules::database::PgQuery;
-use crate::utils::events::EventQuery;
+use crate::routes::events::models::{Event, Events, OptionalEventData, OverrideEvent, UpdateEvent};
+use crate::utils::events::{get_many_events, EventQuery};
 
 use self::models::{CreateEvent, GetEventsQuery};
 
-// pub fn router() -> Router<AppState> {
-//     Router::new()
-//         .route("/", get(get_events).put(put_new_event))
-//         .route("/:id", get(get_event).put(put_event).delete(delete_event))
-// }
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(get_events).post(create_event))
+        .route(
+            "/:event_id",
+            get(get_event)
+                .put(update_event)
+                .delete(delete_event_permanently),
+        )
+        .route("/override/:event_id", post(create_event_override))
+}
 
-// async fn get_events(
-//     claims: Claims,
-//     State(pool): State<PgPool>,
-//     Query(query): Query<GetEventsQuery>,
-// ) -> Result<Json<EventPayload>, EventError> {
-//     let mut conn = pool.begin().await?;
-//     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-//     // for dev purposes
-//     let starts_at = query.starts_at.unwrap_or(OffsetDateTime::UNIX_EPOCH);
-//     let ends_at = query
-//         .ends_at
-//         .unwrap_or(OffsetDateTime::now_utc().saturating_add(Duration::days(365)));
-//     let events = q.get_many(claims.user_id, starts_at, ends_at).await?;
-//     Ok(Json(events))
-// }
-
-// async fn put_new_event(
-//     claims: Claims,
-//     State(pool): State<PgPool>,
-//     Json(body): Json<CreateEvent>,
-// ) -> Result<(StatusCode, Json<Uuid>), EventError> {
-//     let mut conn = pool.acquire().await?;
-//     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-//     let event_id = q
-//         .create(
-//             claims.user_id,
-//             body
-//         )
-//         .await?;
-//
-//     Ok((StatusCode::CREATED, Json(event_id)))
-// }
-
-// async fn get_event(
-//     claims: Claims,
-//     State(pool): State<PgPool>,
-//     Path(id): Path<Uuid>,
-// ) -> Result<Json<UserEvent>, EventError> {
-//     let mut conn = pool.acquire().await?;
-//     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-//     let event = q
-//         .get(claims.user_id, id)
-//         .await?
-//         .ok_or(EventError::NotFound)?;
-//
-//     Ok(Json(event))
-// }
-
-// async fn put_event(
-//     claims: Claims,
-//     State(pool): State<PgPool>,
-//     Json(body): Json<Event>,
-// ) -> Result<StatusCode, EventError> {
-//     let mut conn = pool.acquire().await?;
-//     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-//     q.update_event(claims.user_id, body).await?;
-//
-//     Ok(StatusCode::OK)
-// }
-
-async fn delete_event(
+pub async fn create_event(
     claims: Claims,
     State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
+    Json(body): Json<CreateEvent>,
+) -> Result<Json<JsonValue>, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let event_id = q.create_event(claims.user_id, body).await?;
+    Ok(Json(json!({ "event_id": event_id })))
+}
+
+async fn get_events(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Query(query): Query<GetEventsQuery>,
+) -> Result<Json<Events>, EventError> {
+    let events = get_many_events(
+        claims.user_id,
+        query.starts_at,
+        query.ends_at,
+        query.filter,
+        pool,
+    )
+    .await?;
+    Ok(Json(events))
+}
+
+async fn get_event(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(event_id): Path<Uuid>,
+) -> Result<Json<Event>, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let event = q
+        .get_event(claims.user_id, event_id)
+        .await?
+        .ok_or(EventError::NotFound)?;
+
+    Ok(Json(event))
+}
+
+async fn update_event(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(event_id): Path<Uuid>,
+    Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.perm_delete(claims.user_id, id).await?;
+    q.update_event(claims.user_id, event_id, body.data).await?;
+
+    Ok(StatusCode::OK)
+}
+
+async fn delete_event_temporarily(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(event_id): Path<Uuid>,
+) -> Result<StatusCode, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    q.temp_delete(claims.user_id, event_id).await?;
+    Ok(StatusCode::OK)
+}
+
+async fn delete_event_permanently(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(event_id): Path<Uuid>,
+) -> Result<StatusCode, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    q.perm_delete(claims.user_id, event_id).await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn create_event_override(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(event_id): Path<Uuid>,
+    Json(body): Json<OverrideEvent>,
+) -> Result<StatusCode, EventError> {
+    let mut conn = pool.begin().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let is_owned = q.is_owned_event(claims.user_id, event_id).await?;
+    if !is_owned {
+        return Err(EventError::NotFound);
+    }
+
+    q.create_override(claims.user_id, event_id, body).await?;
+    Ok(StatusCode::OK)
 }
