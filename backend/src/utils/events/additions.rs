@@ -1,10 +1,10 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-use time::{ext::NumericalDuration, Duration, Month, OffsetDateTime, Weekday};
+use time::{ext::NumericalDuration, util::weeks_in_year, Duration, Month, OffsetDateTime, Weekday};
 
 use crate::app_errors::DefaultContext;
 
-use super::models::TimeRange;
+use super::{errors::EventError, models::TimeRange};
 
 pub fn get_amount_from_week_map(week_map: &str) -> u8 {
     week_map.chars().map(|x| x as u8 - 48).sum::<u8>()
@@ -22,27 +22,44 @@ pub fn get_offset_from_the_map(week_map: &str, mut event_number: u8, start_at: u
     return 7;
 }
 
-pub trait AddMonths
+pub trait AddTime
 where
     Self: Sized,
 {
-    fn add_months(self, chg: i32) -> anyhow::Result<Self>;
+    fn add_days(self, chg: i64) -> anyhow::Result<Self>;
+    fn add_weeks(self, chg: i64) -> anyhow::Result<Self>;
+    fn add_months(self, chg: i64) -> anyhow::Result<Self>;
+    fn add_years(self, chg: i64) -> anyhow::Result<Self>;
 }
 
-impl AddMonths for OffsetDateTime {
-    fn add_months(self, chg: i32) -> anyhow::Result<OffsetDateTime> {
+impl AddTime for OffsetDateTime {
+    fn add_days(self, chg: i64) -> anyhow::Result<Self> {
+        Ok(self.checked_add((chg as i64).days()).dc()?)
+    }
+
+    fn add_weeks(self, chg: i64) -> anyhow::Result<Self> {
+        Ok(self.checked_add((chg as i64).weeks()).dc()?)
+    }
+
+    fn add_months(self, chg: i64) -> anyhow::Result<OffsetDateTime> {
         let month_res = nth_next_month(self.month(), chg)?;
-        let year_offset = (((self.month() as i32).checked_add(chg)).dc()? - 1).div_euclid(12);
+        let year_offset = (((self.month() as i64).checked_add(chg)).dc()? - 1).div_euclid(12);
         Ok(self
             .replace_year(self.year().checked_add(year_offset as i32).dc()?)
             .dc()?
             .replace_month(month_res)
             .dc()?)
     }
+
+    fn add_years(self, chg: i64) -> anyhow::Result<Self> {
+        Ok(self
+            .replace_year(self.year().checked_add(chg as i32).dc()?)
+            .dc()?)
+    }
 }
 
-fn nth_next_month(val: Month, chg: i32) -> anyhow::Result<Month> {
-    Month::try_from((((val as i32).checked_add(chg).dc()? - 1).rem_euclid(12) + 1) as u8).dc()
+fn nth_next_month(val: Month, chg: i64) -> anyhow::Result<Month> {
+    Month::try_from((((val as i64).checked_add(chg).dc()? - 1).rem_euclid(12) + 1) as u8).dc()
 }
 
 pub fn yearly_conv_data(
@@ -161,7 +178,7 @@ impl TimeStart for OffsetDateTime {
     }
 }
 
-pub fn next_good_month(time: OffsetDateTime, chg: i32) -> OffsetDateTime {
+pub fn next_good_month(time: OffsetDateTime, chg: i64) -> OffsetDateTime {
     let mut first_day = time.replace_day(1).unwrap();
     first_day = first_day.add_months(chg).unwrap();
     while first_day.replace_day(time.day()).is_err() {
@@ -170,7 +187,20 @@ pub fn next_good_month(time: OffsetDateTime, chg: i32) -> OffsetDateTime {
     first_day.replace_day(time.day()).unwrap()
 }
 
-pub fn next_good_month_by_weekday(time: OffsetDateTime, chg: i32) -> OffsetDateTime {
+pub fn nth_good_month(
+    mut monthly_step: OffsetDateTime,
+    mut count: u32,
+    chg: i64,
+) -> Result<OffsetDateTime, EventError> {
+    while count > 0 {
+        monthly_step = next_good_month(monthly_step, chg);
+        count -= 1;
+    }
+
+    Ok(monthly_step)
+}
+
+pub fn next_good_month_by_weekday(time: OffsetDateTime, chg: i64) -> OffsetDateTime {
     let mut first_day = time.replace_day(1).unwrap();
     first_day = first_day.add_months(chg).unwrap();
     let day_offset = (time.day() - 1) / 7 * 7 + 1;
@@ -183,6 +213,21 @@ pub fn next_good_month_by_weekday(time: OffsetDateTime, chg: i32) -> OffsetDateT
     first_day
         .replace_day(day_offset + first_day.weekday().cyclic_time_to(time.weekday()) as u8)
         .unwrap()
+}
+
+pub fn nth_53_week_year_by_weekday(
+    mut yearly_step: i32,
+    mut count: u32,
+    chg: u32,
+) -> Result<i32, EventError> {
+    while count > 0 {
+        yearly_step = yearly_step.checked_add(i32::try_from(chg).dc()?).dc()?;
+        if weeks_in_year(yearly_step) == 53 {
+            count -= 1;
+        }
+    }
+
+    Ok(yearly_step)
 }
 
 pub fn iso_year_start(year: i32) -> OffsetDateTime {

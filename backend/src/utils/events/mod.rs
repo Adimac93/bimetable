@@ -119,11 +119,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         })
     }
 
-    pub async fn create(
-        &mut self,
-        user_id: Uuid,
-        event: CreateEvent
-    ) -> sqlx::Result<Uuid> {
+    pub async fn create(&mut self, user_id: Uuid, event: CreateEvent) -> sqlx::Result<Uuid> {
         let id = query!(
             r#"
                 INSERT INTO events (owner_id, name, description, starts_at, ends_at, recurrence_rule)

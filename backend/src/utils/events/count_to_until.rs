@@ -1,40 +1,29 @@
-use time::{
-    util::{days_in_year_month, is_leap_year, weeks_in_year},
-    Duration, Month, OffsetDateTime, Weekday,
-};
+use time::{Month, OffsetDateTime, Weekday};
 
 use crate::app_errors::DefaultContext;
 
 use super::{
     additions::{
-        get_amount_from_week_map, get_offset_from_the_map, yearly_conv_data, AddMonths,
+        get_amount_from_week_map, get_offset_from_the_map, iso_year_start,
+        next_good_month_by_weekday, nth_53_week_year_by_weekday, nth_good_month, AddTime,
         CyclicTimeTo,
     },
     calculations::CountToUntilData,
     errors::EventError,
 };
 
-pub fn day_count_to_until(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    Ok(Some(
-        conv_data
-            .part_starts_at
-            .checked_add(Duration::days(
-                (conv_data.count as i64)
-                    .checked_mul(conv_data.interval as i64)
-                    .dc()?,
-            ))
-            .dc()?
-            .checked_add(conv_data.event_duration)
-            .dc()?,
-    ))
+pub fn daily_conv(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+    Ok(conv_data
+        .part_starts_at
+        .add_days(conv_data.count.checked_mul(conv_data.interval).dc()? as i64)?
+        .checked_add(conv_data.event_duration)
+        .dc()?)
 }
 
-pub fn week_count_to_until(
+pub fn weekly_conv(
     conv_data: CountToUntilData,
     week_map: &str,
-) -> Result<Option<OffsetDateTime>, EventError> {
+) -> Result<OffsetDateTime, EventError> {
     // get amount of event recurrences in 1 week
     let week_event_num = get_amount_from_week_map(week_map);
 
@@ -55,75 +44,40 @@ pub fn week_count_to_until(
         weeks_passed = weeks_passed.checked_add(conv_data.interval - 1).dc()?;
     };
 
-    Ok(Some(
-        conv_data
-            .part_starts_at
-            .checked_add(Duration::weeks(weeks_passed as i64))
-            .dc()?
-            .checked_add(Duration::days(bonus_days_passed as i64))
-            .dc()?
-            .checked_add(conv_data.event_duration)
-            .dc()?,
-    ))
-}
-
-pub fn month_is_by_day_count_to_until(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    if conv_data.part_starts_at.day() <= 28 {
-        month_is_by_day_count_to_until_easy_days(conv_data)
-    } else {
-        month_is_by_day_count_to_until_hard_days(conv_data)
-    }
-}
-
-fn month_is_by_day_count_to_until_easy_days(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let base_date = conv_data
+    Ok(conv_data
         .part_starts_at
-        .add_months(conv_data.count.checked_mul(conv_data.interval).dc()? as i32)?;
-    Ok(Some(base_date + (conv_data.event_duration)))
+        .add_weeks(weeks_passed as i64)?
+        .add_days(bonus_days_passed as i64)?
+        .checked_add(conv_data.event_duration)
+        .dc()?)
 }
 
-fn month_is_by_day_count_to_until_hard_days(
-    mut conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
-    while conv_data.count > 0 {
-        monthly_step = monthly_step.add_months(conv_data.interval as i32)?;
-        if days_in_year_month(monthly_step.year(), monthly_step.month())
-            >= conv_data.part_starts_at.day()
-        {
-            conv_data.count -= 1;
-        }
-    }
-    Ok(Some(
-        monthly_step
-            .replace_day(conv_data.part_starts_at.day())
-            .dc()?
-            + (conv_data.event_duration),
-    ))
-}
+pub fn monthly_conv_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+    let base_date = conv_data.part_starts_at;
 
-pub fn month_count_to_until(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    if conv_data.part_starts_at.day() <= 28 {
-        month_count_to_until_easy_days(conv_data)
+    let target_date = if conv_data.part_starts_at.day() <= 28 {
+        base_date.add_months(conv_data.count.checked_mul(conv_data.interval).dc()? as i64)?
     } else {
-        month_count_to_until_hard_days(conv_data)
+        nth_good_month(base_date, conv_data.count, conv_data.interval as i64)?
+    };
+
+    Ok(target_date.checked_add(conv_data.event_duration).dc()?)
+}
+
+pub fn monthly_conv_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+    if conv_data.part_starts_at.day() <= 28 {
+        monthly_conv_for_other_days(conv_data)
+    } else {
+        monthly_conv_for_last_days(conv_data)
     }
 }
 
-fn month_count_to_until_easy_days(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
+fn monthly_conv_for_other_days(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     let week_number = (conv_data.part_starts_at.day() - 1) / 7;
 
     let first_target_month_day = conv_data
         .part_starts_at
-        .add_months(conv_data.count.checked_mul(conv_data.interval).dc()? as i32)?
+        .add_months(conv_data.count.checked_mul(conv_data.interval).dc()? as i64)?
         .replace_day(1)
         .dc()?;
 
@@ -131,199 +85,73 @@ fn month_count_to_until_easy_days(
         .weekday()
         .cyclic_time_to(conv_data.part_starts_at.weekday());
 
-    Ok(Some(
-        first_target_month_day
-            .checked_add(Duration::weeks(week_number as i64))
-            .dc()?
-            .checked_add(Duration::days(days_passed as i64))
-            .dc()?
-            .checked_add(conv_data.event_duration)
-            .dc()?,
-    ))
+    Ok(first_target_month_day
+        .add_weeks(week_number as i64)?
+        .add_days(days_passed as i64)?
+        .checked_add(conv_data.event_duration)
+        .dc()?)
 }
 
-fn month_count_to_until_hard_days(
+fn monthly_conv_for_last_days(
     mut conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let mut monthly_step = conv_data.part_starts_at.replace_day(1).dc()?;
-    loop {
-        monthly_step = monthly_step.add_months(conv_data.interval as i32)?;
-        let target_day = monthly_step
-            .weekday()
-            .cyclic_time_to(conv_data.part_starts_at.weekday()) as u8
-            + 29;
-
-        if days_in_year_month(monthly_step.year(), monthly_step.month()) >= target_day {
-            conv_data.count -= 1;
-        }
-
-        if conv_data.count == 0 {
-            monthly_step = monthly_step.replace_day(target_day).dc()?;
-            return Ok(Some(
-                monthly_step.checked_add(conv_data.event_duration).dc()?,
-            ));
-        }
+) -> Result<OffsetDateTime, EventError> {
+    let mut monthly_step = conv_data.part_starts_at;
+    while conv_data.count != 0 {
+        monthly_step = next_good_month_by_weekday(monthly_step, conv_data.interval as i64);
+        conv_data.count -= 1;
     }
+
+    Ok(monthly_step.checked_add(conv_data.event_duration).dc()?)
 }
 
-pub fn year_is_by_day_count_to_until(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    if (
+pub fn yearly_conv_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+    let base_date = conv_data.part_starts_at;
+
+    let target_date = if (
         conv_data.part_starts_at.month(),
         conv_data.part_starts_at.day(),
     ) == (Month::February, 29)
     {
-        year_is_by_day_count_to_until_feb_29(conv_data)
+        nth_good_month(base_date, conv_data.count, conv_data.interval as i64 * 12)?
     } else {
-        year_is_by_day_count_to_until_other_days(conv_data)
-    }
+        base_date.add_years(conv_data.count.checked_mul(conv_data.interval).dc()? as i64)?
+    };
+
+    Ok(target_date.checked_add(conv_data.event_duration).dc()?)
 }
 
-fn year_is_by_day_count_to_until_feb_29(
-    mut conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let mut yearly_step = conv_data.part_starts_at.replace_day(1).dc()?;
+pub fn yearly_conv_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+    let (base_year, target_week, target_weekday) = conv_data.part_starts_at.to_iso_week_date();
 
-    while conv_data.count > 0 {
-        yearly_step = yearly_step
-            .replace_year(
-                yearly_step
-                    .year()
-                    .checked_add(
-                        i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?)
-                            .dc()?,
-                    )
-                    .dc()?,
-            )
-            .dc()?;
-        if is_leap_year(yearly_step.year()) {
-            conv_data.count -= 1;
-        }
-    }
-
-    Ok(Some(
-        yearly_step
-            .replace_day(conv_data.part_starts_at.day())
-            .dc()?
-            .checked_add(conv_data.event_duration)
-            .dc()?,
-    ))
-}
-
-fn year_is_by_day_count_to_until_other_days(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let target_date = conv_data
-        .part_starts_at
-        .replace_year(
-            conv_data
-                .part_starts_at
-                .year()
-                .checked_add(
-                    i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?).dc()?,
-                )
-                .dc()?,
-        )
-        .dc()?;
-    return Ok(Some(
-        target_date.checked_add(conv_data.event_duration).dc()?,
-    ));
-}
-
-pub fn year_count_to_until(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    if conv_data.part_starts_at.iso_week() == 53 {
-        year_count_to_until_hard_days(conv_data)
+    let target_year = if conv_data.part_starts_at.iso_week() == 53 {
+        nth_53_week_year_by_weekday(base_year, conv_data.count, conv_data.interval)?
     } else {
-        year_count_to_until_easy_days(conv_data)
-    }
-}
-
-fn year_count_to_until_easy_days(
-    conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let (target_weekday, target_week, base_year) = yearly_conv_data(conv_data.part_starts_at)?;
-
-    let target_year = base_year
-        .replace_year(
-            base_year
-                .year()
-                .checked_add(
-                    i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?).dc()?,
-                )
-                .dc()?,
-        )
-        .dc()?;
-
-    let first_monday =
-        target_year + Duration::days(target_year.weekday().cyclic_time_to(Weekday::Monday) as i64);
-
-    Ok(Some(
-        first_monday
-            .checked_add(Duration::weeks(
-                (target_week - first_monday.iso_week() + 1) as i64,
-            ))
+        base_year
+            .checked_add(i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?).dc()?)
             .dc()?
-            .checked_add(Duration::days(
-                Weekday::Monday.cyclic_time_to(target_weekday) as i64,
-            ))
-            .dc()?
-            .checked_add(conv_data.event_duration)
-            .dc()?,
-    ))
-}
+    };
 
-fn year_count_to_until_hard_days(
-    mut conv_data: CountToUntilData,
-) -> Result<Option<OffsetDateTime>, EventError> {
-    let (target_weekday, target_week, base_year) = yearly_conv_data(conv_data.part_starts_at)?;
-    let mut yearly_step = base_year;
-
-    while conv_data.count > 0 {
-        yearly_step = yearly_step
-            .replace_year(
-                yearly_step
-                    .year()
-                    .checked_add(i32::try_from(conv_data.interval).dc()?)
-                    .dc()?,
-            )
-            .dc()?;
-        if weeks_in_year(yearly_step.year()) == 53 {
-            conv_data.count -= 1;
-        }
-    }
-
-    let first_target_year_monday =
-        yearly_step + Duration::days(yearly_step.weekday().cyclic_time_to(Weekday::Monday) as i64);
-
-    Ok(Some(
-        first_target_year_monday
-            .checked_add(Duration::weeks(
-                ((target_week as i8) - (first_target_year_monday.iso_week() as i8) + 1) as i64,
-            ))
-            .dc()?
-            .checked_add(Duration::days(
-                Weekday::Monday.cyclic_time_to(target_weekday) as i64,
-            ))
-            .dc()?
-            .checked_add(conv_data.event_duration)
-            .dc()?,
-    ))
+    Ok(iso_year_start(target_year)
+        .replace_time(conv_data.part_starts_at.time())
+        .add_weeks(target_week as i64 - 1)?
+        .add_days(Weekday::Monday.cyclic_time_to(target_weekday) as i64)?
+        .checked_add(conv_data.event_duration)
+        .dc()?)
 }
 
 #[cfg(test)]
 mod recurrence_tests {
-    use super::*;
-    use crate::utils::events::models::{Event, EventPart, EventRules, RecurrenceEndsAt, TimeRules, TimeRange};
-    use sqlx::types::Json;
+    use crate::utils::events::models::{
+        EventPart, EventRules, RecurrenceEndsAt, TimeRange, TimeRules,
+    };
     use time::macros::datetime;
-    use uuid::Uuid;
 
     #[test]
     fn daily_recurrence_test() {
-        let event = TimeRange::new(datetime!(2023-02-18 10:00 +1), datetime!(2023-02-18 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-18 10:00 +1),
+            datetime!(2023-02-18 12:15 +1),
+        );
         let rec_rules = EventRules::Daily {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(15)),
@@ -343,7 +171,10 @@ mod recurrence_tests {
 
     #[test]
     fn weekly_recurrence_test() {
-        let event = TimeRange::new(datetime!(2023-02-15 10:00 +1), datetime!(2023-02-15 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-15 10:00 +1),
+            datetime!(2023-02-15 12:15 +1),
+        );
         let rec_rules = EventRules::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(30)),
@@ -364,7 +195,10 @@ mod recurrence_tests {
 
     #[test]
     fn weekly_recurrence_test_next_week_offset() {
-        let event = TimeRange::new(datetime!(2023-02-15 10:00 +1), datetime!(2023-02-15 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-15 10:00 +1),
+            datetime!(2023-02-15 12:15 +1),
+        );
         let rec_rules = EventRules::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(30)),
@@ -385,7 +219,10 @@ mod recurrence_tests {
 
     #[test]
     fn monthly_recurrence_test_by_day() {
-        let event = TimeRange::new(datetime!(2023-02-18 10:00 +1), datetime!(2023-02-18 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-18 10:00 +1),
+            datetime!(2023-02-18 12:15 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -406,7 +243,10 @@ mod recurrence_tests {
 
     #[test]
     fn monthly_recurrence_test_by_day_month_end() {
-        let event = TimeRange::new(datetime!(2025-01-29 10:00 +1), datetime!(2025-01-29 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2025-01-29 10:00 +1),
+            datetime!(2025-01-29 12:15 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(30)),
@@ -427,7 +267,10 @@ mod recurrence_tests {
 
     #[test]
     fn monthly_recurrence_test_by_weekday() {
-        let event = TimeRange::new(datetime!(2023-02-18 10:00 +1), datetime!(2023-02-18 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-18 10:00 +1),
+            datetime!(2023-02-18 12:15 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -448,7 +291,10 @@ mod recurrence_tests {
 
     #[test]
     fn monthly_recurrence_test_by_weekday_month_end() {
-        let event = TimeRange::new(datetime!(2023-01-31 10:00 +1), datetime!(2023-01-31 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-31 10:00 +1),
+            datetime!(2023-01-31 12:15 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -469,7 +315,10 @@ mod recurrence_tests {
 
     #[test]
     fn yearly_recurrence_test_by_day() {
-        let event = TimeRange::new(datetime!(2023-02-18 10:00 +1), datetime!(2023-02-18 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-18 10:00 +1),
+            datetime!(2023-02-18 12:15 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -490,7 +339,10 @@ mod recurrence_tests {
 
     #[test]
     fn yearly_recurrence_test_by_day_feb_29() {
-        let event = TimeRange::new(datetime!(2024-02-29 10:00 +1), datetime!(2024-02-29 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2024-02-29 10:00 +1),
+            datetime!(2024-02-29 12:15 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -511,7 +363,10 @@ mod recurrence_tests {
 
     #[test]
     fn yearly_recurrence_test_by_weekday() {
-        let event = TimeRange::new(datetime!(2023-02-18 10:00 +1), datetime!(2023-02-18 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-18 10:00 +1),
+            datetime!(2023-02-18 12:15 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -532,7 +387,10 @@ mod recurrence_tests {
 
     #[test]
     fn yearly_recurrence_test_by_weekday_52nd_week() {
-        let event = TimeRange::new(datetime!(2020-12-26 10:00 +1), datetime!(2020-12-26 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2020-12-26 10:00 +1),
+            datetime!(2020-12-26 12:15 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
@@ -553,7 +411,10 @@ mod recurrence_tests {
 
     #[test]
     fn yearly_recurrence_test_by_weekday_53rd_week() {
-        let event = TimeRange::new(datetime!(2020-12-30 10:00 +1), datetime!(2020-12-30 12:15 +1));
+        let event = TimeRange::new(
+            datetime!(2020-12-30 10:00 +1),
+            datetime!(2020-12-30 12:15 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),

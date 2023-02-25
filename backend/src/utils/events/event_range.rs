@@ -1,10 +1,10 @@
 use std::cmp::max;
 
-use time::{ext::NumericalDuration, util::weeks_in_year, Month, Weekday};
+use time::{ext::NumericalDuration, util::weeks_in_year, Weekday};
 
 use super::{
     additions::{
-        iso_year_start, next_good_month, next_good_month_by_weekday, AddMonths, CyclicTimeTo,
+        iso_year_start, next_good_month, next_good_month_by_weekday, AddTime, CyclicTimeTo,
         TimeStart, TimeTo,
     },
     calculations::EventRangeData,
@@ -73,15 +73,15 @@ pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) ->
         .event_range
         .start
         .month_start()
-        .add_months(offset_from_origin_event)
+        .add_months(offset_from_origin_event as i64)
         .unwrap();
     let mut monthly_step = range_data.event_range.start;
 
     while monthly_step < month_start {
         if is_by_day {
-            monthly_step = next_good_month(monthly_step, range_data.interval as i32);
+            monthly_step = next_good_month(monthly_step, range_data.interval as i64);
         } else {
-            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i32);
+            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i64);
         }
     }
 
@@ -95,9 +95,9 @@ pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) ->
         };
 
         if is_by_day {
-            monthly_step = next_good_month(monthly_step, range_data.interval as i32);
+            monthly_step = next_good_month(monthly_step, range_data.interval as i64);
         } else {
-            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i32);
+            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i64);
         }
     }
 
@@ -139,17 +139,18 @@ pub fn get_yearly_events_by_weekday(
 
 #[cfg(test)]
 mod event_range_tests {
-    use sqlx::types::Json;
-    use time::{macros::datetime, OffsetDateTime};
-    use uuid::Uuid;
+    use time::macros::datetime;
 
-    use crate::utils::events::models::{Event, EventPart, EventRules, RecurrenceEndsAt, TimeRules};
+    use crate::utils::events::models::{EventPart, EventRules, RecurrenceEndsAt, TimeRules};
 
     use super::*;
 
     #[test]
     fn daily_range() {
-        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-17 22:45 +1),
+            datetime!(2023-02-18 0:00 +1),
+        );
         let rec_rules = EventRules::Daily {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -182,7 +183,10 @@ mod event_range_tests {
 
     #[test]
     fn weekly_range_1() {
-        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-17 22:45 +1),
+            datetime!(2023-02-18 0:00 +1),
+        );
         let rec_rules = EventRules::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -224,7 +228,10 @@ mod event_range_tests {
 
     #[test]
     fn weekly_range_2() {
-        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-17 22:45 +1),
+            datetime!(2023-02-18 0:00 +1),
+        );
         let rec_rules = EventRules::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -274,7 +281,10 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_day_1() {
-        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-17 22:45 +1),
+            datetime!(2023-02-18 0:00 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -304,7 +314,10 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_day_2() {
-        let event = TimeRange::new(datetime!(2023-01-31 22:45 +1), datetime!(2023-02-01 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-31 22:45 +1),
+            datetime!(2023-02-01 0:00 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -354,7 +367,10 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_weekday_1() {
-        let event = TimeRange::new(datetime!(2023-02-17 22:45 +1), datetime!(2023-02-18 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-02-17 22:45 +1),
+            datetime!(2023-02-18 0:00 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -396,7 +412,10 @@ mod event_range_tests {
 
     #[test]
     fn monthly_range_by_weekday_2() {
-        let event = TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-29 22:45 +1),
+            datetime!(2023-01-30 0:00 +1),
+        );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -434,7 +453,10 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_day() {
-        let event = TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-29 22:45 +1),
+            datetime!(2023-01-30 0:00 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -468,7 +490,10 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_1() {
-        let event = TimeRange::new(datetime!(2023-01-29 22:45 +1), datetime!(2023-01-30 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-29 22:45 +1),
+            datetime!(2023-01-30 0:00 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -502,7 +527,10 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_2() {
-        let event = TimeRange::new(datetime!(2020-12-28 22:45 +1), datetime!(2020-12-29 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2020-12-28 22:45 +1),
+            datetime!(2020-12-29 0:00 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -526,7 +554,10 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_3() {
-        let event = TimeRange::new(datetime!(2023-01-02 22:45 +1), datetime!(2023-01-03 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-02 22:45 +1),
+            datetime!(2023-01-03 0:00 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
@@ -568,7 +599,10 @@ mod event_range_tests {
 
     #[test]
     fn yearly_range_by_weekday_4() {
-        let event = TimeRange::new(datetime!(2023-01-14 22:45 +1), datetime!(2023-01-15 0:00 +1));
+        let event = TimeRange::new(
+            datetime!(2023-01-14 22:45 +1),
+            datetime!(2023-01-15 0:00 +1),
+        );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),

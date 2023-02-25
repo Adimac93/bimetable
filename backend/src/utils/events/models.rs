@@ -4,7 +4,18 @@ use time::{serde::timestamp, Duration};
 
 use crate::app_errors::DefaultContext;
 
-use super::{errors::EventError, calculations::{CountToUntilData, EventRangeData}, count_to_until::{year_is_by_day_count_to_until, year_count_to_until, month_is_by_day_count_to_until, month_count_to_until, week_count_to_until, day_count_to_until}, event_range::{get_monthly_events_by_day, get_yearly_events_by_weekday, get_weekly_events, get_daily_events}};
+use super::{
+    calculations::{CountToUntilData, EventRangeData},
+    count_to_until::{
+        daily_conv, monthly_conv_by_day, monthly_conv_by_weekday, weekly_conv, yearly_conv_by_day,
+        yearly_conv_by_weekday,
+    },
+    errors::EventError,
+    event_range::{
+        get_daily_events, get_monthly_events_by_day, get_weekly_events,
+        get_yearly_events_by_weekday,
+    },
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
@@ -47,7 +58,11 @@ pub enum EventRules {
 }
 
 impl EventRules {
-    pub fn count_to_until(&self, part: &EventPart, event: &TimeRange) -> Result<Option<OffsetDateTime>, EventError> {
+    pub fn count_to_until(
+        &self,
+        part: &EventPart,
+        event: &TimeRange,
+    ) -> Result<Option<OffsetDateTime>, EventError> {
         let Some(part_ends_at) = part.length.as_ref() else {
             return Ok(None)
         };
@@ -57,22 +72,17 @@ impl EventRules {
             RecurrenceEndsAt::Count(n) => *n,
         };
 
-        let mut conv_data = CountToUntilData::new(
-            part.starts_at,
-            count,
-            0,
-            event.duration(),
-        );
-        match self {
+        let mut conv_data = CountToUntilData::new(part.starts_at, count, 0, event.duration());
+        let res = match self {
             EventRules::Yearly {
                 time_rules,
                 is_by_day,
             } => {
                 conv_data.interval = time_rules.interval;
                 if *is_by_day {
-                    year_is_by_day_count_to_until(conv_data)
+                    yearly_conv_by_day(conv_data)?
                 } else {
-                    year_count_to_until(conv_data)
+                    yearly_conv_by_weekday(conv_data)?
                 }
             }
             EventRules::Monthly {
@@ -81,9 +91,9 @@ impl EventRules {
             } => {
                 conv_data.interval = time_rules.interval;
                 if *is_by_day {
-                    month_is_by_day_count_to_until(conv_data)
+                    monthly_conv_by_day(conv_data)?
                 } else {
-                    month_count_to_until(conv_data)
+                    monthly_conv_by_weekday(conv_data)?
                 }
             }
             EventRules::Weekly {
@@ -95,16 +105,21 @@ impl EventRules {
                 if week_map % 128 == 0 {
                     return Err(EventError::InvalidEventFormat);
                 }
-                week_count_to_until(conv_data, &string_week_map)
+                weekly_conv(conv_data, &string_week_map)?
             }
             EventRules::Daily { time_rules } => {
                 conv_data.interval = time_rules.interval;
-                day_count_to_until(conv_data)
+                daily_conv(conv_data)?
             }
-        }
+        };
+        Ok(Some(res))
     }
 
-    pub fn get_event_range(&self, part: &EventPart, event: &TimeRange) -> Result<Vec<TimeRange>, EventError> {
+    pub fn get_event_range(
+        &self,
+        part: &EventPart,
+        event: &TimeRange,
+    ) -> Result<Vec<TimeRange>, EventError> {
         let part_ends_at = part.length.as_ref().ok_or(EventError::NotFound)?;
 
         let part_ends_at = match part_ends_at {
@@ -112,13 +127,8 @@ impl EventRules {
             RecurrenceEndsAt::Count(_n) => self.count_to_until(part, event)?.dc()?,
         };
 
-        let mut range_data = EventRangeData::new(
-            part.starts_at,
-            part_ends_at,
-            0,
-            event.start,
-            event.end,
-        );
+        let mut range_data =
+            EventRangeData::new(part.starts_at, part_ends_at, 0, event.start, event.end);
 
         match self {
             EventRules::Yearly {

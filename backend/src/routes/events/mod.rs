@@ -46,12 +46,7 @@ async fn put_new_event(
 ) -> Result<(StatusCode, Json<Uuid>), EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let event_id = q
-        .create(
-            claims.user_id,
-            body
-        )
-        .await?;
+    let event_id = q.create(claims.user_id, body).await?;
 
     Ok((StatusCode::CREATED, Json(event_id)))
 }
