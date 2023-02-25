@@ -4,7 +4,18 @@ use time::{serde::timestamp, Duration};
 
 use crate::app_errors::DefaultContext;
 
-use super::{errors::EventError, calculations::{CountToUntilData, EventRangeData}, count_to_until::{year_is_by_day_count_to_until, year_count_to_until, month_is_by_day_count_to_until, month_count_to_until, week_count_to_until, day_count_to_until}, event_range::{get_monthly_events_by_day, get_yearly_events_by_weekday, get_weekly_events, get_daily_events}};
+use super::{
+    calculations::{CountToUntilData, EventRangeData},
+    count_to_until::{
+        day_count_to_until, month_count_to_until, month_is_by_day_count_to_until,
+        week_count_to_until, year_count_to_until, year_is_by_day_count_to_until,
+    },
+    errors::EventError,
+    event_range::{
+        get_daily_events, get_monthly_events_by_day, get_weekly_events,
+        get_yearly_events_by_weekday,
+    },
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Event {
@@ -47,7 +58,11 @@ pub enum EventRules {
 }
 
 impl EventRules {
-    pub fn count_to_until(&self, part: &EventPart, event: &TimeRange) -> Result<Option<OffsetDateTime>, EventError> {
+    pub fn count_to_until(
+        &self,
+        part: &EventPart,
+        event: &TimeRange,
+    ) -> Result<Option<OffsetDateTime>, EventError> {
         let Some(part_ends_at) = part.length.as_ref() else {
             return Ok(None)
         };
@@ -57,12 +72,7 @@ impl EventRules {
             RecurrenceEndsAt::Count(n) => *n,
         };
 
-        let mut conv_data = CountToUntilData::new(
-            part.starts_at,
-            count,
-            0,
-            event.duration(),
-        );
+        let mut conv_data = CountToUntilData::new(part.starts_at, count, 0, event.duration());
         match self {
             EventRules::Yearly {
                 time_rules,
@@ -104,7 +114,11 @@ impl EventRules {
         }
     }
 
-    pub fn get_event_range(&self, part: &EventPart, event: &TimeRange) -> Result<Vec<TimeRange>, EventError> {
+    pub fn get_event_range(
+        &self,
+        part: &EventPart,
+        event: &TimeRange,
+    ) -> Result<Vec<TimeRange>, EventError> {
         let part_ends_at = part.length.as_ref().ok_or(EventError::NotFound)?;
 
         let part_ends_at = match part_ends_at {
@@ -112,13 +126,8 @@ impl EventRules {
             RecurrenceEndsAt::Count(_n) => self.count_to_until(part, event)?.dc()?,
         };
 
-        let mut range_data = EventRangeData::new(
-            part.starts_at,
-            part_ends_at,
-            0,
-            event.start,
-            event.end,
-        );
+        let mut range_data =
+            EventRangeData::new(part.starts_at, part_ends_at, 0, event.start, event.end);
 
         match self {
             EventRules::Yearly {
@@ -200,6 +209,10 @@ impl TimeRange {
 
     pub fn is_overlapping(&self, other: &Self) -> bool {
         self.start < other.end && self.end > other.start
+    }
+
+    pub fn is_contained(&self, other: &Self) -> bool {
+        other.start <= self.start && other.end >= self.end
     }
 
     pub fn is_after(&self, other: &Self) -> bool {
