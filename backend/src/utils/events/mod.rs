@@ -349,11 +349,8 @@ fn gen_owned_events(
             if let Some(Json(rule)) = event.recurrence_rule {
                 let mut entry_ranges = rule
                     .get_event_range(
-                        &EventPart {
-                            starts_at: search_starts_at,
-                            length: Some(RecurrenceEndsAt::Until(search_ends_at)),
-                        },
-                        &TimeRange::new(event.starts_at, event.ends_at),
+                        TimeRange::new(search_starts_at, search_ends_at),
+                        TimeRange::new(event.starts_at, event.ends_at),
                     )
                     .unwrap();
                 entry_ranges.reverse();
@@ -389,11 +386,8 @@ fn gen_shared_events(
             if let Some(Json(rule)) = event.recurrence_rule {
                 let mut entry_ranges = rule
                     .get_event_range(
-                        &EventPart {
-                            starts_at: search_starts_at,
-                            length: Some(RecurrenceEndsAt::Until(search_ends_at)),
-                        },
-                        &TimeRange::new(event.starts_at, event.ends_at),
+                        TimeRange::new(search_starts_at, search_ends_at),
+                        TimeRange::new(event.starts_at, event.ends_at),
                     )
                     .unwrap();
                 entry_ranges.reverse();
