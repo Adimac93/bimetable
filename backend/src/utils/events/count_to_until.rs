@@ -147,8 +147,8 @@ mod recurrence_tests {
     #[test]
     fn daily_recurrence_test() {
         let event = TimeRange::new(
-            datetime!(2023-02-18 10:00 +1),
-            datetime!(2023-02-18 12:15 +1),
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:15 UTC),
         );
         let rec_rules = EventRules::Daily {
             time_rules: TimeRules {
@@ -159,17 +159,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2023-02-21 10:00 +1), 7, &event)
+                .count_to_until(datetime!(2023-02-21 10:00 UTC), 7, &event)
                 .unwrap(),
-            datetime!(2023-03-14 12:15 +1)
+            datetime!(2023-03-14 12:15 UTC)
         )
     }
 
     #[test]
     fn weekly_recurrence_test() {
         let event = TimeRange::new(
-            datetime!(2023-02-15 10:00 +1),
-            datetime!(2023-02-15 12:15 +1),
+            datetime!(2023-02-15 10:00 UTC),
+            datetime!(2023-02-15 12:15 UTC),
         );
         let rec_rules = EventRules::Weekly {
             time_rules: TimeRules {
@@ -181,17 +181,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2023-02-27 10:00 +1), 5, &event)
+                .count_to_until(datetime!(2023-02-27 10:00 UTC), 5, &event)
                 .unwrap(),
-            datetime!(2023-03-15 12:15 +1)
+            datetime!(2023-03-15 12:15 UTC)
         )
     }
 
     #[test]
     fn weekly_recurrence_test_next_week_offset() {
         let event = TimeRange::new(
-            datetime!(2023-02-15 10:00 +1),
-            datetime!(2023-02-15 12:15 +1),
+            datetime!(2023-02-15 10:00 UTC),
+            datetime!(2023-02-15 12:15 UTC),
         );
         let rec_rules = EventRules::Weekly {
             time_rules: TimeRules {
@@ -203,17 +203,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2023-03-01 10:00 +1), 7, &event)
+                .count_to_until(datetime!(2023-03-01 10:00 UTC), 7, &event)
                 .unwrap(),
-            datetime!(2023-03-27 12:15 +1)
+            datetime!(2023-03-27 12:15 UTC)
         )
     }
 
     #[test]
     fn monthly_recurrence_test_by_day() {
         let event = TimeRange::new(
-            datetime!(2023-02-18 10:00 +1),
-            datetime!(2023-02-18 12:15 +1),
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:15 UTC),
         );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
@@ -225,17 +225,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2023-04-18 10:00 +1), 2, &event)
+                .count_to_until(datetime!(2023-04-18 10:00 UTC), 2, &event)
                 .unwrap(),
-            datetime!(2023-08-18 12:15 +1)
+            datetime!(2023-08-18 12:15 UTC)
         )
     }
 
     #[test]
     fn monthly_recurrence_test_by_day_month_end() {
         let event = TimeRange::new(
-            datetime!(2025-01-29 10:00 +1),
-            datetime!(2025-01-29 12:15 +1),
+            datetime!(2025-01-29 10:00 UTC),
+            datetime!(2025-01-29 12:15 UTC),
         );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
@@ -247,17 +247,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2025-11-29 10:00 +1), 15, &event)
+                .count_to_until(datetime!(2025-11-29 10:00 UTC), 15, &event)
                 .unwrap(),
-            datetime!(2032-07-29 12:15 +1)
+            datetime!(2032-07-29 12:15 UTC)
         )
     }
 
     #[test]
     fn monthly_recurrence_test_by_weekday() {
         let event = TimeRange::new(
-            datetime!(2023-02-18 10:00 +1),
-            datetime!(2023-02-18 12:15 +1),
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:15 UTC),
         );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
@@ -269,17 +269,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2023-04-15 10:00 +1), 2, &event)
+                .count_to_until(datetime!(2023-04-15 10:00 UTC), 2, &event)
                 .unwrap(),
-            datetime!(2023-08-19 12:15 +1)
+            datetime!(2023-08-19 12:15 UTC)
         )
     }
 
     #[test]
     fn monthly_recurrence_test_by_weekday_month_end() {
         let event = TimeRange::new(
-            datetime!(2023-01-31 10:00 +1),
-            datetime!(2023-01-31 12:15 +1),
+            datetime!(2023-01-31 10:00 UTC),
+            datetime!(2023-01-31 12:15 UTC),
         );
         let rec_rules = EventRules::Monthly {
             time_rules: TimeRules {
@@ -291,17 +291,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2023-05-30 10:00 +1), 2, &event)
+                .count_to_until(datetime!(2023-05-30 10:00 UTC), 2, &event)
                 .unwrap(),
-            datetime!(2023-10-31 12:15 +1)
+            datetime!(2023-10-31 12:15 UTC)
         )
     }
 
     #[test]
     fn yearly_recurrence_test_by_day() {
         let event = TimeRange::new(
-            datetime!(2023-02-18 10:00 +1),
-            datetime!(2023-02-18 12:15 +1),
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:15 UTC),
         );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
@@ -313,17 +313,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2025-02-18 10:00 +1), 2, &event)
+                .count_to_until(datetime!(2025-02-18 10:00 UTC), 2, &event)
                 .unwrap(),
-            datetime!(2029-02-18 12:15 +1)
+            datetime!(2029-02-18 12:15 UTC)
         )
     }
 
     #[test]
     fn yearly_recurrence_test_by_day_feb_29() {
         let event = TimeRange::new(
-            datetime!(2024-02-29 10:00 +1),
-            datetime!(2024-02-29 12:15 +1),
+            datetime!(2024-02-29 10:00 UTC),
+            datetime!(2024-02-29 12:15 UTC),
         );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
@@ -335,17 +335,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2028-02-29 10:00 +1), 1, &event)
+                .count_to_until(datetime!(2028-02-29 10:00 UTC), 1, &event)
                 .unwrap(),
-            datetime!(2032-02-29 12:15 +1)
+            datetime!(2032-02-29 12:15 UTC)
         )
     }
 
     #[test]
     fn yearly_recurrence_test_by_weekday() {
         let event = TimeRange::new(
-            datetime!(2023-02-18 10:00 +1),
-            datetime!(2023-02-18 12:15 +1),
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:15 UTC),
         );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
@@ -357,17 +357,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2025-02-15 10:00 +1), 2, &event)
+                .count_to_until(datetime!(2025-02-15 10:00 UTC), 2, &event)
                 .unwrap(),
-            datetime!(2029-02-17 12:15 +1)
+            datetime!(2029-02-17 12:15 UTC)
         )
     }
 
     #[test]
     fn yearly_recurrence_test_by_weekday_52nd_week() {
         let event = TimeRange::new(
-            datetime!(2020-12-26 10:00 +1),
-            datetime!(2020-12-26 12:15 +1),
+            datetime!(2020-12-26 10:00 UTC),
+            datetime!(2020-12-26 12:15 UTC),
         );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
@@ -379,17 +379,17 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2022-01-01 10:00 +1), 1, &event)
+                .count_to_until(datetime!(2022-01-01 10:00 UTC), 1, &event)
                 .unwrap(),
-            datetime!(2022-12-31 12:15 +1)
+            datetime!(2022-12-31 12:15 UTC)
         )
     }
 
     #[test]
     fn yearly_recurrence_test_by_weekday_53rd_week() {
         let event = TimeRange::new(
-            datetime!(2020-12-30 10:00 +1),
-            datetime!(2020-12-30 12:15 +1),
+            datetime!(2020-12-30 10:00 UTC),
+            datetime!(2020-12-30 12:15 UTC),
         );
         let rec_rules = EventRules::Yearly {
             time_rules: TimeRules {
@@ -401,9 +401,9 @@ mod recurrence_tests {
 
         assert_eq!(
             rec_rules
-                .count_to_until(datetime!(2026-12-31 10:00 +1), 1, &event)
+                .count_to_until(datetime!(2026-12-31 10:00 UTC), 1, &event)
                 .unwrap(),
-            datetime!(2032-12-30 12:15 +1)
+            datetime!(2032-12-30 12:15 UTC)
         )
     }
 }

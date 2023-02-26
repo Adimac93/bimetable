@@ -70,8 +70,8 @@ impl EventRules {
     /// use time::macros::datetime;
     /// 
     /// let event = TimeRange::new(
-    ///     datetime!(2023-02-18 10:00 +1),
-    ///     datetime!(2023-02-18 12:15 +1),
+    ///     datetime!(2023-02-18 10:00 UTC),
+    ///     datetime!(2023-02-18 12:15 UTC),
     /// );
     /// let rec_rules = EventRules::Daily {
     ///     time_rules: TimeRules {
@@ -81,8 +81,8 @@ impl EventRules {
     /// };
     ///
     /// assert_eq!(
-    ///     rec_rules.count_to_until(datetime!(2023-02-21 10:00 +1), 1, &event).unwrap(),
-    ///     datetime!(2023-02-24 12:15 +1)
+    ///     rec_rules.count_to_until(datetime!(2023-02-21 10:00 UTC), 1, &event).unwrap(),
+    ///     datetime!(2023-02-24 12:15 UTC)
     /// )
     /// ```
     pub fn count_to_until(
@@ -151,8 +151,8 @@ impl EventRules {
     /// use time::macros::datetime;
     /// 
     /// let event = TimeRange::new(
-    ///     datetime!(2023-02-17 22:45 +1),
-    ///     datetime!(2023-02-18 0:00 +1),
+    ///     datetime!(2023-02-17 22:45 UTC),
+    ///     datetime!(2023-02-18 0:00 UTC),
     /// );
     /// let rec_rules = EventRules::Daily {
     ///     time_rules: TimeRules {
@@ -161,24 +161,24 @@ impl EventRules {
     ///     },
     /// };
     /// let part = TimeRange {
-    ///     start: datetime!(2023-02-21 0:00 +1),
-    ///     end: datetime!(2023-02-27 22:45 +1),
+    ///     start: datetime!(2023-02-21 0:00 UTC),
+    ///     end: datetime!(2023-02-27 22:45 UTC),
     /// };
     /// 
     /// assert_eq!(
     ///     rec_rules.get_event_range(part, event).unwrap(),
     ///     vec![
     ///         TimeRange::new(
-    ///             datetime!(2023-02-21 22:45 +1),
-    ///             datetime!(2023-02-22 0:00 +1)
+    ///             datetime!(2023-02-21 22:45 UTC),
+    ///             datetime!(2023-02-22 0:00 UTC)
     ///         ),
     ///         TimeRange::new(
-    ///             datetime!(2023-02-23 22:45 +1),
-    ///             datetime!(2023-02-24 0:00 +1)
+    ///             datetime!(2023-02-23 22:45 UTC),
+    ///             datetime!(2023-02-24 0:00 UTC)
     ///         ),
     ///         TimeRange::new(
-    ///             datetime!(2023-02-25 22:45 +1),
-    ///             datetime!(2023-02-26 0:00 +1)
+    ///             datetime!(2023-02-25 22:45 UTC),
+    ///             datetime!(2023-02-26 0:00 UTC)
     ///         ),
     ///     ]
     /// )

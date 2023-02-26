@@ -234,8 +234,7 @@ pub fn nth_53_week_year_by_weekday(
 }
 
 pub fn iso_year_start(year: i32) -> OffsetDateTime {
-    let time = OffsetDateTime::now_local()
-        .unwrap()
+    let time = OffsetDateTime::UNIX_EPOCH
         .replace_year(year)
         .unwrap()
         .year_start();
