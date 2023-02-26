@@ -2,15 +2,17 @@ import dayjs from "./dayjs";
 
 export class CalendarEvent {
     name: string;
+    description?: string;
     startTime?: dayjs.Dayjs;
     endTime?: dayjs.Dayjs;
 
-    constructor(name: string, start: dayjs.Dayjs, end: dayjs.Dayjs) {
+    constructor(name: string, description?: string, start?: dayjs.Dayjs, end?: dayjs.Dayjs) {
         if (!(start && end)) {
             throw new Error("Invalid event (no start and end)");
         }
 
         this.name = name;
+        this.description = description;
         this.startTime = start;
         this.endTime = end;
     }
@@ -23,4 +25,8 @@ export class CalendarEvent {
         }
         return day;
     }
-};
+
+    clone() {
+        return new CalendarEvent(this.name, this.description, this.startTime, this.endTime);
+    }
+}
