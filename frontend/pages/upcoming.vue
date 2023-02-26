@@ -1,22 +1,67 @@
 <template>
     <div>
-        <ul>
-            <li v-for="event in events">{{ event.name }}: {{ event.day.format('DD MM YYYY') }}</li>
-        </ul>
+        <ClientOnly>
+            <ul>
+                <li v-for="event in events.iter()">
+                    {{ event.name }}: {{ event.day.format("YYYY-MM-DD") }} ({{ event.startTime?.format("HH:mm") }} -
+                    {{ event.endTime?.format("HH:mm") }})
+                </li>
+            </ul>
+        </ClientOnly>
     </div>
 </template>
 
 <script setup lang="ts">
-import dayjs from '@/utils/dayjs';
-import { CalendarEvent } from '~~/utils/CalendarEvent';
+import dayjs from "@/utils/dayjs";
+import { makeEventStore } from "@/utils/EventStore";
 
-const events = [
-    new CalendarEvent(
-        'Bibruspotkanie',
-        dayjs(1675004400000), // 2023-01-29 15:00:00
-        dayjs(1675008000000) // 2023-01-29 16:00:00
-    ),
-    new CalendarEvent('Coś na pewno', dayjs(1675072800000), dayjs(1675101600000)),
-    new CalendarEvent('Podróż w czasie', dayjs(1673082000000), dayjs(1673082000001)),
-];
+const events = makeEventStore({
+    entries: [
+        {
+            eventID: "a",
+            startTime: dayjs("2023-03-05T16:00:00Z").unix(),
+            endTime: dayjs("2023-03-05T17:00:00Z").unix(),
+        },
+        {
+            eventID: "b",
+            startTime: dayjs("2023-03-06T13:00:00Z").unix(),
+            endTime: dayjs("2023-03-06T14:00:00Z").unix(),
+        },
+        {
+            eventID: "a",
+            startTime: dayjs("2023-03-07T16:00:00Z").unix(),
+            endTime: dayjs("2023-03-07T17:00:00Z").unix(),
+        },
+        {
+            eventID: "c",
+            startTime: dayjs("2023-03-09T08:00:00Z").unix(),
+            endTime: dayjs("2023-03-09T10:00:00Z").unix(),
+        },
+        {
+            eventID: "b",
+            startTime: dayjs("2023-03-13T13:00:00Z").unix(),
+            endTime: dayjs("2023-03-13T14:00:00Z").unix(),
+        },
+    ],
+    data: {
+        a: {
+            name: "A",
+            description: "Zdarzenie A",
+            startTime: dayjs("2023-03-05T16:00:00Z").unix(),
+            endTime: dayjs("2023-03-05T17:00:00Z").unix(),
+        },
+        b: {
+            name: "B",
+            description: "Zdarzenie B",
+            startTime: dayjs("2023-03-06T13:00:00Z").unix(),
+            endTime: dayjs("2023-03-06T14:00:00Z").unix(),
+        },
+        c: {
+            name: "C",
+            description: "Zdarzenie C (nie powtarza się)",
+            startTime: dayjs("2023-03-09T08:00:00Z").unix(),
+            endTime: dayjs("2023-03-09T10:00:00Z").unix(),
+        },
+    },
+});
 </script>
