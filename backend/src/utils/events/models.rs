@@ -70,8 +70,8 @@ impl RecurrenceRule {
     /// use time::macros::datetime;
     ///
     /// let event = TimeRange::new(
-    ///     datetime!(2023-02-18 10:00 +1),
-    ///     datetime!(2023-02-18 12:15 +1),
+    ///     datetime!(2023-02-18 10:00 UTC),
+    ///     datetime!(2023-02-18 12:15 UTC),
     /// );
     /// let rec_rules = RecurrenceRule::Daily {
     ///     time_rules: TimeRules {
@@ -81,8 +81,8 @@ impl RecurrenceRule {
     /// };
     ///
     /// assert_eq!(
-    ///     rec_rules.count_to_until(datetime!(2023-02-21 10:00 +1), 1, &event).unwrap(),
-    ///     datetime!(2023-02-24 12:15 +1)
+    ///     rec_rules.count_to_until(datetime!(2023-02-21 10:00 UTC), 1, &event).unwrap(),
+    ///     datetime!(2023-02-24 12:15 UTC)
     /// )
     /// ```
     pub fn count_to_until(
@@ -151,8 +151,8 @@ impl RecurrenceRule {
     /// use time::macros::datetime;
     ///
     /// let event = TimeRange::new(
-    ///     datetime!(2023-02-17 22:45 +1),
-    ///     datetime!(2023-02-18 0:00 +1),
+    ///     datetime!(2023-02-17 22:45 UTC),
+    ///     datetime!(2023-02-18 0:00 UTC),
     /// );
     /// let rec_rules = RecurrenceRule::Daily {
     ///     time_rules: TimeRules {
@@ -161,24 +161,24 @@ impl RecurrenceRule {
     ///     },
     /// };
     /// let part = TimeRange {
-    ///     start: datetime!(2023-02-21 0:00 +1),
-    ///     end: datetime!(2023-02-27 22:45 +1),
+    ///     start: datetime!(2023-02-21 0:00 UTC),
+    ///     end: datetime!(2023-02-27 22:45 UTC),
     /// };
     ///
     /// assert_eq!(
     ///     rec_rules.get_event_range(part, event).unwrap(),
     ///     vec![
     ///         TimeRange::new(
-    ///             datetime!(2023-02-21 22:45 +1),
-    ///             datetime!(2023-02-22 0:00 +1)
+    ///             datetime!(2023-02-21 22:45 UTC),
+    ///             datetime!(2023-02-22 0:00 UTC)
     ///         ),
     ///         TimeRange::new(
-    ///             datetime!(2023-02-23 22:45 +1),
-    ///             datetime!(2023-02-24 0:00 +1)
+    ///             datetime!(2023-02-23 22:45 UTC),
+    ///             datetime!(2023-02-24 0:00 UTC)
     ///         ),
     ///         TimeRange::new(
-    ///             datetime!(2023-02-25 22:45 +1),
-    ///             datetime!(2023-02-26 0:00 +1)
+    ///             datetime!(2023-02-25 22:45 UTC),
+    ///             datetime!(2023-02-26 0:00 UTC)
     ///         ),
     ///     ]
     /// )
@@ -211,7 +211,7 @@ impl RecurrenceRule {
                 if *is_by_day {
                     // year and 12 months are the same
                     range_data.interval *= 12;
-                    Ok(get_monthly_events_by_day(range_data, *is_by_day))
+                    get_monthly_events_by_day(range_data, *is_by_day)
                 } else {
                     get_yearly_events_by_weekday(range_data)
                 }
@@ -221,7 +221,7 @@ impl RecurrenceRule {
                 is_by_day,
             } => {
                 range_data.interval = time_rules.interval;
-                Ok(get_monthly_events_by_day(range_data, *is_by_day))
+                get_monthly_events_by_day(range_data, *is_by_day)
             }
             RecurrenceRule::Weekly {
                 time_rules,
@@ -232,11 +232,11 @@ impl RecurrenceRule {
                 if week_map % 128 == 0 {
                     return Err(EventError::InvalidEventFormat);
                 }
-                Ok(get_weekly_events(range_data, &string_week_map))
+                get_weekly_events(range_data, &string_week_map)
             }
             RecurrenceRule::Daily { time_rules } => {
                 range_data.interval = time_rules.interval;
-                Ok(get_daily_events(range_data))
+                get_daily_events(range_data)
             }
         }
     }
@@ -279,6 +279,10 @@ impl TimeRange {
 
     pub fn new_relative(start: OffsetDateTime, length: Duration) -> Self {
         Self::new(start, start + length)
+    }
+
+    pub fn new_relative_checked(start: OffsetDateTime, length: Duration) -> Option<Self> {
+        Some(Self::new(start, start.checked_add(length)?))
     }
 
     pub fn checked_add(self, rhs: Duration) -> Option<Self> {

@@ -181,13 +181,13 @@ impl TimeStart for OffsetDateTime {
     }
 }
 
-pub fn next_good_month(time: OffsetDateTime, chg: i64) -> OffsetDateTime {
-    let mut first_day = time.replace_day(1).unwrap();
-    first_day = first_day.add_months(chg).unwrap();
+pub fn next_good_month(time: OffsetDateTime, chg: i64) -> Result<OffsetDateTime, EventError> {
+    let mut first_day = time.replace_day(1).dc()?;
+    first_day = first_day.add_months(chg).dc()?;
     while first_day.replace_day(time.day()).is_err() {
-        first_day = first_day.add_months(chg).unwrap();
+        first_day = first_day.add_months(chg).dc()?;
     }
-    first_day.replace_day(time.day()).unwrap()
+    Ok(first_day.replace_day(time.day()).dc()?)
 }
 
 pub fn nth_good_month(
@@ -196,26 +196,29 @@ pub fn nth_good_month(
     chg: i64,
 ) -> Result<OffsetDateTime, EventError> {
     while count > 0 {
-        monthly_step = next_good_month(monthly_step, chg);
+        monthly_step = next_good_month(monthly_step, chg)?;
         count -= 1;
     }
 
     Ok(monthly_step)
 }
 
-pub fn next_good_month_by_weekday(time: OffsetDateTime, chg: i64) -> OffsetDateTime {
-    let mut first_day = time.replace_day(1).unwrap();
-    first_day = first_day.add_months(chg).unwrap();
+pub fn next_good_month_by_weekday(
+    time: OffsetDateTime,
+    chg: i64,
+) -> Result<OffsetDateTime, EventError> {
+    let mut first_day = time.replace_day(1).dc()?;
+    first_day = first_day.add_months(chg).dc()?;
     let day_offset = (time.day() - 1) / 7 * 7 + 1;
     while first_day
         .replace_day(day_offset + first_day.weekday().cyclic_time_to(time.weekday()) as u8)
         .is_err()
     {
-        first_day = first_day.add_months(chg).unwrap();
+        first_day = first_day.add_months(chg).dc()?;
     }
-    first_day
+    Ok(first_day
         .replace_day(day_offset + first_day.weekday().cyclic_time_to(time.weekday()) as u8)
-        .unwrap()
+        .dc()?)
 }
 
 pub fn nth_53_week_year_by_weekday(
@@ -234,8 +237,7 @@ pub fn nth_53_week_year_by_weekday(
 }
 
 pub fn iso_year_start(year: i32) -> OffsetDateTime {
-    let time = OffsetDateTime::now_local()
-        .unwrap()
+    let time = OffsetDateTime::UNIX_EPOCH
         .replace_year(year)
         .unwrap()
         .year_start();
