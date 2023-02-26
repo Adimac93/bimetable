@@ -8,6 +8,11 @@ export interface EventEntry {
     endTime: dayjs.Dayjs;
 }
 
+export type ProcessedEvent = CalendarEvent & {
+    raw: CalendarEvent;
+    entry: EventEntry;
+};
+
 class EventIteratorContext {
     private store: EventStore;
     private startAt: number;
@@ -32,7 +37,12 @@ class EventIteratorContext {
     // Sets the ending point. Can be a date or event index. Exclusive. Default -1 (end of the list)
     to(endPoint: dayjs.Dayjs | number) {
         if (typeof endPoint != "number") {
-            this.endAt = this.store.findIndexBefore(endPoint) ?? 0;
+            const val = this.store.findIndexBefore(endPoint);
+            if (val == null) {
+                this.endAt = 0;
+            } else {
+                this.endAt = val + 1;
+            }
         } else {
             this.endAt = endPoint;
         }
@@ -55,13 +65,22 @@ class EventIteratorContext {
             endIndex = this.endAt;
         }
 
-        if (startIndex < endIndex) {
+        if (startIndex > endIndex) {
             throw new RangeError("Invalid search bounds");
         }
 
         for (let i = startIndex; i < endIndex; i++) {
+            const entry = this.store.entries[i];
+            const original = this.store.data.get(entry.eventID)!;
+            const incomplete: Partial<ProcessedEvent> = original.clone();
+            incomplete.raw = original;
+            incomplete.entry = entry;
+
+            const event = incomplete as ProcessedEvent;
+            incomplete.startTime = entry.startTime;
+            incomplete.endTime = entry.endTime;
             // TODO: implement overrides
-            yield this.store.data.get(this.store.entries[i].eventID)!;
+            yield event;
         }
     }
 }
@@ -111,8 +130,9 @@ export class EventStore {
         if (this.entries.length > 0 && this.entries[0].startTime.unix() >= timestamp.unix()) {
             return 0;
         }
+
         const result = this.findIndexBefore(timestamp);
-        if (!result) return null;
+        if (result == null) return null;
         if (result + 1 == this.entries.length) {
             return null;
         }
@@ -122,4 +142,26 @@ export class EventStore {
     iter() {
         return new EventIteratorContext(this);
     }
+}
+
+export interface EventStoreAPIData {
+    entries: { eventID: string; startTime: number; endTime: number }[];
+    data: Record<string, { name: string; description: string; startTime: number; endTime: number }>;
+}
+
+export function makeEventStore(data: EventStoreAPIData) {
+    const store = reactive(new EventStore());
+    store.entries = data.entries.map((entry) => ({
+        eventID: entry.eventID,
+        startTime: dayjs.unix(entry.startTime),
+        endTime: dayjs.unix(entry.endTime),
+    }));
+
+    for (const [uuid, value] of Object.entries(data.data)) {
+        store.data.set(
+            uuid,
+            new CalendarEvent(value.name, value.description, dayjs.unix(value.startTime), dayjs.unix(value.endTime))
+        );
+    }
+    return store;
 }
