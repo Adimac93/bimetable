@@ -157,7 +157,7 @@ pub fn get_yearly_events_by_weekday(
 mod event_range_tests {
     use time::macros::datetime;
 
-    use crate::utils::events::models::{EventRules, RecurrenceEndsAt, TimeRules};
+    use crate::utils::events::models::{RecurrenceEndsAt, RecurrenceRule, TimeRules};
 
     use super::*;
 
@@ -167,7 +167,7 @@ mod event_range_tests {
             datetime!(2023-02-17 22:45 +1),
             datetime!(2023-02-18 0:00 +1),
         );
-        let rec_rules = EventRules::Daily {
+        let rec_rules = RecurrenceRule::Daily {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -203,7 +203,7 @@ mod event_range_tests {
             datetime!(2023-02-17 22:45 +1),
             datetime!(2023-02-18 0:00 +1),
         );
-        let rec_rules = EventRules::Weekly {
+        let rec_rules = RecurrenceRule::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -248,7 +248,7 @@ mod event_range_tests {
             datetime!(2023-02-17 22:45 +1),
             datetime!(2023-02-18 0:00 +1),
         );
-        let rec_rules = EventRules::Weekly {
+        let rec_rules = RecurrenceRule::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -301,7 +301,7 @@ mod event_range_tests {
             datetime!(2023-02-17 22:45 +1),
             datetime!(2023-02-18 0:00 +1),
         );
-        let rec_rules = EventRules::Monthly {
+        let rec_rules = RecurrenceRule::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -334,7 +334,7 @@ mod event_range_tests {
             datetime!(2023-01-31 22:45 +1),
             datetime!(2023-02-01 0:00 +1),
         );
-        let rec_rules = EventRules::Monthly {
+        let rec_rules = RecurrenceRule::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 1,
@@ -387,7 +387,7 @@ mod event_range_tests {
             datetime!(2023-02-17 22:45 +1),
             datetime!(2023-02-18 0:00 +1),
         );
-        let rec_rules = EventRules::Monthly {
+        let rec_rules = RecurrenceRule::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -432,7 +432,7 @@ mod event_range_tests {
             datetime!(2023-01-29 22:45 +1),
             datetime!(2023-01-30 0:00 +1),
         );
-        let rec_rules = EventRules::Monthly {
+        let rec_rules = RecurrenceRule::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 1,
@@ -473,7 +473,7 @@ mod event_range_tests {
             datetime!(2023-01-29 22:45 +1),
             datetime!(2023-01-30 0:00 +1),
         );
-        let rec_rules = EventRules::Yearly {
+        let rec_rules = RecurrenceRule::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -510,7 +510,7 @@ mod event_range_tests {
             datetime!(2023-01-29 22:45 +1),
             datetime!(2023-01-30 0:00 +1),
         );
-        let rec_rules = EventRules::Yearly {
+        let rec_rules = RecurrenceRule::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,
@@ -547,7 +547,7 @@ mod event_range_tests {
             datetime!(2020-12-28 22:45 +1),
             datetime!(2020-12-29 0:00 +1),
         );
-        let rec_rules = EventRules::Yearly {
+        let rec_rules = RecurrenceRule::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 1,
@@ -574,7 +574,7 @@ mod event_range_tests {
             datetime!(2023-01-02 22:45 +1),
             datetime!(2023-01-03 0:00 +1),
         );
-        let rec_rules = EventRules::Yearly {
+        let rec_rules = RecurrenceRule::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 1,
@@ -619,7 +619,7 @@ mod event_range_tests {
             datetime!(2023-01-14 22:45 +1),
             datetime!(2023-01-15 0:00 +1),
         );
-        let rec_rules = EventRules::Yearly {
+        let rec_rules = RecurrenceRule::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(50)),
                 interval: 2,

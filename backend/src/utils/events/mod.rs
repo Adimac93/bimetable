@@ -3,7 +3,7 @@ use crate::routes::events::models::{
     CreateEvent, Entry, Event, EventFilter, EventPayload, EventPrivileges, Events,
     OptionalEventData, Override, OverrideEvent,
 };
-use crate::utils::events::models::{EventRules, TimeRange};
+use crate::utils::events::models::{RecurrenceRule, TimeRange};
 use sqlx::types::{time::OffsetDateTime, Json};
 use sqlx::{query, query_as};
 use std::collections::HashMap;
@@ -35,7 +35,7 @@ pub struct QOwnedEvent {
     starts_at: OffsetDateTime,
     ends_at: OffsetDateTime,
     deleted_at: Option<OffsetDateTime>,
-    recurrence_rule: Option<Json<EventRules>>,
+    recurrence_rule: Option<Json<RecurrenceRule>>,
 }
 
 pub struct QSharedEvent {
@@ -45,7 +45,7 @@ pub struct QSharedEvent {
     starts_at: OffsetDateTime,
     ends_at: OffsetDateTime,
     deleted_at: Option<OffsetDateTime>,
-    recurrence_rule: Option<Json<EventRules>>,
+    recurrence_rule: Option<Json<RecurrenceRule>>,
     can_edit: bool,
 }
 
@@ -70,7 +70,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             event.data.payload.description,
             event.data.starts_at,
             event.data.ends_at,
-            event.recurrence_rule as _
+            sqlx::types::Json(event.recurrence_rule) as _
         )
             .fetch_one(&mut *self.conn)
             .await?
@@ -86,7 +86,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     ) -> sqlx::Result<Option<Event>> {
         let event = query!(
             r#"
-                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<EventRules>" 
+                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
                 FROM events
                 WHERE id = $1 AND deleted_at = null
             "#,
@@ -133,7 +133,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         let event = query_as!(
             QOwnedEvent,
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<EventRules>" 
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
                 FROM events
                 WHERE owner_id = $1 AND id = $2
             "#,
@@ -155,7 +155,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         let events = query_as!(
             QOwnedEvent,
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<EventRules>" 
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
                 FROM events
                 WHERE owner_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at = null
                 ORDER BY starts_at ASC

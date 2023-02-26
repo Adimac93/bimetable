@@ -14,7 +14,9 @@ use sqlx::{types::Uuid, PgPool};
 use time::OffsetDateTime;
 
 use crate::modules::database::PgQuery;
-use crate::routes::events::models::{Event, Events, OptionalEventData, OverrideEvent, UpdateEvent};
+use crate::routes::events::models::{
+    Event, EventData, EventPayload, Events, OptionalEventData, OverrideEvent, UpdateEvent,
+};
 use crate::utils::events::{get_many_events, EventQuery};
 
 use self::models::{CreateEvent, GetEventsQuery};
@@ -23,14 +25,15 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_events).post(create_event))
         .route(
-            "/:event_id",
+            "/:id",
             get(get_event)
                 .put(update_event)
                 .delete(delete_event_permanently),
         )
-        .route("/override/:event_id", post(create_event_override))
+        .route("/override/:id", post(create_event_override))
 }
 
+#[utoipa::path(post, path = "/events", request_body = CreateEvent)]
 pub async fn create_event(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -42,6 +45,7 @@ pub async fn create_event(
     Ok(Json(json!({ "event_id": event_id })))
 }
 
+#[utoipa::path(get, path = "/events", params(GetEventsQuery))]
 async fn get_events(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -57,7 +61,7 @@ async fn get_events(
     .await?;
     Ok(Json(events))
 }
-
+#[utoipa::path(get, path = "/events/{id}")]
 async fn get_event(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -73,6 +77,7 @@ async fn get_event(
     Ok(Json(event))
 }
 
+#[utoipa::path(put, path = "/events/{id}", request_body = UpdateEvent)]
 async fn update_event(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -97,6 +102,7 @@ async fn delete_event_temporarily(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(delete, path = "/events/{id}")]
 async fn delete_event_permanently(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -109,6 +115,7 @@ async fn delete_event_permanently(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(post, path = "/events/{id}", request_body = OverrideEvent)]
 async fn create_event_override(
     claims: Claims,
     State(pool): State<PgPool>,

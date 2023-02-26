@@ -1,5 +1,6 @@
 pub mod app_errors;
 pub mod config;
+mod doc;
 pub mod modules;
 pub mod routes;
 pub mod utils;
@@ -7,12 +8,15 @@ pub mod utils;
 use crate::modules::{AppExtensions, AppState};
 use axum::{Extension, Router};
 use modules::extensions::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets};
-use secrecy::{Secret, SecretString};
 use tracing::info;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 pub async fn app(state: AppState, extensions: AppExtensions) -> Router {
     info!("Spawning main router with:\n - state: {state}\n - extensions: {extensions}");
+
     Router::new()
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", doc::ApiDoc::openapi()))
         .nest("/auth", routes::auth::router())
         .nest("/ex", routes::example::router())
         .nest("/events", routes::events::router())

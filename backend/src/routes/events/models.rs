@@ -1,14 +1,18 @@
 use std::collections::HashMap;
 
-use crate::utils::events::models::EventRules;
+use crate::utils::events::models::RecurrenceRule;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::serde::timestamp;
+use utoipa::{IntoParams, ToSchema};
 
 // Core data models
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct OptionalEventData {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
     pub starts_at: Option<OffsetDateTime>,
@@ -16,9 +20,10 @@ pub struct OptionalEventData {
     pub ends_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct EventPayload {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
@@ -30,28 +35,35 @@ impl EventPayload {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OptionalEventPayload {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct EventData {
     pub payload: EventPayload,
+    #[serde(with = "timestamp")]
     pub starts_at: OffsetDateTime,
+    #[serde(with = "timestamp")]
     pub ends_at: OffsetDateTime,
 }
 
 // Queries
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, IntoParams, ToSchema)]
 pub struct GetEventsQuery {
     #[serde(with = "timestamp")]
     pub starts_at: OffsetDateTime,
     #[serde(with = "timestamp")]
     pub ends_at: OffsetDateTime,
+    #[serde(flatten)]
     pub filter: EventFilter,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub enum EventFilter {
     All,
     Owned,
@@ -59,25 +71,32 @@ pub enum EventFilter {
 }
 
 // Send payloads
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateEvent {
     pub data: EventData,
-    pub recurrence_rule: Option<Json<EventRules>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recurrence_rule: Option<RecurrenceRule>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateEvent {
     pub data: OptionalEventData,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct OverrideEvent {
+    #[serde(with = "timestamp")]
     pub override_starts_at: OffsetDateTime,
+    #[serde(with = "timestamp")]
     pub override_ends_at: OffsetDateTime,
     pub data: OptionalEventData,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteEvent {
     pub event_id: Uuid,
     pub is_permanent: bool,
@@ -174,8 +193,11 @@ pub struct Entry {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Override {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
 }

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::{serde::timestamp, Duration};
+use utoipa::ToSchema;
 
 use super::{
     calculations::{CountToUntilData, EventRangeData},
@@ -26,7 +27,7 @@ pub struct Event {
     #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
     pub ends_at: Option<OffsetDateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub recurrence_rule: Option<Json<EventRules>>,
+    pub recurrence_rule: Option<Json<RecurrenceRule>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -35,45 +36,44 @@ pub struct EventPart {
     pub length: Option<RecurrenceEndsAt>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EventRules {
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RecurrenceRule {
+    #[serde(rename_all = "camelCase")]
     Yearly {
         time_rules: TimeRules,
         is_by_day: bool,
     },
+    #[serde(rename_all = "camelCase")]
     Monthly {
         time_rules: TimeRules,
         is_by_day: bool,
     },
-    Weekly {
-        time_rules: TimeRules,
-        week_map: u8,
-    },
-    Daily {
-        time_rules: TimeRules,
-    },
+    #[serde(rename_all = "camelCase")]
+    Weekly { time_rules: TimeRules, week_map: u8 },
+    #[serde(rename_all = "camelCase")]
+    Daily { time_rules: TimeRules },
 }
 
-impl EventRules {
+impl RecurrenceRule {
     /// Returns the end of the nth occurrence of the event, starting from a specified point in time.
-    /// 
+    ///
     /// The first event in the given time bound counts as the 0th event.
-    /// 
+    ///
     /// Currently, the point in time the search starts in must be the same as the beggining of any event occurrence.
-    /// 
+    ///
     /// ```rust
     /// use bimetable::utils::events::models::TimeRules;
-    /// use bimetable::utils::events::models::EventRules;
+    /// use bimetable::utils::events::models::RecurrenceRule;
     /// use bimetable::utils::events::models::TimeRange;
     /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use time::macros::datetime;
-    /// 
+    ///
     /// let event = TimeRange::new(
     ///     datetime!(2023-02-18 10:00 +1),
     ///     datetime!(2023-02-18 12:15 +1),
     /// );
-    /// let rec_rules = EventRules::Daily {
+    /// let rec_rules = RecurrenceRule::Daily {
     ///     time_rules: TimeRules {
     ///         ends_at: Some(RecurrenceEndsAt::Count(15)),
     ///         interval: 3,
@@ -98,7 +98,7 @@ impl EventRules {
             event_duration: event.duration(),
         };
         match self {
-            EventRules::Yearly {
+            RecurrenceRule::Yearly {
                 time_rules,
                 is_by_day,
             } => {
@@ -109,7 +109,7 @@ impl EventRules {
                     yearly_conv_by_weekday(conv_data)
                 }
             }
-            EventRules::Monthly {
+            RecurrenceRule::Monthly {
                 time_rules,
                 is_by_day,
             } => {
@@ -120,7 +120,7 @@ impl EventRules {
                     monthly_conv_by_weekday(conv_data)
                 }
             }
-            EventRules::Weekly {
+            RecurrenceRule::Weekly {
                 time_rules,
                 week_map,
             } => {
@@ -131,7 +131,7 @@ impl EventRules {
                 }
                 weekly_conv(conv_data, &string_week_map)
             }
-            EventRules::Daily { time_rules } => {
+            RecurrenceRule::Daily { time_rules } => {
                 conv_data.interval = time_rules.interval;
                 daily_conv(conv_data)
             }
@@ -139,22 +139,22 @@ impl EventRules {
     }
 
     /// Returns all event occurences in a given range.
-    /// 
+    ///
     /// For an event occurrence to be included in the result, it must overlap with the given range,
     /// which means that the occurrence must end strictly after the range, and vice versa.
-    /// 
+    ///
     /// ```rust
-    /// use bimetable::utils::events::models::EventRules;
+    /// use bimetable::utils::events::models::RecurrenceRule;
     /// use bimetable::utils::events::models::TimeRules;
     /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use bimetable::utils::events::models::TimeRange;
     /// use time::macros::datetime;
-    /// 
+    ///
     /// let event = TimeRange::new(
     ///     datetime!(2023-02-17 22:45 +1),
     ///     datetime!(2023-02-18 0:00 +1),
     /// );
-    /// let rec_rules = EventRules::Daily {
+    /// let rec_rules = RecurrenceRule::Daily {
     ///     time_rules: TimeRules {
     ///         ends_at: Some(RecurrenceEndsAt::Count(50)),
     ///         interval: 2,
@@ -164,7 +164,7 @@ impl EventRules {
     ///     start: datetime!(2023-02-21 0:00 +1),
     ///     end: datetime!(2023-02-27 22:45 +1),
     /// };
-    /// 
+    ///
     /// assert_eq!(
     ///     rec_rules.get_event_range(part, event).unwrap(),
     ///     vec![
@@ -203,7 +203,7 @@ impl EventRules {
         });
 
         match self {
-            EventRules::Yearly {
+            RecurrenceRule::Yearly {
                 time_rules,
                 is_by_day,
             } => {
@@ -216,14 +216,14 @@ impl EventRules {
                     get_yearly_events_by_weekday(range_data)
                 }
             }
-            EventRules::Monthly {
+            RecurrenceRule::Monthly {
                 time_rules,
                 is_by_day,
             } => {
                 range_data.interval = time_rules.interval;
                 Ok(get_monthly_events_by_day(range_data, *is_by_day))
             }
-            EventRules::Weekly {
+            RecurrenceRule::Weekly {
                 time_rules,
                 week_map,
             } => {
@@ -234,7 +234,7 @@ impl EventRules {
                 }
                 Ok(get_weekly_events(range_data, &string_week_map))
             }
-            EventRules::Daily { time_rules } => {
+            RecurrenceRule::Daily { time_rules } => {
                 range_data.interval = time_rules.interval;
                 Ok(get_daily_events(range_data))
             }
@@ -243,22 +243,24 @@ impl EventRules {
 
     fn time_rules(&self) -> TimeRules {
         let res = match self {
-            EventRules::Yearly { time_rules, .. } => time_rules,
-            EventRules::Monthly { time_rules, .. } => time_rules,
-            EventRules::Weekly { time_rules, .. } => time_rules,
-            EventRules::Daily { time_rules } => time_rules,
+            RecurrenceRule::Yearly { time_rules, .. } => time_rules,
+            RecurrenceRule::Monthly { time_rules, .. } => time_rules,
+            RecurrenceRule::Weekly { time_rules, .. } => time_rules,
+            RecurrenceRule::Daily { time_rules } => time_rules,
         };
         res.clone()
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub enum RecurrenceEndsAt {
     Until(OffsetDateTime),
     Count(u32),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TimeRules {
     pub ends_at: Option<RecurrenceEndsAt>,
     pub interval: u32,
