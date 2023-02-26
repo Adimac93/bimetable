@@ -2,6 +2,8 @@ use std::cmp::max;
 
 use time::{ext::NumericalDuration, util::weeks_in_year, Weekday};
 
+use crate::app_errors::DefaultContext;
+
 use super::{
     additions::{
         iso_year_start, max_date_time, next_good_month, next_good_month_by_weekday, AddTime,
@@ -12,7 +14,7 @@ use super::{
     models::TimeRange,
 };
 
-pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
+pub fn get_daily_events(range_data: EventRangeData) -> Result<Vec<TimeRange>, EventError> {
     let day_amount = (range_data.range.start - range_data.event_range.end).whole_days();
     let offset_from_origin_event = max(
         day_amount - day_amount.rem_euclid(range_data.interval as i64),
@@ -20,7 +22,10 @@ pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
     )
     .days();
 
-    let mut daily_event = range_data.event_range + offset_from_origin_event;
+    let mut daily_event = range_data
+        .event_range
+        .checked_add(offset_from_origin_event)
+        .dc()?;
     let mut res = Vec::new();
 
     while !daily_event.is_after(&range_data.range)
@@ -30,13 +35,18 @@ pub fn get_daily_events(range_data: EventRangeData) -> Vec<TimeRange> {
             res.push(daily_event);
         }
 
-        daily_event += (range_data.interval as i64).days();
+        daily_event = daily_event
+            .checked_add((range_data.interval as i64).days())
+            .dc()?;
     }
 
-    res
+    Ok(res)
 }
 
-pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<TimeRange> {
+pub fn get_weekly_events(
+    range_data: EventRangeData,
+    week_map: &str,
+) -> Result<Vec<TimeRange>, EventError> {
     let week_amount = (range_data.range.start - range_data.event_range.end).whole_weeks();
     let offset_from_origin_event = max(
         week_amount - week_amount.rem_euclid(range_data.interval as i64),
@@ -49,28 +59,42 @@ pub fn get_weekly_events(range_data: EventRangeData, week_map: &str) -> Vec<Time
 
     let mut res = Vec::new();
 
-    let weekly_event_start =
-        range_data.event_range.start + offset_from_origin_event - offset_from_week_start;
+    let weekly_event_start = range_data
+        .event_range
+        .start
+        .checked_add(offset_from_origin_event)
+        .dc()?
+        .checked_sub(offset_from_week_start)
+        .dc()?;
     let mut weekly_event =
-        TimeRange::new_relative(weekly_event_start, range_data.event_range.duration());
+        TimeRange::new_relative_checked(weekly_event_start, range_data.event_range.duration())
+            .dc()?;
 
     while !weekly_event.is_after(&range_data.range)
         && weekly_event.start < range_data.rec_ends_at.unwrap_or(max_date_time())
     {
-        week_map.chars().enumerate().for_each(|(i, elem)| {
-            if elem == '1' && (weekly_event + (i as i64).days()).is_overlapping(&range_data.range)
-                && (weekly_event.start + (i as i64).days()) < range_data.rec_ends_at.unwrap_or(max_date_time()) {
-                res.push(weekly_event + (i as i64).days());
+        for (i, elem) in week_map.chars().enumerate() {
+            let target_range = weekly_event.checked_add((i as i64).days()).dc()?;
+            if elem == '1'
+                && target_range.is_overlapping(&range_data.range)
+                && target_range.start < range_data.rec_ends_at.unwrap_or(max_date_time())
+            {
+                res.push(target_range);
             }
-        });
+        }
 
-        weekly_event += (range_data.interval as i64).weeks();
+        weekly_event = weekly_event
+            .checked_add((range_data.interval as i64).weeks())
+            .dc()?;
     }
 
-    res
+    Ok(res)
 }
 
-pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) -> Vec<TimeRange> {
+pub fn get_monthly_events_by_day(
+    range_data: EventRangeData,
+    is_by_day: bool,
+) -> Result<Vec<TimeRange>, EventError> {
     let (event_end_year, event_end_month, _) = range_data.event_range.end.to_calendar_date();
     let (range_start_year, range_start_month, _) = range_data.range.start.to_calendar_date();
 
@@ -87,14 +111,14 @@ pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) ->
         .start
         .month_start()
         .add_months(offset_from_origin_event as i64)
-        .unwrap();
+        .dc()?;
     let mut monthly_step = range_data.event_range.start;
 
     while monthly_step < month_start {
         if is_by_day {
-            monthly_step = next_good_month(monthly_step, range_data.interval as i64);
+            monthly_step = next_good_month(monthly_step, range_data.interval as i64)?;
         } else {
-            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i64);
+            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i64)?;
         }
     }
 
@@ -104,19 +128,20 @@ pub fn get_monthly_events_by_day(range_data: EventRangeData, is_by_day: bool) ->
         && monthly_step < range_data.rec_ends_at.unwrap_or(max_date_time())
     {
         let monthly_event =
-            TimeRange::new_relative(monthly_step, range_data.event_range.duration());
+            TimeRange::new_relative_checked(monthly_step, range_data.event_range.duration())
+                .dc()?;
         if monthly_event.is_overlapping(&range_data.range) {
             res.push(monthly_event);
         };
 
         if is_by_day {
-            monthly_step = next_good_month(monthly_step, range_data.interval as i64);
+            monthly_step = next_good_month(monthly_step, range_data.interval as i64)?;
         } else {
-            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i64);
+            monthly_step = next_good_month_by_weekday(monthly_step, range_data.interval as i64)?;
         }
     }
 
-    res
+    Ok(res)
 }
 
 pub fn get_yearly_events_by_weekday(
@@ -131,7 +156,7 @@ pub fn get_yearly_events_by_weekday(
         0,
     );
 
-    let mut yearly_step = event_base_year + offset_from_origin_event;
+    let mut yearly_step = event_base_year.checked_add(offset_from_origin_event).dc()?;
     let offset_from_iso_year_start = (target_week_number as i64 - 1).weeks()
         + (Weekday::Monday.cyclic_time_to(target_weekday) as i64).days();
     let mut res = Vec::new();
@@ -140,15 +165,20 @@ pub fn get_yearly_events_by_weekday(
         && iso_year_start(yearly_step) < range_data.rec_ends_at.unwrap_or(max_date_time())
     {
         if weeks_in_year(yearly_step) >= target_week_number {
-            let target_day = iso_year_start(yearly_step) + offset_from_iso_year_start;
+            let target_day = iso_year_start(yearly_step)
+                .checked_add(offset_from_iso_year_start)
+                .dc()?;
 
-            res.push(TimeRange::new_relative(
-                target_day.replace_time(range_data.event_range.start.time()),
-                range_data.event_range.duration(),
-            ));
+            res.push(
+                TimeRange::new_relative_checked(
+                    target_day.replace_time(range_data.event_range.start.time()),
+                    range_data.event_range.duration(),
+                )
+                .dc()?,
+            );
         };
 
-        yearly_step += range_data.interval as i32;
+        yearly_step = yearly_step.checked_add(range_data.interval as i32).dc()?;
     }
 
     Ok(res)

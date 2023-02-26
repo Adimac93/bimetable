@@ -57,18 +57,18 @@ pub enum EventRules {
 
 impl EventRules {
     /// Returns the end of the nth occurrence of the event, starting from a specified point in time.
-    /// 
+    ///
     /// The first event in the given time bound counts as the 0th event.
-    /// 
+    ///
     /// Currently, the point in time the search starts in must be the same as the beggining of any event occurrence.
-    /// 
+    ///
     /// ```rust
     /// use bimetable::utils::events::models::TimeRules;
     /// use bimetable::utils::events::models::EventRules;
     /// use bimetable::utils::events::models::TimeRange;
     /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use time::macros::datetime;
-    /// 
+    ///
     /// let event = TimeRange::new(
     ///     datetime!(2023-02-18 10:00 UTC),
     ///     datetime!(2023-02-18 12:15 UTC),
@@ -139,17 +139,17 @@ impl EventRules {
     }
 
     /// Returns all event occurences in a given range.
-    /// 
+    ///
     /// For an event occurrence to be included in the result, it must overlap with the given range,
     /// which means that the occurrence must end strictly after the range, and vice versa.
-    /// 
+    ///
     /// ```rust
     /// use bimetable::utils::events::models::EventRules;
     /// use bimetable::utils::events::models::TimeRules;
     /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use bimetable::utils::events::models::TimeRange;
     /// use time::macros::datetime;
-    /// 
+    ///
     /// let event = TimeRange::new(
     ///     datetime!(2023-02-17 22:45 UTC),
     ///     datetime!(2023-02-18 0:00 UTC),
@@ -164,7 +164,7 @@ impl EventRules {
     ///     start: datetime!(2023-02-21 0:00 UTC),
     ///     end: datetime!(2023-02-27 22:45 UTC),
     /// };
-    /// 
+    ///
     /// assert_eq!(
     ///     rec_rules.get_event_range(part, event).unwrap(),
     ///     vec![
@@ -211,7 +211,7 @@ impl EventRules {
                 if *is_by_day {
                     // year and 12 months are the same
                     range_data.interval *= 12;
-                    Ok(get_monthly_events_by_day(range_data, *is_by_day))
+                    get_monthly_events_by_day(range_data, *is_by_day)
                 } else {
                     get_yearly_events_by_weekday(range_data)
                 }
@@ -221,7 +221,7 @@ impl EventRules {
                 is_by_day,
             } => {
                 range_data.interval = time_rules.interval;
-                Ok(get_monthly_events_by_day(range_data, *is_by_day))
+                get_monthly_events_by_day(range_data, *is_by_day)
             }
             EventRules::Weekly {
                 time_rules,
@@ -232,11 +232,11 @@ impl EventRules {
                 if week_map % 128 == 0 {
                     return Err(EventError::InvalidEventFormat);
                 }
-                Ok(get_weekly_events(range_data, &string_week_map))
+                get_weekly_events(range_data, &string_week_map)
             }
             EventRules::Daily { time_rules } => {
                 range_data.interval = time_rules.interval;
-                Ok(get_daily_events(range_data))
+                get_daily_events(range_data)
             }
         }
     }
@@ -277,6 +277,10 @@ impl TimeRange {
 
     pub fn new_relative(start: OffsetDateTime, length: Duration) -> Self {
         Self::new(start, start + length)
+    }
+
+    pub fn new_relative_checked(start: OffsetDateTime, length: Duration) -> Option<Self> {
+        Some(Self::new(start, start.checked_add(length)?))
     }
 
     pub fn checked_add(self, rhs: Duration) -> Option<Self> {

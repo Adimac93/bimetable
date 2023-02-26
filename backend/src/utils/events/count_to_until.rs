@@ -97,7 +97,7 @@ fn monthly_conv_for_last_days(
 ) -> Result<OffsetDateTime, EventError> {
     let mut monthly_step = conv_data.part_starts_at;
     while conv_data.count != 0 {
-        monthly_step = next_good_month_by_weekday(monthly_step, conv_data.interval as i64);
+        monthly_step = next_good_month_by_weekday(monthly_step, conv_data.interval as i64)?;
         conv_data.count -= 1;
     }
 
