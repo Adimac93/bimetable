@@ -88,7 +88,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             r#"
                 SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
                 FROM events
-                WHERE id = $1 AND deleted_at = null
+                WHERE id = $1 AND deleted_at IS NULL
             "#,
             event_id,
         )
@@ -157,7 +157,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
                 FROM events
-                WHERE owner_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at = null
+                WHERE owner_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at IS NULL
                 ORDER BY starts_at ASC
             "#,
             user_id,
@@ -200,7 +200,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             r#"
                 SELECT event_id, override_starts_at, override_ends_at, created_at, name, description, starts_at, ends_at, deleted_at
                 FROM event_overrides
-                WHERE event_id in ($1)
+                WHERE event_id = any($1)
                 ORDER BY override_starts_at ASC
             "#,
             event_ids as _
