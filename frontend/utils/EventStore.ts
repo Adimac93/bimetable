@@ -142,6 +142,24 @@ export class EventStore {
     iter() {
         return new EventIteratorContext(this);
     }
+
+    // Bounds of date range that is loaded. Start is inclusive, end is exclusive.
+    get loadedBounds() {
+        return {
+            start: this.entries[0].startTime,
+            end: this.entries[this.entries.length - 1].endTime.add(1, "second"),
+        }
+    }
+
+    // Load enough events so everything from newStart to the existing end is loaded.
+    extendFrom(newStart: dayjs.Dayjs) {
+        // TODO: request events in [newStart, loadedBounds.start)
+    }
+
+    // Load enough events so everything from the existing start to newEnd is loaded.
+    extendTo(newEnd: dayjs.Dayjs) {
+        // TODO: request events in [loadedBounds.end, newEnd)
+    }
 }
 
 export interface EventStoreAPIData {
