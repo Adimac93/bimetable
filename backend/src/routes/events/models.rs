@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::utils::events::models::RecurrenceRule;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
-use time::serde::timestamp;
+use time::serde::iso8601;
 use utoipa::{IntoParams, ToResponse, ToSchema};
 
 // Core data models
@@ -14,9 +14,9 @@ pub struct OptionalEventData {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
+    #[serde(with = "iso8601::option", skip_serializing_if = "Option::is_none")]
     pub starts_at: Option<OffsetDateTime>,
-    #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
+    #[serde(with = "iso8601::option", skip_serializing_if = "Option::is_none")]
     pub ends_at: Option<OffsetDateTime>,
 }
 
@@ -45,20 +45,19 @@ pub struct OptionalEventPayload {
 #[serde(rename_all = "camelCase")]
 pub struct EventData {
     pub payload: EventPayload,
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     pub starts_at: OffsetDateTime,
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     pub ends_at: OffsetDateTime,
 }
 
 // Queries
 #[derive(Debug, Deserialize, Serialize, IntoParams, ToSchema)]
 pub struct GetEventsQuery {
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     pub starts_at: OffsetDateTime,
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     pub ends_at: OffsetDateTime,
-    #[serde(flatten)]
     pub filter: EventFilter,
 }
 
@@ -88,9 +87,9 @@ pub struct UpdateEvent {
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OverrideEvent {
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     pub override_starts_at: OffsetDateTime,
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     pub override_ends_at: OffsetDateTime,
     pub data: OptionalEventData,
 }
@@ -197,7 +196,7 @@ pub struct Override {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    #[serde(with = "timestamp::option", skip_serializing_if = "Option::is_none")]
+    #[serde(with = "iso8601::option", skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
 }

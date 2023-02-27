@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
-use time::{serde::timestamp, Duration};
+use time::{serde::iso8601, Duration};
 use utoipa::ToSchema;
 
 use super::{
@@ -241,7 +241,7 @@ impl RecurrenceRule {
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum RecurrenceEndsAt {
-    #[serde(with = "timestamp")]
+    #[serde(with = "iso8601")]
     Until(OffsetDateTime),
     Count(u32),
 }
