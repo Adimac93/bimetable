@@ -43,7 +43,6 @@ UpdateEvent,
 LoginCredentials,
 RegisterCredentials,
 )),
-modifiers(& SecurityAddon),
 tags((name = "auth"),(name = "events"))
 )]
 pub struct ApiDoc;
