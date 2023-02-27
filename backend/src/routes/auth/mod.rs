@@ -28,7 +28,8 @@ pub fn router() -> Router<AppState> {
         .route("/refresh", post(post_refresh_user_token))
 }
 
-#[utoipa::path(post, path = "/auth/register", params(RegisterCredentials))]
+/// Register user
+#[utoipa::path(post, path = "/auth/register", tag = "auth", request_body = RegisterCredentials, responses((status = 200, description = "User has successfully registered")))]
 #[debug_handler]
 async fn post_register_user(
     State(pool): State<PgPool>,
@@ -56,7 +57,8 @@ async fn post_register_user(
     Ok(jar)
 }
 
-#[utoipa::path(post, path = "/auth/login", params(LoginCredentials))]
+/// Login user
+#[utoipa::path(post, path = "/auth/login", tag = "auth", request_body = LoginCredentials, responses((status = 200, description = "User has successfully logged in")))]
 async fn post_login_user(
     State(pool): State<PgPool>,
     Extension(secrets): Extension<TokenSecrets>,
@@ -83,12 +85,14 @@ async fn post_login_user(
     Ok(jar)
 }
 
-#[utoipa::path(post, path = "/auth/validate")]
+/// Validate tokens
+#[utoipa::path(post, path = "/auth/validate", tag = "auth", responses((status = 200, description = "User has valid auth tokens")))]
 async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "user id": claims.user_id })))
 }
 
-#[utoipa::path(post, path = "/auth/logout")]
+/// Logout user
+#[utoipa::path(post, path = "/auth/logout", tag = "auth")]
 async fn post_logout_user(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,
@@ -141,7 +145,8 @@ fn remove_cookie(name: &str) -> Cookie {
         .finish()
 }
 
-#[utoipa::path(post, path = "/auth/refresh")]
+/// Refresh access token
+#[utoipa::path(post, path = "/auth/refresh", tag = "auth", responses((status = 200, description = "Refreshed user access token")))]
 async fn post_refresh_user_token(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,

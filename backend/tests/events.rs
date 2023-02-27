@@ -1,6 +1,6 @@
 use bimetable::{
     routes::events::models::{CreateEvent, GetEventsQuery},
-    utils::events::models::{Event, RecurrenceEndsAt, RecurrenceRule, TimeRules},
+    utils::events::models::{RecurrenceEndsAt, RecurrenceRule, TimeRules},
 };
 use http::StatusCode;
 use serde_json::json;

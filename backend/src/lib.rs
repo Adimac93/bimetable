@@ -8,6 +8,7 @@ pub mod utils;
 use crate::modules::{AppExtensions, AppState};
 use axum::{Extension, Router};
 use modules::extensions::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets};
+use secrecy::Secret;
 use tracing::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;

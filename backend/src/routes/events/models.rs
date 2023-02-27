@@ -4,7 +4,7 @@ use crate::utils::events::models::RecurrenceRule;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::serde::timestamp;
-use utoipa::{IntoParams, ToSchema};
+use utoipa::{IntoParams, ToResponse, ToSchema};
 
 // Core data models
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -109,7 +109,7 @@ pub struct DeleteOverride {
 }
 
 // Receive payloads
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToResponse, ToSchema)]
 pub struct Events {
     pub events: HashMap<Uuid, Event>,
     pub entries: Vec<Entry>,
@@ -154,7 +154,7 @@ impl Events {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct Event {
     pub payload: EventPayload,
     pub is_owned: bool,
@@ -183,7 +183,7 @@ impl Event {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct Entry {
     pub event_id: Uuid,
     pub starts_at: OffsetDateTime,
@@ -191,7 +191,7 @@ pub struct Entry {
     pub recurrence_override: Option<Override>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct Override {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

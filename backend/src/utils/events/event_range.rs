@@ -332,7 +332,7 @@ mod event_range_tests {
             datetime!(2023-02-17 22:45 UTC),
             datetime!(2023-02-18 0:00 UTC),
         );
-        let rec_rules = EventRules::Weekly {
+        let rec_rules = RecurrenceRule::Weekly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-16 0:00 UTC))),
                 interval: 2,
@@ -467,7 +467,7 @@ mod event_range_tests {
             datetime!(2023-01-31 22:45 UTC),
             datetime!(2023-02-01 0:00 UTC),
         );
-        let rec_rules = EventRules::Monthly {
+        let rec_rules = RecurrenceRule::Monthly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-06-01 0:00 UTC))),
                 interval: 1,
@@ -627,7 +627,7 @@ mod event_range_tests {
             datetime!(2023-01-29 22:45 UTC),
             datetime!(2023-01-30 0:00 UTC),
         );
-        let rec_rules = EventRules::Yearly {
+        let rec_rules = RecurrenceRule::Yearly {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2025-01-30 0:00 UTC))),
                 interval: 2,

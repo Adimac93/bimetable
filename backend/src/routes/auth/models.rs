@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use utoipa::IntoParams;
+use utoipa::{IntoParams, ToSchema};
 use validator::{Validate, ValidationError};
 
-#[derive(Serialize, Deserialize, IntoParams)]
+#[derive(Serialize, Deserialize, IntoParams, ToSchema)]
 pub struct LoginCredentials {
     pub login: String,
     pub password: String,
@@ -17,7 +17,7 @@ impl LoginCredentials {
     }
 }
 
-#[derive(Serialize, Deserialize, IntoParams)]
+#[derive(Serialize, Deserialize, IntoParams, ToSchema)]
 pub struct RegisterCredentials {
     pub login: String,
     pub password: String,
