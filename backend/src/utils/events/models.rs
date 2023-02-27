@@ -241,6 +241,7 @@ impl RecurrenceRule {
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum RecurrenceEndsAt {
+    #[serde(with = "timestamp")]
     Until(OffsetDateTime),
     Count(u32),
 }
