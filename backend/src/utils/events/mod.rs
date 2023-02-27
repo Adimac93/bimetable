@@ -389,7 +389,6 @@ fn gen_owned_events(
                         TimeRange::new(event.starts_at, event.ends_at),
                     )
                     .unwrap();
-                entry_ranges.reverse();
 
                 add_entries(event.id, &mut entry_ranges, &mut ovrs, &mut entries);
             }
@@ -426,7 +425,6 @@ fn gen_shared_events(
                         TimeRange::new(event.starts_at, event.ends_at),
                     )
                     .unwrap();
-                entry_ranges.reverse();
 
                 add_entries(event.id, &mut entry_ranges, &mut ovrs, &mut entries);
             }
