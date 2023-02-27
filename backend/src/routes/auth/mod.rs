@@ -24,10 +24,12 @@ pub fn router() -> Router<AppState> {
         .route("/register", post(post_register_user))
         .route("/login", post(post_login_user))
         .route("/validate", post(protected_zone))
-        .route("/logout", post(post_user_logout))
+        .route("/logout", post(post_logout_user))
         .route("/refresh", post(post_refresh_user_token))
 }
 
+/// Register user
+#[utoipa::path(post, path = "/auth/register", tag = "auth", request_body = RegisterCredentials, responses((status = 200, description = "User has successfully registered")))]
 #[debug_handler]
 async fn post_register_user(
     State(pool): State<PgPool>,
@@ -55,11 +57,13 @@ async fn post_register_user(
     Ok(jar)
 }
 
+/// Login user
+#[utoipa::path(post, path = "/auth/login", tag = "auth", request_body = LoginCredentials, responses((status = 200, description = "User has successfully logged in")))]
 async fn post_login_user(
     State(pool): State<PgPool>,
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
-    Json(login_credentials): extract::Json<LoginCredentials>,
+    Json(login_credentials): Json<LoginCredentials>,
 ) -> Result<CookieJar, AppError> {
     // returns if credentials are wrong
     let mut conn = pool.acquire().await.map_err(|e| AuthError::from(e))?;
@@ -81,12 +85,15 @@ async fn post_login_user(
     Ok(jar)
 }
 
-#[debug_handler]
+/// Validate tokens
+#[utoipa::path(post, path = "/auth/validate", tag = "auth", responses((status = 200, description = "User has valid auth tokens")))]
 async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "user id": claims.user_id })))
 }
 
-async fn post_user_logout(
+/// Logout user
+#[utoipa::path(post, path = "/auth/logout", tag = "auth")]
+async fn post_logout_user(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
@@ -138,7 +145,8 @@ fn remove_cookie(name: &str) -> Cookie {
         .finish()
 }
 
-#[debug_handler]
+/// Refresh access token
+#[utoipa::path(post, path = "/auth/refresh", tag = "auth", responses((status = 200, description = "Refreshed user access token")))]
 async fn post_refresh_user_token(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,

@@ -4,8 +4,12 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum EventError {
+    #[error("Invalid event format")]
+    InvalidEventFormat,
     #[error("Not Found")]
     NotFound,
+    #[error("Wrong event bounds")]
+    WrongEventBounds,
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
@@ -13,7 +17,9 @@ pub enum EventError {
 impl IntoResponse for EventError {
     fn into_response(self) -> axum::response::Response {
         let status_code = match &self {
+            EventError::InvalidEventFormat => StatusCode::BAD_REQUEST,
             EventError::NotFound => StatusCode::NOT_FOUND,
+            EventError::WrongEventBounds => StatusCode::BAD_REQUEST,
             EventError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");
                 StatusCode::INTERNAL_SERVER_ERROR

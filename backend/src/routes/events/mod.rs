@@ -1,137 +1,142 @@
 pub mod models;
-
+use crate::modules::AppState;
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
-use crate::{modules::AppState, utils::events::models::Event};
 use axum::{
     extract::{Path, Query, State},
-    routing::get,
+    routing::{get, patch, post},
     Json, Router,
 };
 use http::StatusCode;
-use sqlx::{query, query_as, types::Uuid, PgPool};
+use serde_json::json;
+use sqlx::types::JsonValue;
+use sqlx::{types::Uuid, PgPool};
+
+use crate::modules::database::PgQuery;
+use crate::routes::events::models::{
+    Event, EventData, EventPayload, Events, OptionalEventData, OverrideEvent, UpdateEvent,
+};
+use crate::utils::events::{get_many_events, EventQuery};
 
 use self::models::{CreateEvent, GetEventsQuery};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_events).put(put_new_event))
-        .route("/:id", get(get_event).put(put_event).delete(delete_event))
+        .route("/", get(get_events).put(create_event))
+        .route(
+            "/:id",
+            get(get_event)
+                .patch(update_event)
+                .delete(delete_event_permanently),
+        )
+        .route("/override/:id", patch(create_event_override))
 }
 
+/// Create event
+#[utoipa::path(put, path = "/events", tag = "events", request_body = CreateEvent, responses((status = 200, description = "Created event")))]
+pub async fn create_event(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Json(body): Json<CreateEvent>,
+) -> Result<Json<JsonValue>, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let event_id = q.create_event(claims.user_id, body).await?;
+    Ok(Json(json!({ "event_id": event_id })))
+}
+
+/// Get many events
+#[utoipa::path(get, path = "/events", tag = "events", params(GetEventsQuery), responses((status = 200, body = Events, description = "Fetched many events")))]
 async fn get_events(
     claims: Claims,
     State(pool): State<PgPool>,
     Query(query): Query<GetEventsQuery>,
-) -> Result<Json<Vec<Event>>, EventError> {
-    let events = query_as!(
-        Event,
-        r#"
-            SELECT id, owner_id, name, starts_at, ends_at, recurrence_rule as "recurrence_rule: _"
-            FROM events
-            WHERE owner_id = $1 AND starts_at >= $2 AND ends_at <= $3;
-        "#,
+) -> Result<Json<Events>, EventError> {
+    let events = get_many_events(
         claims.user_id,
         query.starts_at,
         query.ends_at,
+        query.filter,
+        pool,
     )
-    .fetch_all(&pool)
     .await?;
-
     Ok(Json(events))
 }
 
-async fn put_new_event(
-    claims: Claims,
-    State(pool): State<PgPool>,
-    Json(body): Json<CreateEvent>,
-) -> Result<(StatusCode, Json<Uuid>), EventError> {
-    let id = query!(
-        r#"
-            INSERT INTO events (name, owner_id, starts_at, ends_at, recurrence_rule)
-            VALUES
-            ($1, $2, $3, $4, $5)
-            RETURNING id;
-        "#,
-        body.name,
-        claims.user_id,
-        body.starts_at,
-        body.ends_at,
-        sqlx::types::Json(body.recurrence_rule) as _
-    )
-    .fetch_one(&pool)
-    .await?
-    .id;
-
-    Ok((StatusCode::CREATED, Json(id)))
-}
-
+/// Get event
+#[utoipa::path(get, path = "/events/{id}", tag = "events", responses((status = 200, body = Event)))]
 async fn get_event(
     claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Event>, EventError> {
-    let event = query_as!(
-        Event,
-        r#"
-            SELECT id, owner_id, name, starts_at, ends_at, recurrence_rule as "recurrence_rule: _"
-            FROM events
-            WHERE owner_id = $1 AND id = $2;
-        "#,
-        claims.user_id,
-        id,
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or(EventError::NotFound)?;
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let event = q
+        .get_event(claims.user_id, id)
+        .await?
+        .ok_or(EventError::NotFound)?;
 
     Ok(Json(event))
 }
 
-async fn put_event(
+/// Update event
+#[utoipa::path(patch, path = "/events/{id}", tag = "events", request_body = UpdateEvent)]
+async fn update_event(
     claims: Claims,
     State(pool): State<PgPool>,
-    Json(body): Json<Event>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
-    query!(
-        r#"
-            UPDATE events SET
-            name = $1,
-            owner_id = $2,
-            starts_at = $3,
-            ends_at = $4,
-            recurrence_rule = $5
-            WHERE owner_id = $6 AND id = $7
-        "#,
-        body.name,
-        body.owner_id,
-        body.starts_at,
-        body.ends_at,
-        sqlx::types::Json(body.recurrence_rule) as _,
-        claims.user_id,
-        body.id,
-    )
-    .execute(&pool)
-    .await?;
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    q.update_event(claims.user_id, id, body.data).await?;
 
     Ok(StatusCode::OK)
 }
 
-async fn delete_event(
+/// Delete event temporarily
+#[utoipa::path(patch, path = "/events/{id}", tag = "events")]
+async fn delete_event_temporarily(
     claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
-    query!(
-        r#"
-            DELETE FROM events
-            WHERE owner_id = $1 AND id = $2;
-        "#,
-        claims.user_id,
-        id
-    )
-    .execute(&pool)
-    .await?;
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    q.temp_delete(claims.user_id, id).await?;
+    Ok(StatusCode::OK)
+}
+
+/// Delete event permanently
+#[utoipa::path(delete, path = "/events/{id}", tag = "events")]
+async fn delete_event_permanently(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    q.perm_delete(claims.user_id, id).await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Create event override
+#[utoipa::path(put, path = "/events/override/{id}", tag = "events", request_body = OverrideEvent)]
+async fn create_event_override(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<OverrideEvent>,
+) -> Result<StatusCode, EventError> {
+    let mut conn = pool.begin().await?;
+    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let is_owned = q.is_owned_event(claims.user_id, id).await?;
+    if !is_owned {
+        return Err(EventError::NotFound);
+    }
+
+    q.create_override(claims.user_id, id, body).await?;
+    Ok(StatusCode::OK)
 }
