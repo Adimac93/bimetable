@@ -4,14 +4,13 @@ use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, post},
+    routing::{get, patch, post},
     Json, Router,
 };
 use http::StatusCode;
 use serde_json::json;
 use sqlx::types::JsonValue;
 use sqlx::{types::Uuid, PgPool};
-use time::OffsetDateTime;
 
 use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
@@ -23,18 +22,18 @@ use self::models::{CreateEvent, GetEventsQuery};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_events).post(create_event))
+        .route("/", get(get_events).put(create_event))
         .route(
             "/:id",
             get(get_event)
-                .put(update_event)
+                .patch(update_event)
                 .delete(delete_event_permanently),
         )
-        .route("/override/:id", post(create_event_override))
+        .route("/override/:id", patch(create_event_override))
 }
 
 /// Create event
-#[utoipa::path(post, path = "/events", tag = "events", request_body = CreateEvent, responses((status = 200, description = "Created event")))]
+#[utoipa::path(put, path = "/events", tag = "events", request_body = CreateEvent, responses((status = 200, description = "Created event")))]
 pub async fn create_event(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -82,7 +81,7 @@ async fn get_event(
 }
 
 /// Update event
-#[utoipa::path(put, path = "/events/{id}", tag = "events", request_body = UpdateEvent)]
+#[utoipa::path(patch, path = "/events/{id}", tag = "events", request_body = UpdateEvent)]
 async fn update_event(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -97,7 +96,7 @@ async fn update_event(
 }
 
 /// Delete event temporarily
-#[utoipa::path(put, path = "/events/{id}", tag = "events")]
+#[utoipa::path(patch, path = "/events/{id}", tag = "events")]
 async fn delete_event_temporarily(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -124,7 +123,7 @@ async fn delete_event_permanently(
 }
 
 /// Create event override
-#[utoipa::path(post, path = "/events/{id}", tag = "events", request_body = OverrideEvent)]
+#[utoipa::path(put, path = "/events/override/{id}", tag = "events", request_body = OverrideEvent)]
 async fn create_event_override(
     claims: Claims,
     State(pool): State<PgPool>,
