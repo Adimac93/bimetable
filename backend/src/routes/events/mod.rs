@@ -69,12 +69,12 @@ async fn get_events(
 async fn get_event(
     claims: Claims,
     State(pool): State<PgPool>,
-    Path(event_id): Path<Uuid>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<Event>, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
     let event = q
-        .get_event(claims.user_id, event_id)
+        .get_event(claims.user_id, id)
         .await?
         .ok_or(EventError::NotFound)?;
 
@@ -86,12 +86,12 @@ async fn get_event(
 async fn update_event(
     claims: Claims,
     State(pool): State<PgPool>,
-    Path(event_id): Path<Uuid>,
+    Path(id): Path<Uuid>,
     Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.update_event(claims.user_id, event_id, body.data).await?;
+    q.update_event(claims.user_id, id, body.data).await?;
 
     Ok(StatusCode::OK)
 }
@@ -101,11 +101,11 @@ async fn update_event(
 async fn delete_event_temporarily(
     claims: Claims,
     State(pool): State<PgPool>,
-    Path(event_id): Path<Uuid>,
+    Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.temp_delete(claims.user_id, event_id).await?;
+    q.temp_delete(claims.user_id, id).await?;
     Ok(StatusCode::OK)
 }
 
@@ -114,11 +114,11 @@ async fn delete_event_temporarily(
 async fn delete_event_permanently(
     claims: Claims,
     State(pool): State<PgPool>,
-    Path(event_id): Path<Uuid>,
+    Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.perm_delete(claims.user_id, event_id).await?;
+    q.perm_delete(claims.user_id, id).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -128,16 +128,16 @@ async fn delete_event_permanently(
 async fn create_event_override(
     claims: Claims,
     State(pool): State<PgPool>,
-    Path(event_id): Path<Uuid>,
+    Path(id): Path<Uuid>,
     Json(body): Json<OverrideEvent>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let is_owned = q.is_owned_event(claims.user_id, event_id).await?;
+    let is_owned = q.is_owned_event(claims.user_id, id).await?;
     if !is_owned {
         return Err(EventError::NotFound);
     }
 
-    q.create_override(claims.user_id, event_id, body).await?;
+    q.create_override(claims.user_id, id, body).await?;
     Ok(StatusCode::OK)
 }
