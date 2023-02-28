@@ -1,4 +1,4 @@
-import { CalendarEvent } from "./CalendarEvent";
+import { BaseCalendarEvent, CalendarEvent } from "./CalendarEvent";
 import dayjs from "./dayjs";
 
 // TODO: implement overrides
@@ -148,7 +148,7 @@ export class EventStore {
         return {
             start: this.entries[0].startTime,
             end: this.entries[this.entries.length - 1].endTime.add(1, "second"),
-        }
+        };
     }
 
     // Load enough events so everything from newStart to the existing end is loaded.
@@ -160,25 +160,38 @@ export class EventStore {
     extendTo(newEnd: dayjs.Dayjs) {
         // TODO: request events in [loadedBounds.end, newEnd)
     }
+
+    createEvent(event: BaseCalendarEvent) {
+        // TODO
+    }
+
+    deleteEvent(eventID: string) {
+        // TODO: actually query the API
+        if (!this.data.delete(eventID)) {
+            throw new Error(`No event with ID ${eventID}`);
+        }
+        // remove them from the entries list
+        this.entries = this.entries.filter((el) => el.eventID != eventID);
+    }
 }
 
 export interface EventStoreAPIData {
-    entries: { eventID: string; startTime: number; endTime: number }[];
-    data: Record<string, { name: string; description: string; startTime: number; endTime: number }>;
+    entries: { eventID: string; startTime: string; endTime: string }[];
+    data: Record<string, { name: string; description: string; startTime: string; endTime: string }>;
 }
 
 export function makeEventStore(data: EventStoreAPIData) {
     const store = reactive(new EventStore());
     store.entries = data.entries.map((entry) => ({
         eventID: entry.eventID,
-        startTime: dayjs.unix(entry.startTime),
-        endTime: dayjs.unix(entry.endTime),
+        startTime: dayjs(entry.startTime),
+        endTime: dayjs(entry.endTime),
     }));
 
     for (const [uuid, value] of Object.entries(data.data)) {
         store.data.set(
             uuid,
-            new CalendarEvent(value.name, value.description, dayjs.unix(value.startTime), dayjs.unix(value.endTime))
+            new CalendarEvent(uuid, value.name, value.description, dayjs(value.startTime), dayjs(value.endTime))
         );
     }
     return store;

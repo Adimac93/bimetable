@@ -1,16 +1,25 @@
 import dayjs from "./dayjs";
 
-export class CalendarEvent {
+export interface BaseCalendarEvent {
+    name: string;
+    description?: string;
+    startTime?: dayjs.Dayjs;
+    endTime?: dayjs.Dayjs;
+}
+
+export class CalendarEvent implements BaseCalendarEvent {
+    id: string;
     name: string;
     description?: string;
     startTime?: dayjs.Dayjs;
     endTime?: dayjs.Dayjs;
 
-    constructor(name: string, description?: string, start?: dayjs.Dayjs, end?: dayjs.Dayjs) {
+    constructor(id: string, name: string, description?: string, start?: dayjs.Dayjs, end?: dayjs.Dayjs) {
         if (!(start && end)) {
             throw new Error("Invalid event (no start and end)");
         }
 
+        this.id = id;
         this.name = name;
         this.description = description;
         this.startTime = start;
@@ -27,6 +36,6 @@ export class CalendarEvent {
     }
 
     clone() {
-        return new CalendarEvent(this.name, this.description, this.startTime, this.endTime);
+        return new CalendarEvent(this.id, this.name, this.description, this.startTime, this.endTime);
     }
 }
