@@ -4,6 +4,7 @@ mod doc;
 pub mod modules;
 pub mod routes;
 pub mod utils;
+pub mod validation;
 
 use crate::modules::{AppExtensions, AppState};
 use axum::{Extension, Router};

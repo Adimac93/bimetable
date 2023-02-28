@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use crate::utils::events::models::RecurrenceRule;
 use serde::{Deserialize, Serialize};
-use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
+use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
 use time::serde::iso8601;
 use utoipa::{IntoParams, ToResponse, ToSchema};
+use validator::{Validate, ValidationError};
 
 // Core data models
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
