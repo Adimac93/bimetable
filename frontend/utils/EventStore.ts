@@ -143,7 +143,8 @@ export class EventStore {
         return new EventIteratorContext(this);
     }
 
-    // Bounds of date range that is loaded. Start is inclusive, end is exclusive.
+    // Bounds of date range that is loaded, specifically all loaded events are guaranteed to be
+    // contained in [start, end)
     get loadedBounds() {
         return {
             start: this.entries[0].startTime,
@@ -152,20 +153,20 @@ export class EventStore {
     }
 
     // Load enough events so everything from newStart to the existing end is loaded.
-    extendFrom(newStart: dayjs.Dayjs) {
+    async extendFrom(newStart: dayjs.Dayjs) {
         // TODO: request events in [newStart, loadedBounds.start)
     }
 
     // Load enough events so everything from the existing start to newEnd is loaded.
-    extendTo(newEnd: dayjs.Dayjs) {
+    async extendTo(newEnd: dayjs.Dayjs) {
         // TODO: request events in [loadedBounds.end, newEnd)
     }
 
-    createEvent(event: BaseCalendarEvent) {
+    async createEvent(event: BaseCalendarEvent) {
         // TODO
     }
 
-    deleteEvent(eventID: string) {
+    async deleteEvent(eventID: string) {
         // TODO: actually query the API
         if (!this.data.delete(eventID)) {
             throw new Error(`No event with ID ${eventID}`);
