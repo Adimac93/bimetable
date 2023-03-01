@@ -2,7 +2,7 @@ use self::{
     database::get_postgres_pool,
     extensions::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets},
 };
-use crate::config::get_config;
+use crate::config::{get_config, Environment};
 use axum::extract::FromRef;
 use core::fmt::Display;
 use secrecy::Secret;
@@ -25,9 +25,10 @@ impl Core {
 }
 
 pub struct Modules {
-    pub pool: PgPool,
     pub core: Core,
-    pub jwt: TokenSecrets,
+    pool: PgPool,
+    jwt: TokenSecrets,
+    environment: Environment,
 }
 
 impl Modules {
@@ -45,6 +46,7 @@ impl Modules {
             pool,
             core: Core::new(addr, origin),
             jwt: TokenSecrets::from_settings(settings.jwt),
+            environment: settings.environment,
         }
     }
 
@@ -54,11 +56,13 @@ impl Modules {
         origin: String,
         access: Secret<String>,
         refresh: Secret<String>,
+        environment: Environment,
     ) -> Self {
         Self {
             pool,
             core: Core::new(addr, origin),
             jwt: TokenSecrets::new(JwtAccessSecret(access), JwtRefreshSecret(refresh)),
+            environment,
         }
     }
 
@@ -69,16 +73,22 @@ impl Modules {
     pub fn extensions(&self) -> AppExtensions {
         AppExtensions::new(self)
     }
+
+    pub fn environment(&self) -> &Environment {
+        &self.environment
+    }
 }
 
 #[derive(Clone, FromRef)]
 pub struct AppState {
+    pub environment: Environment,
     pub pool: PgPool,
 }
 
 impl AppState {
     fn new(modules: &Modules) -> Self {
         Self {
+            environment: modules.environment.clone(),
             pool: modules.pool.clone(),
         }
     }
