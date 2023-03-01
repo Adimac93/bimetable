@@ -49,15 +49,28 @@ pub struct QSharedEvent {
     can_edit: bool,
 }
 
-enum QEvent {
-    Owned(QOwnedEvent),
-    Shared(QSharedEvent),
+struct QEvent {
+    id: Uuid,
+    name: String,
+    description: Option<String>,
+    time_range: TimeRange,
+    deleted_at: Option<OffsetDateTime>,
+    recurrence_rule: Option<Json<RecurrenceRule>>,
+    privileges: EventPrivileges,
 }
 
-pub struct EventQuery {}
+pub struct EventQuery {
+    user_id: Uuid,
+}
+
+impl EventQuery {
+    pub fn new(user_id: Uuid) -> Self {
+        Self { user_id }
+    }
+}
 
 impl<'c> PgQuery<'c, EventQuery> {
-    pub async fn create_event(&mut self, user_id: Uuid, event: CreateEvent) -> sqlx::Result<Uuid> {
+    pub async fn create_event(&mut self, event: CreateEvent) -> sqlx::Result<Uuid> {
         let id = query!(
             r#"
                 INSERT INTO events (owner_id, name, description, starts_at, ends_at, recurrence_rule)
@@ -65,7 +78,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 ($1, $2, $3, $4, $5, $6)
                 RETURNING id
             "#,
-            user_id,
+            self.payload.user_id,
             event.data.payload.name,
             event.data.payload.description,
             event.data.starts_at,
@@ -79,11 +92,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(id)
     }
 
-    pub async fn get_event(
-        &mut self,
-        user_id: Uuid,
-        event_id: Uuid,
-    ) -> sqlx::Result<Option<Event>> {
+    pub async fn get_event(&mut self, event_id: Uuid) -> sqlx::Result<Option<Event>> {
         let event = query!(
             r#"
                 SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
@@ -97,7 +106,7 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         if let Some(event) = event {
             let payload = EventPayload::new(event.name, event.description);
-            if event.owner_id == user_id {
+            if event.owner_id == self.payload.user_id {
                 return Ok(Some(Event::new(EventPrivileges::Owned, payload)));
             }
 
@@ -106,7 +115,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 SELECT * from user_events
                 WHERE user_id = $1 AND event_id = $2
             "#,
-                user_id,
+                self.payload.user_id,
                 event_id,
             )
             .fetch_optional(&mut *self.conn)
@@ -125,11 +134,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(None)
     }
 
-    pub async fn get_owned_event(
-        &mut self,
-        user_id: Uuid,
-        event_id: Uuid,
-    ) -> sqlx::Result<QOwnedEvent> {
+    pub async fn get_owned_event(&mut self, event_id: Uuid) -> sqlx::Result<QOwnedEvent> {
         let event = query_as!(
             QOwnedEvent,
             r#"
@@ -137,7 +142,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 FROM events
                 WHERE owner_id = $1 AND id = $2
             "#,
-            user_id,
+            self.payload.user_id,
             event_id
         )
             .fetch_one(&mut *self.conn)
@@ -146,50 +151,69 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(event)
     }
 
-    pub async fn get_owned_events(
-        &mut self,
-        user_id: Uuid,
-        search_starts_at: OffsetDateTime,
-        search_ends_at: OffsetDateTime,
-    ) -> sqlx::Result<Vec<QOwnedEvent>> {
-        let events = query_as!(
-            QOwnedEvent,
+    pub async fn get_owned_events(&mut self, search_range: TimeRange) -> sqlx::Result<Vec<QEvent>> {
+        let events = query!(
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
                 FROM events
                 WHERE owner_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at IS NULL
                 ORDER BY starts_at ASC
             "#,
-            user_id,
-            search_starts_at,
-            search_ends_at
+            self.payload.user_id,
+            search_range.start,
+            search_range.end
         )
             .fetch_all(&mut *self.conn)
             .await?;
+
+        let events = events
+            .into_iter()
+            .map(|event| QEvent {
+                id: event.id,
+                name: event.name,
+                description: event.description,
+                time_range: TimeRange::new(event.starts_at, event.ends_at),
+                deleted_at: event.deleted_at,
+                recurrence_rule: event.recurrence_rule,
+                privileges: EventPrivileges::Owned,
+            })
+            .collect();
 
         Ok(events)
     }
 
     pub async fn get_shared_events(
         &mut self,
-        user_id: Uuid,
-        search_starts_at: OffsetDateTime,
-        search_ends_at: OffsetDateTime,
-    ) -> sqlx::Result<Vec<QSharedEvent>> {
-        let shared_events = query_as!(
-            QSharedEvent,
+        search_range: TimeRange,
+    ) -> sqlx::Result<Vec<QEvent>> {
+        let shared_events = query!(
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: _", can_edit FROM user_events
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>", can_edit FROM user_events
                 JOIN events ON user_events.event_id = events.id
                 WHERE user_id = $1 AND starts_at > $2 AND ends_at < $3
                 ORDER BY events.starts_at ASC
             "#,
-            user_id,
-            search_starts_at,
-            search_ends_at
+            self.payload.user_id,
+            search_range.start,
+            search_range.end
         )
-        .fetch_all(&mut *self.conn)
-        .await?;
+            .fetch_all(&mut *self.conn)
+            .await?;
+
+        let shared_events = shared_events
+            .into_iter()
+            .map(|event| QEvent {
+                id: event.id,
+                name: event.name,
+                description: event.description,
+                time_range: TimeRange::new(event.starts_at, event.ends_at),
+                deleted_at: event.deleted_at,
+                recurrence_rule: event.recurrence_rule,
+                privileges: EventPrivileges::Shared {
+                    can_edit: event.can_edit,
+                },
+            })
+            .collect();
 
         Ok(shared_events)
     }
@@ -211,13 +235,13 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(overrides)
     }
 
-    pub async fn is_owned_event(&mut self, user_id: Uuid, event_id: Uuid) -> sqlx::Result<bool> {
+    pub async fn is_owned_event(&mut self, event_id: Uuid) -> sqlx::Result<bool> {
         let res = query!(
             r#"
                 SELECT * FROM events
                 WHERE owner_id = $1 AND id = $2
             "#,
-            user_id,
+            self.payload.user_id,
             event_id
         )
         .fetch_optional(&mut *self.conn)
@@ -228,7 +252,6 @@ impl<'c> PgQuery<'c, EventQuery> {
     }
     pub async fn create_override(
         &mut self,
-        user_id: Uuid,
         event_id: Uuid,
         ovr: OverrideEvent,
     ) -> sqlx::Result<()> {
@@ -250,7 +273,6 @@ impl<'c> PgQuery<'c, EventQuery> {
     }
     pub async fn update_event(
         &mut self,
-        user_id: Uuid,
         event_id: Uuid,
         event: OptionalEventData,
     ) -> sqlx::Result<()> {
@@ -268,7 +290,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             event.description,
             event.starts_at,
             event.ends_at,
-            user_id,
+            self.payload.user_id,
             event_id,
         )
         .execute(&mut *self.conn)
@@ -277,7 +299,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(())
     }
 
-    pub async fn temp_delete(&mut self, user_id: Uuid, event_id: Uuid) -> sqlx::Result<()> {
+    pub async fn temp_delete(&mut self, event_id: Uuid) -> sqlx::Result<()> {
         let now = OffsetDateTime::now_utc();
         query!(
             r#"
@@ -287,7 +309,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 WHERE owner_id = $2 AND id = $3
             "#,
             now,
-            user_id,
+            self.payload.user_id,
             event_id
         )
         .execute(&mut *self.conn)
@@ -295,13 +317,13 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         Ok(())
     }
-    pub async fn perm_delete(&mut self, user_id: Uuid, event_id: Uuid) -> sqlx::Result<()> {
+    pub async fn perm_delete(&mut self, event_id: Uuid) -> sqlx::Result<()> {
         query!(
             r#"
                 DELETE FROM events
                 WHERE owner_id = $1 AND id = $2
             "#,
-            user_id,
+            self.payload.user_id,
             event_id
         )
         .execute(&mut *self.conn)
@@ -312,70 +334,58 @@ impl<'c> PgQuery<'c, EventQuery> {
 }
 
 async fn get_owned(
-    user_id: Uuid,
-    starts_at: OffsetDateTime,
-    ends_at: OffsetDateTime,
+    search_range: TimeRange,
     query: &mut PgQuery<'_, EventQuery>,
 ) -> sqlx::Result<Events> {
-    let owned_events = query.get_owned_events(user_id, starts_at, ends_at).await?;
+    let owned_events = query.get_owned_events(search_range).await?;
     let owned_events_overrides = query
         .get_overrides(owned_events.iter().map(|ev| ev.id).collect())
         .await?;
 
-    Ok(gen_owned_events(
+    Ok(map_events(
         owned_events_overrides,
         owned_events,
-        starts_at,
-        ends_at,
+        search_range,
     ))
 }
 
 async fn get_shared(
-    user_id: Uuid,
-    starts_at: OffsetDateTime,
-    ends_at: OffsetDateTime,
+    search_range: TimeRange,
     query: &mut PgQuery<'_, EventQuery>,
 ) -> sqlx::Result<Events> {
-    let shared_events = query.get_shared_events(user_id, starts_at, ends_at).await?;
+    let shared_events = query.get_shared_events(search_range).await?;
     let shared_events_overrides = query
         .get_overrides(shared_events.iter().map(|ev| ev.id).collect())
         .await?;
 
-    Ok(gen_shared_events(
+    Ok(map_events(
         shared_events_overrides,
         shared_events,
-        starts_at,
-        ends_at,
+        search_range,
     ))
 }
 
 pub async fn get_many_events(
     user_id: Uuid,
-    starts_at: OffsetDateTime,
-    ends_at: OffsetDateTime,
+    search_range: TimeRange,
     filter: EventFilter,
     pool: PgPool,
 ) -> sqlx::Result<Events> {
     let mut conn = pool.begin().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
+    let mut q = PgQuery::new(EventQuery { user_id }, &mut *conn);
     return match filter {
         EventFilter::All => {
-            let owned_events = get_owned(user_id, starts_at, ends_at, &mut q).await?;
-            let shared_events = get_shared(user_id, starts_at, ends_at, &mut q).await?;
+            let owned_events = get_owned(search_range, &mut q).await?;
+            let shared_events = get_shared(search_range, &mut q).await?;
 
             Ok(owned_events.merge(shared_events))
         }
-        EventFilter::Owned => Ok(get_owned(user_id, starts_at, ends_at, &mut q).await?),
-        EventFilter::Shared => Ok(get_shared(user_id, starts_at, ends_at, &mut q).await?),
+        EventFilter::Owned => Ok(get_owned(search_range, &mut q).await?),
+        EventFilter::Shared => Ok(get_shared(search_range, &mut q).await?),
     };
 }
 
-fn gen_owned_events(
-    overrides: Vec<QOverride>,
-    events: Vec<QOwnedEvent>,
-    search_starts_at: OffsetDateTime,
-    search_ends_at: OffsetDateTime,
-) -> Events {
+fn map_events(overrides: Vec<QOverride>, events: Vec<QEvent>, search_range: TimeRange) -> Events {
     let mut ovrs = group_overrides(overrides);
     let mut entries: Vec<Entry> = vec![];
 
@@ -384,10 +394,7 @@ fn gen_owned_events(
         .map(|event| {
             if let Some(Json(rule)) = event.recurrence_rule {
                 let mut entry_ranges = rule
-                    .get_event_range(
-                        TimeRange::new(search_starts_at, search_ends_at),
-                        TimeRange::new(event.starts_at, event.ends_at),
-                    )
+                    .get_event_range(search_range, event.time_range)
                     .unwrap();
 
                 add_entries(event.id, &mut entry_ranges, &mut ovrs, &mut entries);
@@ -396,45 +403,7 @@ fn gen_owned_events(
             (
                 event.id,
                 Event::new(
-                    EventPrivileges::Owned,
-                    EventPayload::new(event.name, event.description),
-                ),
-            )
-        })
-        .collect();
-
-    Events::new(events, entries)
-}
-
-fn gen_shared_events(
-    overrides: Vec<QOverride>,
-    events: Vec<QSharedEvent>,
-    search_starts_at: OffsetDateTime,
-    search_ends_at: OffsetDateTime,
-) -> Events {
-    let mut ovrs = group_overrides(overrides);
-    let mut entries: Vec<Entry> = vec![];
-
-    let events: HashMap<Uuid, Event> = events
-        .into_iter()
-        .map(|event| {
-            if let Some(Json(rule)) = event.recurrence_rule {
-                let mut entry_ranges = rule
-                    .get_event_range(
-                        TimeRange::new(search_starts_at, search_ends_at),
-                        TimeRange::new(event.starts_at, event.ends_at),
-                    )
-                    .unwrap();
-
-                add_entries(event.id, &mut entry_ranges, &mut ovrs, &mut entries);
-            }
-
-            (
-                event.id,
-                Event::new(
-                    EventPrivileges::Shared {
-                        can_edit: event.can_edit,
-                    },
+                    event.privileges,
                     EventPayload::new(event.name, event.description),
                 ),
             )
@@ -472,12 +441,11 @@ fn add_entries(
         let event_entries = get_entries_for_event(event_id, entry_ranges, range_overrides);
         entries.extend(event_entries);
     } else {
-        entries.extend(entry_ranges.iter().map(|range| Entry {
-            event_id,
-            starts_at: range.start,
-            ends_at: range.end,
-            recurrence_override: None,
-        }));
+        entries.extend(
+            entry_ranges
+                .iter()
+                .map(|range| Entry::new(event_id, range.start, range.end, None)),
+        );
     }
 }
 
@@ -490,20 +458,20 @@ fn get_entries_for_event(
     for (ovr_range, ovr_payload) in overrides {
         while let Some(entry_range) = entry_ranges.last() {
             if entry_range.is_contained(&entry_range) {
-                entries.push(Entry {
+                entries.push(Entry::new(
                     event_id,
-                    starts_at: ovr_range.start,
-                    ends_at: ovr_range.end,
-                    recurrence_override: Some(ovr_payload.clone()),
-                });
+                    ovr_range.start,
+                    ovr_range.end,
+                    Some(ovr_payload.clone()),
+                ));
                 entry_ranges.pop();
             } else if entry_range.is_before(&ovr_range) {
-                entries.push(Entry {
+                entries.push(Entry::new(
                     event_id,
-                    starts_at: entry_range.start,
-                    ends_at: entry_range.end,
-                    recurrence_override: None,
-                });
+                    entry_range.start,
+                    entry_range.end,
+                    None,
+                ));
                 entry_ranges.pop();
             } else {
                 break;
@@ -512,5 +480,3 @@ fn get_entries_for_event(
     }
     entries
 }
-
-// fn gen_entries_for_many_events()

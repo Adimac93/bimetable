@@ -167,8 +167,8 @@ pub enum EventPrivileges {
 }
 
 impl Event {
-    pub fn new(mode: EventPrivileges, payload: EventPayload) -> Self {
-        match mode {
+    pub fn new(privileges: EventPrivileges, payload: EventPayload) -> Self {
+        match privileges {
             EventPrivileges::Owned => Self {
                 payload,
                 is_owned: true,
@@ -189,6 +189,22 @@ pub struct Entry {
     pub starts_at: OffsetDateTime,
     pub ends_at: OffsetDateTime,
     pub recurrence_override: Option<Override>,
+}
+
+impl Entry {
+    pub fn new(
+        event_id: Uuid,
+        starts_at: OffsetDateTime,
+        ends_at: OffsetDateTime,
+        recurrence_override: Option<Override>,
+    ) -> Self {
+        Self {
+            event_id,
+            starts_at,
+            ends_at,
+            recurrence_override,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]

@@ -16,6 +16,7 @@ use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
     Event, EventData, EventPayload, Events, OptionalEventData, OverrideEvent, UpdateEvent,
 };
+use crate::utils::events::models::TimeRange;
 use crate::utils::events::{get_many_events, EventQuery};
 
 use self::models::{CreateEvent, GetEventsQuery};
@@ -40,8 +41,8 @@ pub async fn create_event(
     Json(body): Json<CreateEvent>,
 ) -> Result<Json<JsonValue>, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let event_id = q.create_event(claims.user_id, body).await?;
+    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
+    let event_id = q.create_event(body).await?;
     Ok(Json(json!({ "event_id": event_id })))
 }
 
@@ -54,8 +55,7 @@ async fn get_events(
 ) -> Result<Json<Events>, EventError> {
     let events = get_many_events(
         claims.user_id,
-        query.starts_at,
-        query.ends_at,
+        TimeRange::new(query.starts_at, query.ends_at),
         query.filter,
         pool,
     )
@@ -71,11 +71,8 @@ async fn get_event(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Event>, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let event = q
-        .get_event(claims.user_id, id)
-        .await?
-        .ok_or(EventError::NotFound)?;
+    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
+    let event = q.get_event(id).await?.ok_or(EventError::NotFound)?;
 
     Ok(Json(event))
 }
@@ -89,8 +86,8 @@ async fn update_event(
     Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.update_event(claims.user_id, id, body.data).await?;
+    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
+    q.update_event(id, body.data).await?;
 
     Ok(StatusCode::OK)
 }
@@ -103,8 +100,8 @@ async fn delete_event_temporarily(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.temp_delete(claims.user_id, id).await?;
+    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
+    q.temp_delete(id).await?;
     Ok(StatusCode::OK)
 }
 
@@ -116,8 +113,8 @@ async fn delete_event_permanently(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    q.perm_delete(claims.user_id, id).await?;
+    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
+    q.perm_delete(id).await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -131,12 +128,12 @@ async fn create_event_override(
     Json(body): Json<OverrideEvent>,
 ) -> Result<StatusCode, EventError> {
     let mut conn = pool.begin().await?;
-    let mut q = PgQuery::new(EventQuery {}, &mut *conn);
-    let is_owned = q.is_owned_event(claims.user_id, id).await?;
+    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
+    let is_owned = q.is_owned_event(id).await?;
     if !is_owned {
         return Err(EventError::NotFound);
     }
 
-    q.create_override(claims.user_id, id, body).await?;
+    q.create_override(id, body).await?;
     Ok(StatusCode::OK)
 }
