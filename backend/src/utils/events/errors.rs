@@ -1,7 +1,7 @@
+use crate::validation::BimetableValidationError;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use thiserror::Error;
-use crate::validation::BimetableValidationError;
 
 #[derive(Error, Debug)]
 pub enum EventError {

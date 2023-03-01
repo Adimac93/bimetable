@@ -5,7 +5,7 @@ use crate::modules::AppState;
 use crate::routes::auth::models::{LoginCredentials, RegisterCredentials};
 use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
-use crate::{app_errors::AppError, utils::auth::*};
+use crate::utils::auth::*;
 use axum::extract::State;
 use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
 use axum::{routing::post, Router};
@@ -36,7 +36,7 @@ async fn post_register_user(
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
     Json(register_credentials): Json<RegisterCredentials>,
-) -> Result<CookieJar, AppError> {
+) -> Result<CookieJar, AuthError> {
     let user_id = try_register_user(
         &pool,
         register_credentials.login.trim(),
@@ -45,9 +45,7 @@ async fn post_register_user(
     )
     .await?;
 
-    let login_credentials =
-        LoginCredentials::new(&register_credentials.login, &register_credentials.password);
-    let jar = generate_token_cookies(user_id, &login_credentials.login, secrets, jar).await?;
+    let jar = generate_token_cookies(user_id, &register_credentials.login, secrets, jar)?;
 
     debug!(
         "User {} ({}) registered successfully",
@@ -64,9 +62,9 @@ async fn post_login_user(
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
     Json(login_credentials): Json<LoginCredentials>,
-) -> Result<CookieJar, AppError> {
+) -> Result<CookieJar, AuthError> {
     // returns if credentials are wrong
-    let mut conn = pool.acquire().await.map_err(|e| AuthError::from(e))?;
+    let mut conn = pool.acquire().await?;
 
     let user_id = verify_user_credentials(
         &mut conn,
@@ -75,7 +73,7 @@ async fn post_login_user(
     )
     .await?;
 
-    let jar = generate_token_cookies(user_id, &login_credentials.login, secrets, jar).await?;
+    let jar = generate_token_cookies(user_id, &login_credentials.login, secrets, jar)?;
 
     debug!(
         "User {} ({}) logged in successfully",
@@ -88,7 +86,7 @@ async fn post_login_user(
 /// Validate tokens
 #[utoipa::path(post, path = "/auth/validate", tag = "auth", responses((status = 200, description = "User has valid auth tokens")))]
 async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
-    Ok(Json(json!({ "user id": claims.user_id })))
+    Ok(Json(json!({ "user_id": claims.user_id })))
 }
 
 /// Logout user
@@ -97,48 +95,25 @@ async fn post_logout_user(
     State(state): State<AppState>,
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
-) -> Result<CookieJar, AppError> {
-    let mut validation = Validation::default();
-    validation.leeway = 5;
+) -> Result<CookieJar, AuthError> {
+    let validation = Validation::default();
 
-    if let Some(access_token_cookie) = jar.get("jwt") {
-        let data = decode::<Claims>(
-            access_token_cookie.value(),
-            &DecodingKey::from_secret(secrets.access.0.expose_secret().as_bytes()),
-            &validation,
-        );
+    if let Ok(Some(data)) = Claims::decode_jwt(&jar, Some(&validation), secrets.access.0) {
+        let _ = &data.claims.add_token_to_blacklist(&state.pool).await?;
+    }
 
-        if let Ok(token_data) = data {
-            let _ = &token_data
-                .claims
-                .add_token_to_blacklist(&state.pool)
-                .await?;
-        }
-    };
-
-    if let Some(refresh_token_cookie) = jar.get("refresh-jwt") {
-        let data = decode::<RefreshClaims>(
-            refresh_token_cookie.value(),
-            &DecodingKey::from_secret(secrets.access.0.expose_secret().as_bytes()),
-            &validation,
-        );
-
-        if let Ok(token_data) = data {
-            let _ = &token_data
-                .claims
-                .add_token_to_blacklist(&state.pool)
-                .await?;
-        }
-    };
+    if let Ok(Some(data)) = RefreshClaims::decode_jwt(&jar, Some(&validation), secrets.refresh.0) {
+        let _ = &data.claims.add_token_to_blacklist(&state.pool).await?;
+    }
 
     debug!("User logged out successfully");
 
     Ok(jar
-        .remove(remove_cookie("jwt"))
-        .remove(remove_cookie("refresh-jwt")))
+        .remove(get_remove_cookie(Claims::NAME))
+        .remove(get_remove_cookie(RefreshClaims::NAME)))
 }
 
-fn remove_cookie(name: &str) -> Cookie {
+fn get_remove_cookie(name: &str) -> Cookie {
     Cookie::build(name, "")
         .path("/")
         .max_age(Duration::seconds(0))
@@ -152,9 +127,8 @@ async fn post_refresh_user_token(
     Extension(secrets): Extension<TokenSecrets>,
     jar: CookieJar,
     refresh_claims: RefreshClaims,
-) -> Result<CookieJar, AppError> {
-    let jar =
-        generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, secrets, jar).await?;
+) -> Result<CookieJar, AuthError> {
+    let jar = generate_token_cookies(refresh_claims.user_id, &refresh_claims.login, secrets, jar)?;
 
     refresh_claims.add_token_to_blacklist(&state.pool).await?;
 

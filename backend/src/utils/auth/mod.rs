@@ -3,17 +3,19 @@ pub mod errors;
 pub mod models;
 use crate::modules::extensions::jwt::TokenSecrets;
 use crate::utils::auth::additions::{hash_pass, verify_pass};
-use crate::utils::auth::errors::AuthError::WrongLoginOrPassword;
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use errors::*;
 use models::*;
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::{query, Acquire, PgConnection, Postgres};
+use time::Duration;
 use tracing::{debug, trace};
 use uuid::Uuid;
 
 use self::additions::validate_usernames;
-// use validator::Validate;
+
+const ACCESS_EXPIRATION: Duration = Duration::minutes(5);
+const REFRESH_EXPIRATION: Duration = Duration::days(7);
 
 pub async fn try_register_user<'c>(
     acq: impl Acquire<'c, Database = Postgres>,
@@ -23,9 +25,9 @@ pub async fn try_register_user<'c>(
 ) -> Result<Uuid, AuthError> {
     let mut transaction = acq.begin().await?;
 
-    let mut q = AuthUser::new(login, &mut transaction);
+    let mut user = AuthUser::new(login, &mut transaction);
 
-    if !q.is_new().await? {
+    if !user.is_new().await? {
         return Err(AuthError::UserAlreadyExists);
     }
 
@@ -44,7 +46,7 @@ pub async fn try_register_user<'c>(
 
     let hashed_pass = hash_pass(password.expose_secret().to_owned())?;
 
-    let user_id = q.create_account(hashed_pass, username).await?;
+    let user_id = user.create_account(hashed_pass, username).await?;
 
     transaction.commit().await?;
 
@@ -66,32 +68,30 @@ pub async fn verify_user_credentials<'c>(
     Ok(user_id)
 }
 
-pub async fn generate_token_cookies(
+pub fn generate_token_cookies(
     user_id: Uuid,
     login: &str,
     secrets: TokenSecrets,
     jar: CookieJar,
 ) -> Result<CookieJar, AuthError> {
     let access_cookie = generate_jwt_in_cookie(
-        Claims::new(user_id, login, Claims::JWT_EXPIRATION),
+        Claims::new(user_id, login, ACCESS_EXPIRATION),
         &secrets.access.0,
-    )
-    .await?;
+    )?;
 
     trace!("Access JWT: {access_cookie:#?}");
 
     let refresh_cookie = generate_jwt_in_cookie(
-        RefreshClaims::new(user_id, login, RefreshClaims::JWT_EXPIRATION),
+        RefreshClaims::new(user_id, login, REFRESH_EXPIRATION),
         &secrets.refresh.0,
-    )
-    .await?;
+    )?;
 
     trace!("Refresh JWT: {refresh_cookie:#?}");
 
     Ok(jar.add(access_cookie).add(refresh_cookie))
 }
 
-async fn generate_jwt_in_cookie<'a, T: AuthToken<'a>>(
+fn generate_jwt_in_cookie<'a, T: AuthToken<'a>>(
     payload: T,
     secret: &SecretString,
 ) -> Result<Cookie<'a>, AuthError> {
@@ -180,13 +180,13 @@ impl<'c> AuthUser<'c> {
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .ok_or(WrongLoginOrPassword)?;
+        .ok_or(AuthError::WrongLoginOrPassword)?;
 
         let is_verified = verify_pass(password.expose_secret().to_owned(), res.password)?;
 
         if is_verified {
             return Ok(res.id);
         }
-        Err(WrongLoginOrPassword)
+        Err(AuthError::WrongLoginOrPassword)
     }
 }

@@ -7,7 +7,7 @@ use axum_extra::extract::{
     CookieJar,
 };
 use http::request::Parts;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use secrecy::{ExposeSecret, Secret};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,6 @@ where
     Self: DeserializeOwned + Serialize + Send + Sized,
 {
     const NAME: &'s str;
-    const JWT_EXPIRATION: Duration;
 
     fn jti(&self) -> Uuid;
     fn exp(&self) -> u64;
@@ -50,20 +49,18 @@ where
         jar.get(Self::NAME).ok_or(AuthError::InvalidToken).cloned()
     }
 
-    fn decode_jwt(token: &str, key: Secret<String>) -> Result<Self, AuthError> {
-        // decode token - validation setup
-        let mut validation = Validation::default();
-        validation.leeway = 5;
-
-        // decode token - try to decode token with a provided jwt key
-        let data = decode::<Self>(
-            token,
-            &DecodingKey::from_secret(key.expose_secret().as_bytes()),
-            &validation,
+    fn decode_jwt(
+        jar: &CookieJar,
+        validation: Option<&Validation>,
+        secret: Secret<String>,
+    ) -> Result<Option<TokenData<Self>>, AuthError> {
+        let token = Self::get_jwt_cookie(jar)?;
+        Ok(decode::<Self>(
+            token.value(),
+            &DecodingKey::from_secret(secret.expose_secret().as_bytes()),
+            validation.unwrap_or(&Validation::default()),
         )
-        .map_err(|_e| AuthError::InvalidToken)?;
-
-        Ok(data.claims)
+        .ok())
     }
 
     async fn add_token_to_blacklist(&self, pool: &PgPool) -> Result<(), AuthError> {
@@ -88,8 +85,7 @@ where
 }
 
 impl<'s> AuthToken<'s> for Claims {
-    const NAME: &'s str = "jwt";
-    const JWT_EXPIRATION: Duration = Duration::seconds(15);
+    const NAME: &'s str = "access-jwt";
 
     fn jti(&self) -> Uuid {
         self.jti
@@ -101,7 +97,6 @@ impl<'s> AuthToken<'s> for Claims {
 
 impl<'s> AuthToken<'s> for RefreshClaims {
     const NAME: &'s str = "refresh-jwt";
-    const JWT_EXPIRATION: Duration = Duration::days(7);
 
     fn jti(&self) -> Uuid {
         self.jti
@@ -193,11 +188,10 @@ where
         .await
         .context("Failed to fetch cookie jar")?;
 
-    let cookie = T::get_jwt_cookie(&jar)?;
+    let decoded = T::decode_jwt(&jar, None, secret.to_owned())?;
+    let payload = decoded.ok_or(AuthError::InvalidToken)?;
 
-    let claims = T::decode_jwt(cookie.value(), secret.to_owned())?;
-
-    Ok(claims)
+    Ok(payload.claims)
 }
 
 #[derive(Validate)]

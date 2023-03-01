@@ -49,7 +49,7 @@ pub struct QSharedEvent {
     can_edit: bool,
 }
 
-struct QEvent {
+pub struct QEvent {
     id: Uuid,
     name: String,
     description: Option<String>,
