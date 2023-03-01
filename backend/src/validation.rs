@@ -36,10 +36,22 @@ pub trait BimetableValidate {
 
 impl BimetableValidate for TimeRange {
     fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        if self.duration() > Duration::seconds(0) {
+        if self.duration() < Duration::seconds(0) {
             return Err(BimetableValidationError::new(
                 "TimeRange duration is negative",
             ));
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl BimetableValidate for TimeRules {
+    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+        if self.interval == 0 {
+            Err(BimetableValidationError::new(
+                "Time rule interval is equal to 0",
+            ))
         } else {
             Ok(())
         }
@@ -53,26 +65,12 @@ impl BimetableValidate for RecurrenceRule {
         }
         if let RecurrenceRule::Weekly {
             time_rules: _,
-            week_map,
+            week_map: 0,
         } = self
         {
-            if *week_map == 0 {
-                return Err(BimetableValidationError::new("No events in the week map"));
-            }
+            return Err(BimetableValidationError::new("No events in the week map"));
         };
         Ok(())
-    }
-}
-
-impl BimetableValidate for TimeRules {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        if self.interval == 0 {
-            Err(BimetableValidationError::new(
-                "Time rule interval is equal to 0",
-            ))
-        } else {
-            Ok(())
-        }
     }
 }
 
@@ -120,12 +118,11 @@ impl BimetableValidate for CreateEvent {
 
 impl BimetableValidate for OptionalEventData {
     fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        if self.starts_at.partial_cmp(&self.ends_at) == Some(Ordering::Greater) {
-            Err(BimetableValidationError::new(
+        match (self.starts_at, self.ends_at) {
+            (Some(start), Some(end)) if start > end => Err(BimetableValidationError::new(
                 "Event ends sooner than it starts",
-            ))
-        } else {
-            Ok(())
+            )),
+            _ => Ok(()),
         }
     }
 }
@@ -158,5 +155,301 @@ impl BimetableValidate for Event {
         } else {
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use time::macros::datetime;
+
+    use crate::routes::events::models::EventPayload;
+
+    use super::*;
+
+    #[test]
+    fn time_range_validation_ok() {
+        let data = TimeRange::new(
+            datetime!(2023-03-01 13:00 UTC),
+            datetime!(2023-03-01 13:01 UTC),
+        );
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn time_range_validation_err() {
+        let data = TimeRange::new(
+            datetime!(2023-03-01 13:00 UTC),
+            datetime!(2023-03-01 12:59 UTC),
+        );
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn time_rules_validation_ok_1() {
+        let data = TimeRules {
+            ends_at: Some(RecurrenceEndsAt::Count(0)),
+            interval: 1,
+        };
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn time_rules_validation_ok_2() {
+        let data = TimeRules {
+            ends_at: None,
+            interval: 1,
+        };
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn time_rules_validation_err() {
+        let data = TimeRules {
+            ends_at: Some(RecurrenceEndsAt::Count(0)),
+            interval: 0,
+        };
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn recurrence_rule_validation_ok() {
+        let data = RecurrenceRule::Weekly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-05 19:00 UTC))),
+                interval: 1,
+            },
+            week_map: 1,
+        };
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn recurrence_rule_validation_err_1() {
+        let data = RecurrenceRule::Weekly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-05 19:00 UTC))),
+                interval: 0,
+            },
+            week_map: 1,
+        };
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn recurrence_rule_validation_err_2() {
+        let data = RecurrenceRule::Weekly {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-05 19:00 UTC))),
+                interval: 1,
+            },
+            week_map: 0,
+        };
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn create_event_validation_ok() {
+        let data = CreateEvent {
+            data: EventData {
+                payload: EventPayload {
+                    name: "test_name".to_string(),
+                    description: Some("test_desc".to_string()),
+                },
+                starts_at: datetime!(2023-03-01 12:00 UTC),
+                ends_at: datetime!(2023-03-02 12:00 UTC),
+            },
+            recurrence_rule: Some(RecurrenceRule::Weekly {
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
+                    interval: 1,
+                },
+                week_map: 1,
+            }),
+        };
+
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn create_event_validation_err_1() {
+        let data = CreateEvent {
+            data: EventData {
+                payload: EventPayload {
+                    name: "test_name".to_string(),
+                    description: Some("test_desc".to_string()),
+                },
+                starts_at: datetime!(2023-03-01 12:00 UTC),
+                ends_at: datetime!(2023-03-02 12:00 UTC),
+            },
+            recurrence_rule: Some(RecurrenceRule::Weekly {
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
+                    interval: 0,
+                },
+                week_map: 1,
+            }),
+        };
+
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn create_event_validation_err_2() {
+        let data = CreateEvent {
+            data: EventData {
+                payload: EventPayload {
+                    name: "test_name".to_string(),
+                    description: Some("test_desc".to_string()),
+                },
+                starts_at: datetime!(2023-03-01 12:00 UTC),
+                ends_at: datetime!(2023-03-02 12:00 UTC),
+            },
+            recurrence_rule: Some(RecurrenceRule::Weekly {
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
+                    interval: 1,
+                },
+                week_map: 0,
+            }),
+        };
+
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn create_event_validation_err_3() {
+        let data = CreateEvent {
+            data: EventData {
+                payload: EventPayload {
+                    name: "test_name".to_string(),
+                    description: Some("test_desc".to_string()),
+                },
+                starts_at: datetime!(2023-03-01 12:01 UTC),
+                ends_at: datetime!(2023-03-01 12:00 UTC),
+            },
+            recurrence_rule: Some(RecurrenceRule::Weekly {
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
+                    interval: 1,
+                },
+                week_map: 1,
+            }),
+        };
+
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn create_event_validation_err_4() {
+        let data = CreateEvent {
+            data: EventData {
+                payload: EventPayload {
+                    name: "test_name".to_string(),
+                    description: Some("test_desc".to_string()),
+                },
+                starts_at: datetime!(2023-03-01 12:00 UTC),
+                ends_at: datetime!(2023-03-02 12:00 UTC),
+            },
+            recurrence_rule: Some(RecurrenceRule::Weekly {
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-02 11:59 UTC))),
+                    interval: 1,
+                },
+                week_map: 1,
+            }),
+        };
+
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn optional_event_data_validation_ok_1() {
+        let data = OptionalEventData {
+            name: None,
+            description: None,
+            starts_at: None,
+            ends_at: None,
+        };
+
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn optional_event_data_validation_ok_2() {
+        let data = OptionalEventData {
+            name: None,
+            description: None,
+            starts_at: Some(datetime!(2023-03-01 12:00 UTC)),
+            ends_at: None,
+        };
+        println!(
+            "{:?}",
+            Some(datetime!(2023-03-01 12:00 UTC)).partial_cmp(&None)
+        );
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn optional_event_data_validation_ok_3() {
+        let data = OptionalEventData {
+            name: None,
+            description: None,
+            starts_at: None,
+            ends_at: Some(datetime!(2023-03-01 12:00 UTC)),
+        };
+
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn optional_event_data_validation_ok_4() {
+        let data = OptionalEventData {
+            name: None,
+            description: None,
+            starts_at: Some(datetime!(2023-03-01 12:00 UTC)),
+            ends_at: Some(datetime!(2023-03-02 12:00 UTC)),
+        };
+
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn optional_event_data_validation_err() {
+        let data = OptionalEventData {
+            name: None,
+            description: None,
+            starts_at: Some(datetime!(2023-03-01 12:00 UTC)),
+            ends_at: Some(datetime!(2023-03-01 11:59 UTC)),
+        };
+
+        assert!(data.b_validate().is_err())
+    }
+
+    #[test]
+    fn event_validation_ok() {
+        let data = Event {
+            payload: EventPayload {
+                name: "test_name".to_string(),
+                description: Some("test_desc".to_string()),
+            },
+            is_owned: true,
+            can_edit: true,
+        };
+
+        assert!(data.b_validate().is_ok())
+    }
+
+    #[test]
+    fn event_validation_err() {
+        let data = Event {
+            payload: EventPayload {
+                name: "test_name".to_string(),
+                description: Some("test_desc".to_string()),
+            },
+            is_owned: true,
+            can_edit: false,
+        };
+
+        assert!(data.b_validate().is_err())
     }
 }
