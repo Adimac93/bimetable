@@ -1,4 +1,4 @@
-use crate::validation::BimetableValidationError;
+use crate::validation::ValidateContentError;
 use axum::{http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use thiserror::Error;
@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum EventError {
     #[error("Event data rejected with validation")]
-    InvalidData(#[from] BimetableValidationError),
+    InvalidData(#[from] ValidateContentError),
     #[error("Not Found")]
     NotFound,
     #[error(transparent)]
@@ -27,12 +27,10 @@ impl IntoResponse for EventError {
         let info = match self {
             EventError::Unexpected(_) => "Unexpected server error".to_string(),
             EventError::InvalidData(e) => match &e {
-                BimetableValidationError::Expected(content) => {
+                ValidateContentError::Expected(content) => {
                     format!("{}: {}", e.to_string(), content)
-                },
-                BimetableValidationError::Unexpected(_) => {
-                    "Unexpected server error".to_string()
-                },
+                }
+                ValidateContentError::Unexpected(_) => "Unexpected server error".to_string(),
             },
             _ => self.to_string(),
         };

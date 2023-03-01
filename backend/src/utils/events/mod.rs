@@ -9,6 +9,8 @@ use sqlx::{query, query_as};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use self::errors::EventError;
+
 pub mod additions;
 pub mod calculations;
 pub mod count_to_until;
@@ -70,7 +72,7 @@ impl EventQuery {
 }
 
 impl<'c> PgQuery<'c, EventQuery> {
-    pub async fn create_event(&mut self, event: CreateEvent) -> sqlx::Result<Uuid> {
+    pub async fn create_event(&mut self, event: CreateEvent) -> Result<Uuid, EventError> {
         let id = query!(
             r#"
                 INSERT INTO events (owner_id, name, description, starts_at, ends_at, recurrence_rule)
@@ -92,7 +94,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(id)
     }
 
-    pub async fn get_event(&mut self, event_id: Uuid) -> sqlx::Result<Option<Event>> {
+    pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {
         let event = query!(
             r#"
                 SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
@@ -134,7 +136,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(None)
     }
 
-    pub async fn get_owned_event(&mut self, event_id: Uuid) -> sqlx::Result<QOwnedEvent> {
+    pub async fn get_owned_event(&mut self, event_id: Uuid) -> Result<QOwnedEvent, EventError> {
         let event = query_as!(
             QOwnedEvent,
             r#"
@@ -151,7 +153,10 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(event)
     }
 
-    pub async fn get_owned_events(&mut self, search_range: TimeRange) -> sqlx::Result<Vec<QEvent>> {
+    pub async fn get_owned_events(
+        &mut self,
+        search_range: TimeRange,
+    ) -> Result<Vec<QEvent>, EventError> {
         let events = query!(
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
@@ -185,7 +190,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn get_shared_events(
         &mut self,
         search_range: TimeRange,
-    ) -> sqlx::Result<Vec<QEvent>> {
+    ) -> Result<Vec<QEvent>, EventError> {
         let shared_events = query!(
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>", can_edit FROM user_events
@@ -218,7 +223,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(shared_events)
     }
 
-    async fn get_overrides(&mut self, event_ids: Vec<Uuid>) -> sqlx::Result<Vec<QOverride>> {
+    async fn get_overrides(&mut self, event_ids: Vec<Uuid>) -> Result<Vec<QOverride>, EventError> {
         let overrides = query_as!(
             QOverride,
             r#"
@@ -235,7 +240,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(overrides)
     }
 
-    pub async fn is_owned_event(&mut self, event_id: Uuid) -> sqlx::Result<bool> {
+    pub async fn is_owned_event(&mut self, event_id: Uuid) -> Result<bool, EventError> {
         let res = query!(
             r#"
                 SELECT * FROM events
@@ -254,7 +259,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         &mut self,
         event_id: Uuid,
         ovr: OverrideEvent,
-    ) -> sqlx::Result<()> {
+    ) -> Result<(), EventError> {
         query!(
             r#"
                 INSERT INTO event_overrides (event_id, override_starts_at, override_ends_at, name, description, starts_at, ends_at)
@@ -275,7 +280,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         &mut self,
         event_id: Uuid,
         event: OptionalEventData,
-    ) -> sqlx::Result<()> {
+    ) -> Result<(), EventError> {
         query!(
             r#"
                 UPDATE events
@@ -299,7 +304,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(())
     }
 
-    pub async fn temp_delete(&mut self, event_id: Uuid) -> sqlx::Result<()> {
+    pub async fn temp_delete(&mut self, event_id: Uuid) -> Result<(), EventError> {
         let now = OffsetDateTime::now_utc();
         query!(
             r#"
@@ -317,7 +322,7 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         Ok(())
     }
-    pub async fn perm_delete(&mut self, event_id: Uuid) -> sqlx::Result<()> {
+    pub async fn perm_delete(&mut self, event_id: Uuid) -> Result<(), EventError> {
         query!(
             r#"
                 DELETE FROM events
@@ -336,7 +341,7 @@ impl<'c> PgQuery<'c, EventQuery> {
 async fn get_owned(
     search_range: TimeRange,
     query: &mut PgQuery<'_, EventQuery>,
-) -> sqlx::Result<Events> {
+) -> Result<Events, EventError> {
     let owned_events = query.get_owned_events(search_range).await?;
     let owned_events_overrides = query
         .get_overrides(owned_events.iter().map(|ev| ev.id).collect())
@@ -352,7 +357,7 @@ async fn get_owned(
 async fn get_shared(
     search_range: TimeRange,
     query: &mut PgQuery<'_, EventQuery>,
-) -> sqlx::Result<Events> {
+) -> Result<Events, EventError> {
     let shared_events = query.get_shared_events(search_range).await?;
     let shared_events_overrides = query
         .get_overrides(shared_events.iter().map(|ev| ev.id).collect())
@@ -370,7 +375,7 @@ pub async fn get_many_events(
     search_range: TimeRange,
     filter: EventFilter,
     pool: PgPool,
-) -> sqlx::Result<Events> {
+) -> Result<Events, EventError> {
     let mut conn = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery { user_id }, &mut *conn);
     return match filter {

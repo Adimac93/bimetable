@@ -1,7 +1,7 @@
 pub mod models;
-use crate::modules::AppState;
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
+use crate::{modules::AppState, validation::ValidateContent};
 use axum::{
     extract::{Path, Query, State},
     routing::{get, patch, post},
@@ -40,6 +40,7 @@ pub async fn create_event(
     State(pool): State<PgPool>,
     Json(body): Json<CreateEvent>,
 ) -> Result<Json<JsonValue>, EventError> {
+    body.validate_content()?;
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     let event_id = q.create_event(body).await?;
@@ -53,6 +54,7 @@ async fn get_events(
     State(pool): State<PgPool>,
     Query(query): Query<GetEventsQuery>,
 ) -> Result<Json<Events>, EventError> {
+    query.validate_content()?;
     let events = get_many_events(
         claims.user_id,
         TimeRange::new(query.starts_at, query.ends_at),
@@ -85,6 +87,7 @@ async fn update_event(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
+    body.validate_content()?;
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     q.update_event(id, body.data).await?;
@@ -127,6 +130,7 @@ async fn create_event_override(
     Path(id): Path<Uuid>,
     Json(body): Json<OverrideEvent>,
 ) -> Result<StatusCode, EventError> {
+    body.validate_content()?;
     let mut conn = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     let is_owned = q.is_owned_event(id).await?;

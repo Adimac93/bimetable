@@ -7,31 +7,32 @@ use sqlx::PgPool;
 use std::net::{SocketAddr, TcpListener};
 
 async fn spawn_app(pool: PgPool) -> SocketAddr {
-    dotenv().ok();
+    // dotenv().ok();
 
-    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-    let addr = listener.local_addr().unwrap();
+    // let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
+    // let addr = listener.local_addr().unwrap();
 
-    let origin = String::from("http://localhost:3000");
+    // let origin = String::from("http://localhost:3000");
 
-    let access = Secret::from(String::from("SECRET"));
-    let refresh = Secret::from(String::from("VERY_SECRET"));
+    // let access = Secret::from(String::from("SECRET"));
+    // let refresh = Secret::from(String::from("VERY_SECRET"));
 
-    let modules = Modules::use_custom(pool, addr, origin, access, refresh);
+    // let modules = Modules::use_custom(pool, addr, origin, access, refresh);
 
-    tokio::spawn(async move {
-        axum::Server::from_tcp(listener)
-            .unwrap()
-            .serve(
-                app(modules.state(), modules.extensions())
-                    .await
-                    .into_make_service(),
-            )
-            .await
-            .unwrap()
-    });
+    // tokio::spawn(async move {
+    //     axum::Server::from_tcp(listener)
+    //         .unwrap()
+    //         .serve(
+    //             app(modules.state(), modules.extensions())
+    //                 .await
+    //                 .into_make_service(),
+    //         )
+    //         .await
+    //         .unwrap()
+    // });
 
-    addr
+    // addr
+    todo!()
 }
 
 pub struct AppData {

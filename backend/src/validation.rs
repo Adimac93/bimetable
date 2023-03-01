@@ -11,39 +11,37 @@ use crate::{
 };
 
 #[derive(Debug, Error)]
-pub enum BimetableValidationError {
+pub enum ValidateContentError {
     #[error("Data rejected with validation")]
     Expected(String),
     #[error("Unexpected server error")]
     Unexpected(#[from] anyhow::Error),
 }
 
-impl BimetableValidationError {
+impl ValidateContentError {
     pub fn new(content: impl ToString) -> Self {
         Self::Expected(content.to_string())
     }
 }
 
-pub trait BimetableValidate {
-    fn b_validate(&self) -> Result<(), BimetableValidationError>;
+pub trait ValidateContent {
+    fn validate_content(&self) -> Result<(), ValidateContentError>;
 }
 
-impl BimetableValidate for TimeRange {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+impl ValidateContent for TimeRange {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
         if self.duration() < Duration::seconds(0) {
-            return Err(BimetableValidationError::new(
-                "TimeRange duration is negative",
-            ));
+            return Err(ValidateContentError::new("TimeRange duration is negative"));
         } else {
             Ok(())
         }
     }
 }
 
-impl BimetableValidate for TimeRules {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+impl ValidateContent for TimeRules {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
         if self.interval == 0 {
-            Err(BimetableValidationError::new(
+            Err(ValidateContentError::new(
                 "Time rule interval is equal to 0",
             ))
         } else {
@@ -52,37 +50,37 @@ impl BimetableValidate for TimeRules {
     }
 }
 
-impl BimetableValidate for RecurrenceRule {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        if self.time_rules().b_validate().is_err() {
-            return Err(BimetableValidationError::new("Incorrect time rules"));
+impl ValidateContent for RecurrenceRule {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        if self.time_rules().validate_content().is_err() {
+            return Err(ValidateContentError::new("Incorrect time rules"));
         }
         if let RecurrenceRule::Weekly {
             time_rules: _,
             week_map: 0,
         } = self
         {
-            return Err(BimetableValidationError::new("No events in the week map"));
+            return Err(ValidateContentError::new("No events in the week map"));
         };
         Ok(())
     }
 }
 
-impl BimetableValidate for EventData {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        TimeRange::new(self.starts_at, self.ends_at).b_validate()
+impl ValidateContent for EventData {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        TimeRange::new(self.starts_at, self.ends_at).validate_content()
     }
 }
 
-impl BimetableValidate for CreateEvent {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        self.data.b_validate()?;
+impl ValidateContent for CreateEvent {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        self.data.validate_content()?;
 
         let Some(rule) = &self.recurrence_rule else {
             return Ok(());
         };
 
-        rule.b_validate()?;
+        rule.validate_content()?;
 
         let until = match rule.time_rules().ends_at {
             Some(RecurrenceEndsAt::Count(n)) => rule
@@ -97,7 +95,7 @@ impl BimetableValidate for CreateEvent {
         };
 
         if until < self.data.ends_at {
-            Err(BimetableValidationError::new(
+            Err(ValidateContentError::new(
                 "Recurrence ends sooner than the event ends",
             ))
         } else {
@@ -106,10 +104,10 @@ impl BimetableValidate for CreateEvent {
     }
 }
 
-impl BimetableValidate for OptionalEventData {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+impl ValidateContent for OptionalEventData {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
         match (self.starts_at, self.ends_at) {
-            (Some(start), Some(end)) if start > end => Err(BimetableValidationError::new(
+            (Some(start), Some(end)) if start > end => Err(ValidateContentError::new(
                 "Event ends sooner than it starts",
             )),
             _ => Ok(()),
@@ -117,29 +115,29 @@ impl BimetableValidate for OptionalEventData {
     }
 }
 
-impl BimetableValidate for GetEventsQuery {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        TimeRange::new(self.starts_at, self.ends_at).b_validate()
+impl ValidateContent for GetEventsQuery {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        TimeRange::new(self.starts_at, self.ends_at).validate_content()
     }
 }
 
-impl BimetableValidate for UpdateEvent {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        self.data.b_validate()
+impl ValidateContent for UpdateEvent {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        self.data.validate_content()
     }
 }
 
-impl BimetableValidate for OverrideEvent {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
-        TimeRange::new(self.override_starts_at, self.override_ends_at).b_validate()?;
-        self.data.b_validate()
+impl ValidateContent for OverrideEvent {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        TimeRange::new(self.override_starts_at, self.override_ends_at).validate_content()?;
+        self.data.validate_content()
     }
 }
 
-impl BimetableValidate for Event {
-    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+impl ValidateContent for Event {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
         if self.is_owned && !self.can_edit {
-            Err(BimetableValidationError::new(
+            Err(ValidateContentError::new(
                 "The event owner must have editing privileges for it",
             ))
         } else {
@@ -162,7 +160,7 @@ mod validation_tests {
             datetime!(2023-03-01 13:00 UTC),
             datetime!(2023-03-01 13:01 UTC),
         );
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -171,7 +169,7 @@ mod validation_tests {
             datetime!(2023-03-01 13:00 UTC),
             datetime!(2023-03-01 12:59 UTC),
         );
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -180,7 +178,7 @@ mod validation_tests {
             ends_at: Some(RecurrenceEndsAt::Count(0)),
             interval: 1,
         };
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -189,7 +187,7 @@ mod validation_tests {
             ends_at: None,
             interval: 1,
         };
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -198,7 +196,7 @@ mod validation_tests {
             ends_at: Some(RecurrenceEndsAt::Count(0)),
             interval: 0,
         };
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -210,7 +208,7 @@ mod validation_tests {
             },
             week_map: 1,
         };
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -222,7 +220,7 @@ mod validation_tests {
             },
             week_map: 1,
         };
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -234,7 +232,7 @@ mod validation_tests {
             },
             week_map: 0,
         };
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -257,7 +255,7 @@ mod validation_tests {
             }),
         };
 
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -280,7 +278,7 @@ mod validation_tests {
             }),
         };
 
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -303,7 +301,7 @@ mod validation_tests {
             }),
         };
 
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -326,7 +324,7 @@ mod validation_tests {
             }),
         };
 
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -349,7 +347,7 @@ mod validation_tests {
             }),
         };
 
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -361,7 +359,7 @@ mod validation_tests {
             ends_at: None,
         };
 
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -376,7 +374,7 @@ mod validation_tests {
             "{:?}",
             Some(datetime!(2023-03-01 12:00 UTC)).partial_cmp(&None)
         );
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -388,7 +386,7 @@ mod validation_tests {
             ends_at: Some(datetime!(2023-03-01 12:00 UTC)),
         };
 
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -400,7 +398,7 @@ mod validation_tests {
             ends_at: Some(datetime!(2023-03-02 12:00 UTC)),
         };
 
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -412,7 +410,7 @@ mod validation_tests {
             ends_at: Some(datetime!(2023-03-01 11:59 UTC)),
         };
 
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 
     #[test]
@@ -426,7 +424,7 @@ mod validation_tests {
             can_edit: true,
         };
 
-        assert!(data.b_validate().is_ok())
+        assert!(data.validate_content().is_ok())
     }
 
     #[test]
@@ -440,6 +438,6 @@ mod validation_tests {
             can_edit: false,
         };
 
-        assert!(data.b_validate().is_err())
+        assert!(data.validate_content().is_err())
     }
 }
