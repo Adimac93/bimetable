@@ -4,7 +4,10 @@ use thiserror::Error;
 use time::Duration;
 
 use crate::{
-    routes::events::models::{CreateEvent, EventData, OptionalEventData},
+    routes::events::models::{
+        CreateEvent, Event, EventData, GetEventsQuery, OptionalEventData, OverrideEvent,
+        UpdateEvent,
+    },
     utils::events::models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules},
 };
 
@@ -120,6 +123,37 @@ impl BimetableValidate for OptionalEventData {
         if self.starts_at.partial_cmp(&self.ends_at) == Some(Ordering::Greater) {
             Err(BimetableValidationError::new(
                 "Event ends sooner than it starts",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl BimetableValidate for GetEventsQuery {
+    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+        TimeRange::new(self.starts_at, self.ends_at).b_validate()
+    }
+}
+
+impl BimetableValidate for UpdateEvent {
+    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+        self.data.b_validate()
+    }
+}
+
+impl BimetableValidate for OverrideEvent {
+    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+        TimeRange::new(self.override_starts_at, self.override_ends_at).b_validate()?;
+        self.data.b_validate()
+    }
+}
+
+impl BimetableValidate for Event {
+    fn b_validate(&self) -> Result<(), BimetableValidationError> {
+        if self.is_owned && !self.can_edit {
+            Err(BimetableValidationError::new(
+                "The event owner must have editing privileges for it",
             ))
         } else {
             Ok(())
