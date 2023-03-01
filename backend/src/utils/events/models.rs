@@ -181,7 +181,7 @@ impl RecurrenceRule {
         };
 
         range_data.rec_ends_at = t_rules.ends_at.as_ref().and_then(|x| match x {
-            RecurrenceEndsAt::Count(n) => Some(self.count_to_until(part.start, *n, &event).ok()?),
+            RecurrenceEndsAt::Count(n) => Some(self.count_to_until(event.start, *n, &event).ok()?),
             RecurrenceEndsAt::Until(t) => Some(*t),
         });
 

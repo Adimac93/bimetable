@@ -789,4 +789,44 @@ mod event_range_tests {
             ),]
         )
     }
+
+    #[test]
+    fn adimac93_test_1() {
+        // search starts before the event starts, and event recurrence ends based on count
+        let rule = RecurrenceRule::Daily {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(2)),
+                interval: 2,
+            },
+        };
+
+        let ranges = rule.get_event_range(
+            TimeRange::new(
+                datetime!(2020-03-01 15:00:11.469 +00:00:00),
+                datetime!(2024-03-01 15:00:11.469 +00:00:00),
+            ),
+            TimeRange::new(
+                datetime!(2023-03-01 16:06:43.941 +00:00:00),
+                datetime!(2023-03-01 17:06:43.941 +00:00:00),
+            ),
+        );
+
+        assert_eq!(
+            ranges.unwrap(),
+            vec![
+                TimeRange::new(
+                    datetime!(2023-03-01 16:06:43.941 +00:00:00),
+                    datetime!(2023-03-01 17:06:43.941 +00:00:00),
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-03 16:06:43.941 +00:00:00),
+                    datetime!(2023-03-03 17:06:43.941 +00:00:00),
+                ),
+                TimeRange::new(
+                    datetime!(2023-03-05 16:06:43.941 +00:00:00),
+                    datetime!(2023-03-05 17:06:43.941 +00:00:00),
+                ),
+            ]
+        );
+    }
 }
