@@ -6,60 +6,46 @@ pub mod routes;
 pub mod utils;
 pub mod validation;
 
-use crate::modules::{AppExtensions, AppState};
+use crate::config::Environment;
+use crate::modules::{AppState, Modules};
+use axum::extract::State;
+use axum::response::{IntoResponse, Redirect};
 use axum::{Extension, Router};
-use modules::extensions::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets};
-use secrecy::Secret;
+use http::StatusCode;
 use tracing::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-pub async fn app(state: AppState, extensions: AppExtensions) -> Router {
+const SWAGGER_URI: &str = "/swagger-ui";
+
+pub async fn app(modules: Modules) -> Router {
+    let mut router = Router::new();
+    let state = modules.state();
+    let extensions = modules.extensions();
+
+    if state.environment.is_dev() {
+        info!("Enabling Swagger UI");
+        router = router.merge(
+            SwaggerUi::new(SWAGGER_URI).url("/api-doc/openapi.json", doc::ApiDoc::openapi()),
+        );
+    }
+
     info!("Spawning main router with:\n - state: {state}\n - extensions: {extensions}");
 
-    Router::new()
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-doc/openapi.json", doc::ApiDoc::openapi()))
+    router
         .nest("/auth", routes::auth::router())
         .nest("/ex", routes::example::router())
         .nest("/events", routes::events::router())
         .layer(Extension(extensions.jwt))
+        .fallback(not_found)
         .with_state(state)
 }
 
-struct BRouter {
-    router: Router,
-}
-
-impl BRouter {
-    fn add_extension<T>(mut self, extension: T) -> Self
-    where
-        T: Clone + Send + Sync + 'static,
-    {
-        self.router = self.router.layer(Extension(extension));
-        self
+async fn not_found(
+    State(environment): State<Environment>,
+) -> Result<Redirect, (StatusCode, &'static str)> {
+    if environment.is_dev() {
+        return Ok(Redirect::to(SWAGGER_URI));
     }
-
-    fn add_extensions<T>(mut self, extensions: Vec<T>)
-    where
-        T: Clone + Send + Sync + 'static,
-    {
-        for extension in extensions {
-            println!("Adding ext");
-            self = self.add_extension(extension)
-        }
-    }
-}
-
-#[test]
-fn brouter() {
-    let ext = AppExtensions {
-        jwt: TokenSecrets::new(
-            JwtAccessSecret(Secret::from(String::from("A"))),
-            JwtRefreshSecret(Secret::from(String::from("B"))),
-        ),
-    };
-    let router = BRouter {
-        router: Router::new(),
-    };
-    router.add_extensions(vec![ext.jwt.clone(), ext.jwt.clone()])
+    Err((StatusCode::NOT_FOUND, "404 Not Found"))
 }

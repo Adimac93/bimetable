@@ -18,10 +18,10 @@ async fn main() {
     let modules = Modules::load_from_settings().await;
 
     info!("Starting server on {} machine", machine_kind());
-    info!("Listening on {}", modules.core.addr);
+    info!("Listening on {}", &modules.core.addr);
     axum::Server::bind(&modules.core.addr)
         .serve(
-            app(modules.state(), modules.extensions())
+            app(modules)
                 .await
                 .into_make_service_with_connect_info::<SocketAddr>(),
         )

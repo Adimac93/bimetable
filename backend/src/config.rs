@@ -34,6 +34,7 @@ pub struct Settings {
     pub app: ApplicationSettings,
     pub jwt: JwtSettings,
     pub postgres: PostgresSettings,
+    pub environment: Environment,
 }
 
 impl Settings {
@@ -51,7 +52,12 @@ impl Settings {
             warn!("Using default `postgres` settings (env url)!");
             settings
         });
-        return Self { app, jwt, postgres };
+        return Self {
+            app,
+            jwt,
+            postgres,
+            environment: Environment::Development,
+        };
     }
 
     fn prod() -> Self {
@@ -59,6 +65,7 @@ impl Settings {
             app: ApplicationSettings::from_env(),
             jwt: JwtSettings::from_env(),
             postgres: PostgresSettings::from_env(),
+            environment: Environment::Production,
         }
     }
 }
@@ -68,8 +75,14 @@ impl Default for Settings {
         let app = ApplicationSettings::default();
         let jwt = JwtSettings::default();
         let postgres = PostgresSettings::default();
+        let environment = Environment::default();
 
-        Self { app, jwt, postgres }
+        Self {
+            app,
+            jwt,
+            postgres,
+            environment,
+        }
     }
 }
 
@@ -225,9 +238,25 @@ impl ConnectionPrep for PostgresSettings {
     }
 }
 
-enum Environment {
+#[derive(Clone)]
+pub enum Environment {
     Development,
     Production,
+}
+
+impl Environment {
+    pub fn is_dev(&self) -> bool {
+        match self {
+            Environment::Development => true,
+            Environment::Production => false,
+        }
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self::Development
+    }
 }
 
 impl TryFrom<String> for Environment {
