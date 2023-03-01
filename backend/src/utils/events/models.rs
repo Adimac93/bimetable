@@ -3,6 +3,8 @@ use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
 use time::{serde::iso8601, Duration};
 use utoipa::ToSchema;
 
+use crate::validation::ValidateContent;
+
 use super::{
     calculations::{CountToUntilData, EventRangeData},
     count_to_until::{
@@ -24,21 +26,22 @@ pub struct EventPart {
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub enum RecurrenceRule {
+pub struct RecurrenceRule {
+    pub time_rules: TimeRules,
+    pub kind: RecurrenceRuleKind,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RecurrenceRuleKind {
     #[serde(rename_all = "camelCase")]
-    Yearly {
-        time_rules: TimeRules,
-        is_by_day: bool,
-    },
+    Yearly { is_by_day: bool },
     #[serde(rename_all = "camelCase")]
-    Monthly {
-        time_rules: TimeRules,
-        is_by_day: bool,
-    },
+    Monthly { is_by_day: bool },
     #[serde(rename_all = "camelCase")]
-    Weekly { time_rules: TimeRules, week_map: u8 },
+    Weekly { week_map: u8 },
     #[serde(rename_all = "camelCase")]
-    Daily { time_rules: TimeRules },
+    Daily,
 }
 
 impl RecurrenceRule {
@@ -77,47 +80,34 @@ impl RecurrenceRule {
         count: u32,
         event: &TimeRange,
     ) -> Result<OffsetDateTime, EventError> {
-        let mut conv_data = CountToUntilData {
+        self.time_rules.validate_content()?;
+
+        let conv_data = CountToUntilData {
             part_starts_at,
             count,
-            interval: 0,
+            interval: self.time_rules.interval,
             event_duration: event.duration(),
         };
-        match self {
-            RecurrenceRule::Yearly {
-                time_rules,
-                is_by_day,
-            } => {
-                conv_data.interval = time_rules.interval;
-                if *is_by_day {
+        match self.kind {
+            RecurrenceRuleKind::Yearly { is_by_day } => {
+                if is_by_day {
                     yearly_conv_by_day(conv_data)
                 } else {
                     yearly_conv_by_weekday(conv_data)
                 }
             }
-            RecurrenceRule::Monthly {
-                time_rules,
-                is_by_day,
-            } => {
-                conv_data.interval = time_rules.interval;
-                if *is_by_day {
+            RecurrenceRuleKind::Monthly { is_by_day } => {
+                if is_by_day {
                     monthly_conv_by_day(conv_data)
                 } else {
                     monthly_conv_by_weekday(conv_data)
                 }
             }
-            RecurrenceRule::Weekly {
-                time_rules,
-                week_map,
-            } => {
-                conv_data.interval = time_rules.interval;
+            RecurrenceRuleKind::Weekly { week_map } => {
                 let string_week_map = format!("{:0>7b}", week_map % 128);
                 weekly_conv(conv_data, &string_week_map)
             }
-            RecurrenceRule::Daily { time_rules } => {
-                conv_data.interval = time_rules.interval;
-                daily_conv(conv_data)
-            }
+            RecurrenceRuleKind::Daily => daily_conv(conv_data),
         }
     }
 
@@ -171,64 +161,39 @@ impl RecurrenceRule {
         part: TimeRange,
         event: TimeRange,
     ) -> Result<Vec<TimeRange>, EventError> {
-        let t_rules = self.time_rules();
+        self.time_rules.validate_content()?;
 
         let mut range_data = EventRangeData {
             range: part,
             event_range: event,
             rec_ends_at: None,
-            interval: t_rules.interval,
+            interval: self.time_rules.interval,
         };
 
-        range_data.rec_ends_at = t_rules.ends_at.as_ref().and_then(|x| match x {
+        range_data.rec_ends_at = self.time_rules.ends_at.as_ref().and_then(|x| match x {
             RecurrenceEndsAt::Count(n) => Some(self.count_to_until(event.start, *n, &event).ok()?),
             RecurrenceEndsAt::Until(t) => Some(*t),
         });
 
-        match self {
-            RecurrenceRule::Yearly {
-                time_rules,
-                is_by_day,
-            } => {
-                range_data.interval = time_rules.interval;
-                if *is_by_day {
+        match self.kind {
+            RecurrenceRuleKind::Yearly { is_by_day } => {
+                if is_by_day {
                     // year and 12 months are the same
                     range_data.interval *= 12;
-                    get_monthly_events_by_day(range_data, *is_by_day)
+                    get_monthly_events_by_day(range_data, is_by_day)
                 } else {
                     get_yearly_events_by_weekday(range_data)
                 }
             }
-            RecurrenceRule::Monthly {
-                time_rules,
-                is_by_day,
-            } => {
-                range_data.interval = time_rules.interval;
-                get_monthly_events_by_day(range_data, *is_by_day)
+            RecurrenceRuleKind::Monthly { is_by_day } => {
+                get_monthly_events_by_day(range_data, is_by_day)
             }
-            RecurrenceRule::Weekly {
-                time_rules,
-                week_map,
-            } => {
-                range_data.interval = time_rules.interval;
+            RecurrenceRuleKind::Weekly { week_map } => {
                 let string_week_map = format!("{:0>7b}", week_map % 128);
                 get_weekly_events(range_data, &string_week_map)
             }
-            RecurrenceRule::Daily { time_rules } => {
-                range_data.interval = time_rules.interval;
-                get_daily_events(range_data)
-            }
+            RecurrenceRuleKind::Daily => get_daily_events(range_data),
         }
-    }
-
-    pub fn time_rules(&self) -> TimeRules {
-        let res = match self {
-            RecurrenceRule::Yearly { time_rules, .. } => time_rules,
-            RecurrenceRule::Monthly { time_rules, .. } => time_rules,
-            RecurrenceRule::Weekly { time_rules, .. } => time_rules,
-            RecurrenceRule::Daily { time_rules } => time_rules,
-        };
-        res.clone()
     }
 }
 

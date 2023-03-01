@@ -141,7 +141,9 @@ pub fn yearly_conv_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateT
 
 #[cfg(test)]
 mod recurrence_tests {
-    use crate::utils::events::models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules};
+    use crate::utils::events::models::{
+        RecurrenceEndsAt, RecurrenceRule, RecurrenceRuleKind, TimeRange, TimeRules,
+    };
     use time::macros::datetime;
 
     #[test]
@@ -150,11 +152,12 @@ mod recurrence_tests {
             datetime!(2023-02-18 10:00 UTC),
             datetime!(2023-02-18 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Daily {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(15)),
                 interval: 3,
             },
+            kind: RecurrenceRuleKind::Daily,
         };
 
         assert_eq!(
@@ -171,12 +174,12 @@ mod recurrence_tests {
             datetime!(2023-02-15 10:00 UTC),
             datetime!(2023-02-15 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Weekly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(30)),
                 interval: 2,
             },
-            week_map: 86,
+            kind: RecurrenceRuleKind::Weekly { week_map: 86 },
         };
 
         assert_eq!(
@@ -193,12 +196,12 @@ mod recurrence_tests {
             datetime!(2023-02-15 10:00 UTC),
             datetime!(2023-02-15 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Weekly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(30)),
                 interval: 2,
             },
-            week_map: 86,
+            kind: RecurrenceRuleKind::Weekly { week_map: 86 },
         };
 
         assert_eq!(
@@ -215,12 +218,12 @@ mod recurrence_tests {
             datetime!(2023-02-18 10:00 UTC),
             datetime!(2023-02-18 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Monthly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 2,
             },
-            is_by_day: true,
+            kind: RecurrenceRuleKind::Monthly { is_by_day: true },
         };
 
         assert_eq!(
@@ -237,12 +240,12 @@ mod recurrence_tests {
             datetime!(2025-01-29 10:00 UTC),
             datetime!(2025-01-29 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Monthly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(30)),
                 interval: 5,
             },
-            is_by_day: true,
+            kind: RecurrenceRuleKind::Monthly { is_by_day: true },
         };
 
         assert_eq!(
@@ -259,12 +262,12 @@ mod recurrence_tests {
             datetime!(2023-02-18 10:00 UTC),
             datetime!(2023-02-18 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Monthly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 2,
             },
-            is_by_day: false,
+            kind: RecurrenceRuleKind::Monthly { is_by_day: false },
         };
 
         assert_eq!(
@@ -281,12 +284,12 @@ mod recurrence_tests {
             datetime!(2023-01-31 10:00 UTC),
             datetime!(2023-01-31 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Monthly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 1,
             },
-            is_by_day: false,
+            kind: RecurrenceRuleKind::Monthly { is_by_day: false },
         };
 
         assert_eq!(
@@ -303,12 +306,12 @@ mod recurrence_tests {
             datetime!(2023-02-18 10:00 UTC),
             datetime!(2023-02-18 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Yearly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 2,
             },
-            is_by_day: true,
+            kind: RecurrenceRuleKind::Yearly { is_by_day: true },
         };
 
         assert_eq!(
@@ -325,12 +328,12 @@ mod recurrence_tests {
             datetime!(2024-02-29 10:00 UTC),
             datetime!(2024-02-29 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Yearly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 1,
             },
-            is_by_day: true,
+            kind: RecurrenceRuleKind::Yearly { is_by_day: true },
         };
 
         assert_eq!(
@@ -347,12 +350,12 @@ mod recurrence_tests {
             datetime!(2023-02-18 10:00 UTC),
             datetime!(2023-02-18 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Yearly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 2,
             },
-            is_by_day: false,
+            kind: RecurrenceRuleKind::Yearly { is_by_day: false },
         };
 
         assert_eq!(
@@ -369,12 +372,12 @@ mod recurrence_tests {
             datetime!(2020-12-26 10:00 UTC),
             datetime!(2020-12-26 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Yearly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 1,
             },
-            is_by_day: false,
+            kind: RecurrenceRuleKind::Yearly { is_by_day: false },
         };
 
         assert_eq!(
@@ -391,12 +394,12 @@ mod recurrence_tests {
             datetime!(2020-12-30 10:00 UTC),
             datetime!(2020-12-30 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule::Yearly {
+        let rec_rules = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 1,
             },
-            is_by_day: false,
+            kind: RecurrenceRuleKind::Yearly { is_by_day: false },
         };
 
         assert_eq!(

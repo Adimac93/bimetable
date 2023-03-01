@@ -7,7 +7,9 @@ use crate::{
         CreateEvent, Event, EventData, GetEventsQuery, OptionalEventData, OverrideEvent,
         UpdateEvent,
     },
-    utils::events::models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules},
+    utils::events::models::{
+        RecurrenceEndsAt, RecurrenceRule, RecurrenceRuleKind, TimeRange, TimeRules,
+    },
 };
 
 #[derive(Debug, Error)]
@@ -52,14 +54,10 @@ impl ValidateContent for TimeRules {
 
 impl ValidateContent for RecurrenceRule {
     fn validate_content(&self) -> Result<(), ValidateContentError> {
-        if self.time_rules().validate_content().is_err() {
+        if self.time_rules.validate_content().is_err() {
             return Err(ValidateContentError::new("Incorrect time rules"));
         }
-        if let RecurrenceRule::Weekly {
-            time_rules: _,
-            week_map: 0,
-        } = self
-        {
+        if let RecurrenceRuleKind::Weekly { week_map: 0 } = self.kind {
             return Err(ValidateContentError::new("No events in the week map"));
         };
         Ok(())
@@ -82,7 +80,7 @@ impl ValidateContent for CreateEvent {
 
         rule.validate_content()?;
 
-        let until = match rule.time_rules().ends_at {
+        let until = match rule.time_rules.ends_at {
             Some(RecurrenceEndsAt::Count(n)) => rule
                 .count_to_until(
                     self.data.starts_at,
@@ -201,36 +199,36 @@ mod validation_tests {
 
     #[test]
     fn recurrence_rule_validation_ok() {
-        let data = RecurrenceRule::Weekly {
+        let data = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-05 19:00 UTC))),
                 interval: 1,
             },
-            week_map: 1,
+            kind: RecurrenceRuleKind::Weekly { week_map: 1 },
         };
         assert!(data.validate_content().is_ok())
     }
 
     #[test]
     fn recurrence_rule_validation_err_1() {
-        let data = RecurrenceRule::Weekly {
+        let data = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-05 19:00 UTC))),
                 interval: 0,
             },
-            week_map: 1,
+            kind: RecurrenceRuleKind::Weekly { week_map: 1 },
         };
         assert!(data.validate_content().is_err())
     }
 
     #[test]
     fn recurrence_rule_validation_err_2() {
-        let data = RecurrenceRule::Weekly {
+        let data = RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-05 19:00 UTC))),
                 interval: 1,
             },
-            week_map: 0,
+            kind: RecurrenceRuleKind::Weekly { week_map: 0 },
         };
         assert!(data.validate_content().is_err())
     }
@@ -246,12 +244,12 @@ mod validation_tests {
                 starts_at: datetime!(2023-03-01 12:00 UTC),
                 ends_at: datetime!(2023-03-02 12:00 UTC),
             },
-            recurrence_rule: Some(RecurrenceRule::Weekly {
+            recurrence_rule: Some(RecurrenceRule {
                 time_rules: TimeRules {
                     ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
                     interval: 1,
                 },
-                week_map: 1,
+                kind: RecurrenceRuleKind::Weekly { week_map: 1 },
             }),
         };
 
@@ -269,12 +267,12 @@ mod validation_tests {
                 starts_at: datetime!(2023-03-01 12:00 UTC),
                 ends_at: datetime!(2023-03-02 12:00 UTC),
             },
-            recurrence_rule: Some(RecurrenceRule::Weekly {
+            recurrence_rule: Some(RecurrenceRule {
                 time_rules: TimeRules {
                     ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
                     interval: 0,
                 },
-                week_map: 1,
+                kind: RecurrenceRuleKind::Weekly { week_map: 1 },
             }),
         };
 
@@ -292,12 +290,12 @@ mod validation_tests {
                 starts_at: datetime!(2023-03-01 12:00 UTC),
                 ends_at: datetime!(2023-03-02 12:00 UTC),
             },
-            recurrence_rule: Some(RecurrenceRule::Weekly {
+            recurrence_rule: Some(RecurrenceRule {
                 time_rules: TimeRules {
                     ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
                     interval: 1,
                 },
-                week_map: 0,
+                kind: RecurrenceRuleKind::Weekly { week_map: 0 },
             }),
         };
 
@@ -315,12 +313,12 @@ mod validation_tests {
                 starts_at: datetime!(2023-03-01 12:01 UTC),
                 ends_at: datetime!(2023-03-01 12:00 UTC),
             },
-            recurrence_rule: Some(RecurrenceRule::Weekly {
+            recurrence_rule: Some(RecurrenceRule {
                 time_rules: TimeRules {
                     ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-03 12:00 UTC))),
                     interval: 1,
                 },
-                week_map: 1,
+                kind: RecurrenceRuleKind::Weekly { week_map: 1 },
             }),
         };
 
@@ -338,12 +336,12 @@ mod validation_tests {
                 starts_at: datetime!(2023-03-01 12:00 UTC),
                 ends_at: datetime!(2023-03-02 12:00 UTC),
             },
-            recurrence_rule: Some(RecurrenceRule::Weekly {
+            recurrence_rule: Some(RecurrenceRule {
                 time_rules: TimeRules {
                     ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-02 11:59 UTC))),
                     interval: 1,
                 },
-                week_map: 1,
+                kind: RecurrenceRuleKind::Weekly { week_map: 1 },
             }),
         };
 
