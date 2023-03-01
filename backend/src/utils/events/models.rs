@@ -112,9 +112,6 @@ impl RecurrenceRule {
             } => {
                 conv_data.interval = time_rules.interval;
                 let string_week_map = format!("{:0>7b}", week_map % 128);
-                if week_map % 128 == 0 {
-                    return Err(EventError::InvalidEventFormat);
-                }
                 weekly_conv(conv_data, &string_week_map)
             }
             RecurrenceRule::Daily { time_rules } => {
@@ -215,9 +212,6 @@ impl RecurrenceRule {
             } => {
                 range_data.interval = time_rules.interval;
                 let string_week_map = format!("{:0>7b}", week_map % 128);
-                if week_map % 128 == 0 {
-                    return Err(EventError::InvalidEventFormat);
-                }
                 get_weekly_events(range_data, &string_week_map)
             }
             RecurrenceRule::Daily { time_rules } => {
@@ -227,7 +221,7 @@ impl RecurrenceRule {
         }
     }
 
-    fn time_rules(&self) -> TimeRules {
+    pub fn time_rules(&self) -> TimeRules {
         let res = match self {
             RecurrenceRule::Yearly { time_rules, .. } => time_rules,
             RecurrenceRule::Monthly { time_rules, .. } => time_rules,
