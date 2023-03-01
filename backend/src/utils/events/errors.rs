@@ -5,8 +5,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum EventError {
-    #[error("Invalid event format")]
-    InvalidEventFormat(#[from] BimetableValidationError),
+    #[error("Event data rejected with validation")]
+    InvalidData(#[from] BimetableValidationError),
     #[error("Not Found")]
     NotFound,
     #[error(transparent)]
@@ -16,7 +16,7 @@ pub enum EventError {
 impl IntoResponse for EventError {
     fn into_response(self) -> axum::response::Response {
         let status_code = match &self {
-            EventError::InvalidEventFormat(_) => StatusCode::BAD_REQUEST,
+            EventError::InvalidData(_) => StatusCode::BAD_REQUEST,
             EventError::NotFound => StatusCode::NOT_FOUND,
             EventError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");
@@ -26,7 +26,14 @@ impl IntoResponse for EventError {
 
         let info = match self {
             EventError::Unexpected(_) => "Unexpected server error".to_string(),
-            EventError::InvalidEventFormat(e) => e.to_string(),
+            EventError::InvalidData(e) => match &e {
+                BimetableValidationError::Expected(content) => {
+                    format!("{}: {}", e.to_string(), content)
+                },
+                BimetableValidationError::Unexpected(_) => {
+                    "Unexpected server error".to_string()
+                },
+            },
             _ => self.to_string(),
         };
 

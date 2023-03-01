@@ -1,9 +1,8 @@
-use std::{cmp::Ordering, fmt::Display};
-
 use thiserror::Error;
 use time::Duration;
 
 use crate::{
+    app_errors::DefaultContext,
     routes::events::models::{
         CreateEvent, Event, EventData, GetEventsQuery, OptionalEventData, OverrideEvent,
         UpdateEvent,
@@ -12,21 +11,16 @@ use crate::{
 };
 
 #[derive(Debug, Error)]
-pub struct BimetableValidationError {
-    pub content: String,
-}
-
-impl Display for BimetableValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.content)
-    }
+pub enum BimetableValidationError {
+    #[error("Data rejected with validation")]
+    Expected(String),
+    #[error("Unexpected server error")]
+    Unexpected(#[from] anyhow::Error),
 }
 
 impl BimetableValidationError {
-    pub fn new(content: &str) -> Self {
-        Self {
-            content: content.to_string(),
-        }
+    pub fn new(content: impl ToString) -> Self {
+        Self::Expected(content.to_string())
     }
 }
 
@@ -97,11 +91,7 @@ impl BimetableValidate for CreateEvent {
                     n,
                     &TimeRange::new(self.data.starts_at, self.data.ends_at),
                 )
-                .map_err(|_| {
-                    BimetableValidationError::new(
-                        "Failed to convert event count to its recurrence end time",
-                    )
-                })?,
+                .dc()?,
             Some(RecurrenceEndsAt::Until(t)) => t,
             None => return Ok(()),
         };
