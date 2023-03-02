@@ -1,4 +1,5 @@
 use bimetable::app;
+use bimetable::config::Environment;
 use bimetable::modules::Modules;
 use dotenv::dotenv;
 use reqwest::Client;
@@ -17,16 +18,19 @@ async fn spawn_app(pool: PgPool) -> SocketAddr {
     let access = Secret::from(String::from("SECRET"));
     let refresh = Secret::from(String::from("VERY_SECRET"));
 
-    let modules = Modules::use_custom(pool, addr, origin, access, refresh);
+    let modules = Modules::use_custom(
+        pool,
+        addr,
+        origin,
+        access,
+        refresh,
+        Environment::Development,
+    );
 
     tokio::spawn(async move {
         axum::Server::from_tcp(listener)
             .unwrap()
-            .serve(
-                app(modules.state(), modules.extensions())
-                    .await
-                    .into_make_service(),
-            )
+            .serve(app(modules).await.into_make_service())
             .await
             .unwrap()
     });
