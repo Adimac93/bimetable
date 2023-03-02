@@ -35,7 +35,10 @@ pub async fn app(modules: Modules) -> Router {
     router
         .nest("/auth", routes::auth::router())
         .nest("/ex", routes::example::router())
-        .nest("/events", routes::events::router())
+        .nest(
+            "/events",
+            routes::events::router().nest("/invitations", routes::invitations::router()),
+        )
         .layer(Extension(extensions.jwt))
         .fallback(not_found)
         .with_state(state)

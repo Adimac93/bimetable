@@ -1,4 +1,6 @@
-use crate::routes::{auth::models::*, auth::*, events::models::*, events::*};
+use crate::routes::{
+    auth::models::*, auth::*, events::models::*, events::*, invitations::models::*, invitations::*,
+};
 use crate::utils::{auth::models::*, events::models::*};
 use utoipa::openapi::security::{
     AuthorizationCode, Flow, HttpAuthScheme, HttpBuilder, OAuth2, Password, Scopes,
@@ -23,6 +25,10 @@ get_event,
 delete_event_permanently,
 update_event,
 create_event_override,
+create_invitation,
+fetch_invitations,
+accept_invitation,
+reject_invitation,
 ),
 components(schemas(
 CreateEvent,
@@ -42,6 +48,7 @@ OverrideEvent,
 UpdateEvent,
 LoginCredentials,
 RegisterCredentials,
+EventInvitation,
 )),
 tags((name = "auth"),(name = "events"))
 )]

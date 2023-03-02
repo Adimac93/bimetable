@@ -1,6 +1,6 @@
 pub mod errors;
 
-use sqlx::{query, PgPool};
+use sqlx::{query, query_as, PgPool};
 use uuid::Uuid;
 
 use crate::routes::{events::models::EventPayload, invitations::models::EventInvitation};
@@ -29,8 +29,8 @@ pub async fn fetch_event_invitations(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<EventPayload>, InvitationError> {
-    let mut transaction = pool.begin().await?;
-    let res = query!(
+    let res = query_as!(
+        EventPayload,
         r#"
             SELECT name, description FROM user_events JOIN events ON user_events.event_id = events.id
             WHERE user_events.user_id = $1
@@ -38,23 +38,16 @@ pub async fn fetch_event_invitations(
         "#,
         user_id
     )
-    .fetch_all(&mut transaction)
+    .fetch_all(pool)
     .await?;
-
-    let res = res
-        .into_iter()
-        .map(|x| EventPayload {
-            name: x.name,
-            description: x.description,
-        })
-        .collect::<Vec<EventPayload>>();
 
     Ok(res)
 }
 
 pub async fn accept_event_invitation(
     pool: &PgPool,
-    invitation: EventInvitation,
+    user_id: Uuid,
+    event_id: Uuid,
 ) -> Result<(), InvitationError> {
     query!(
         r#"
@@ -63,8 +56,8 @@ pub async fn accept_event_invitation(
             WHERE user_id = $1
             AND event_id = $2
         "#,
-        invitation.user_id,
-        invitation.event_id,
+        user_id,
+        event_id,
     )
     .execute(pool)
     .await?;
@@ -74,7 +67,8 @@ pub async fn accept_event_invitation(
 
 pub async fn reject_event_invitation(
     pool: &PgPool,
-    invitation: EventInvitation,
+    user_id: Uuid,
+    event_id: Uuid,
 ) -> Result<(), InvitationError> {
     query!(
         r#"
@@ -82,8 +76,8 @@ pub async fn reject_event_invitation(
             WHERE user_id = $1
             AND event_id = $2
         "#,
-        invitation.user_id,
-        invitation.event_id,
+        user_id,
+        event_id,
     )
     .execute(pool)
     .await?;
