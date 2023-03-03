@@ -281,14 +281,15 @@ impl<'c> PgQuery<'c, EventQuery> {
         event_id: Uuid,
         event: OptionalEventData,
     ) -> Result<(), EventError> {
+        // only empty string will delete description because it is an optional parameter
         query!(
             r#"
                 UPDATE events
                 SET
-                name = $1,
-                description = $2,
-                starts_at = $3,
-                ends_at = $4
+                name = COALESCE($1, name),
+                description = COALESCE($2, description),
+                starts_at = COALESCE($3, starts_at),
+                ends_at = COALESCE($4, ends_at)
                 WHERE owner_id = $5 AND id = $6
             "#,
             event.name,
