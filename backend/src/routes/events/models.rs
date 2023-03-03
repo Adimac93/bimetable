@@ -1,10 +1,11 @@
-use std::collections::HashMap;
-
 use crate::utils::events::models::RecurrenceRule;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
+use std::collections::HashMap;
+use time::macros::datetime;
 use time::serde::iso8601;
 use utoipa::{IntoParams, ToResponse, ToSchema};
+use uuid::uuid;
 use validator::{Validate, ValidationError};
 
 // Core data models
@@ -120,37 +121,11 @@ impl Events {
         Self { events, entries }
     }
 
-    pub fn merge(self, other: Self) -> Self {
-        let mut entries = vec![];
-        let mut i = 0;
-        let mut j = 0;
-
-        while i < self.entries.len() && j < other.entries.len() {
-            if self.entries[i].starts_at < other.entries[j].starts_at {
-                entries.push(self.entries[i].clone());
-                i += 1;
-            } else {
-                entries.push(other.entries[j].clone());
-                j += 1;
-            }
-        }
-
-        while i < self.entries.len() {
-            entries.push(self.entries[i].clone());
-            i += 1;
-        }
-
-        while j < other.entries.len() {
-            entries.push(other.entries[j].clone());
-            j += 1;
-        }
-
-        let mut left = self.events;
-        let right = other.events;
-        left.extend(right);
-        let events = left;
-
-        Events::new(events, entries)
+    pub fn merge(mut self, other: Self) -> Self {
+        self.events.extend(other.events);
+        self.entries.extend(other.entries);
+        self.entries.sort_by_key(|entry| entry.starts_at);
+        self
     }
 }
 
@@ -216,4 +191,116 @@ pub struct Override {
     #[serde(with = "iso8601::option", skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
+}
+
+#[test]
+fn merge_events_1() {
+    let mut entries = vec![];
+    let id = Uuid::new_v4();
+    entries.push(Entry::new(
+        id,
+        datetime!(2023-02-18 10:00 UTC),
+        datetime!(2023-02-18 12:00 UTC),
+        None,
+    ));
+    entries.push(Entry::new(
+        id,
+        datetime!(2023-02-19 10:00 UTC),
+        datetime!(2023-02-19 12:00 UTC),
+        None,
+    ));
+    entries.push(Entry::new(
+        id,
+        datetime!(2023-02-20 10:00 UTC),
+        datetime!(2023-02-20 12:00 UTC),
+        None,
+    ));
+    let events = Events::new(
+        HashMap::from([(
+            id,
+            Event::new(
+                EventPrivileges::Owned,
+                EventPayload::new(String::from("A"), None),
+            ),
+        )]),
+        entries,
+    );
+
+    let mut other_entries = vec![];
+    let other_id = Uuid::new_v4();
+    other_entries.push(Entry::new(
+        other_id,
+        datetime!(2023-02-17 10:00 UTC),
+        datetime!(2023-02-17 12:00 UTC),
+        None,
+    ));
+    other_entries.push(Entry::new(
+        other_id,
+        datetime!(2023-02-20 10:00 UTC),
+        datetime!(2023-02-20 12:00 UTC),
+        None,
+    ));
+    other_entries.push(Entry::new(
+        other_id,
+        datetime!(2023-02-21 10:00 UTC),
+        datetime!(2023-02-21 12:00 UTC),
+        None,
+    ));
+
+    let other_events = Events::new(
+        HashMap::from([(
+            id,
+            Event::new(
+                EventPrivileges::Owned,
+                EventPayload::new(String::from("A"), None),
+            ),
+        )]),
+        other_entries,
+    );
+
+    let merged = events.merge(other_events);
+    let mut expected = vec![];
+
+    expected.push(Entry::new(
+        other_id,
+        datetime!(2023-02-17 10:00 UTC),
+        datetime!(2023-02-17 12:00 UTC),
+        None,
+    ));
+    expected.push(Entry::new(
+        id,
+        datetime!(2023-02-18 10:00 UTC),
+        datetime!(2023-02-18 12:00 UTC),
+        None,
+    ));
+    expected.push(Entry::new(
+        id,
+        datetime!(2023-02-19 10:00 UTC),
+        datetime!(2023-02-19 12:00 UTC),
+        None,
+    ));
+    expected.push(Entry::new(
+        id,
+        datetime!(2023-02-20 10:00 UTC),
+        datetime!(2023-02-20 12:00 UTC),
+        None,
+    ));
+
+    expected.push(Entry::new(
+        other_id,
+        datetime!(2023-02-20 10:00 UTC),
+        datetime!(2023-02-20 12:00 UTC),
+        None,
+    ));
+    expected.push(Entry::new(
+        other_id,
+        datetime!(2023-02-21 10:00 UTC),
+        datetime!(2023-02-21 12:00 UTC),
+        None,
+    ));
+
+    println!("{:#?}", merged);
+    for (a, b) in merged.entries.iter().zip(expected.iter()) {
+        assert_eq!(a.starts_at, b.starts_at)
+    }
 }
