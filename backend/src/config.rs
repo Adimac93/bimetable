@@ -1,6 +1,7 @@
 use config::{Config, ConfigError};
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
+use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 use tracing::{error, info, warn};
 
@@ -248,7 +249,7 @@ impl Environment {
     pub fn is_dev(&self) -> bool {
         match self {
             Environment::Development => true,
-            Environment::Production => false,
+            _ => false,
         }
     }
 }
@@ -269,6 +270,15 @@ impl TryFrom<String> for Environment {
             other => Err(format!(
                 "{other} is not supported environment. Use either `local` or `production`"
             )),
+        }
+    }
+}
+
+impl Display for Environment {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Environment::Development => write!(f, "development"),
+            Environment::Production => write!(f, "production"),
         }
     }
 }

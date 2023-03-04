@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
-use sqlx::types::{time::OffsetDateTime, uuid::Uuid, Json};
+use sqlx::types::time::OffsetDateTime;
+use std::fmt::{Display, Formatter};
+use time::macros::format_description;
 use time::{serde::iso8601, Duration};
 use utoipa::ToSchema;
 
@@ -28,6 +30,7 @@ pub struct EventPart {
 #[serde(rename_all = "camelCase")]
 pub struct RecurrenceRule {
     pub time_rules: TimeRules,
+    #[schema(inline)]
     pub kind: RecurrenceRuleKind,
 }
 
@@ -256,5 +259,30 @@ impl TimeRange {
 
     pub fn duration(&self) -> Duration {
         self.end - self.start
+    }
+}
+
+impl Display for TimeRange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let format = format_description!(
+            "[year]-[month]-[day] [hour]:[minute] [offset_hour sign:mandatory]:[offset_minute]"
+        );
+        let start = self.start.format(&format).unwrap();
+        let end = self.end.format(&format).unwrap();
+        write!(f, "{start} - {end}")
+
+        // non panic alternative?
+        // write!(
+        //     f,
+        //     "{} {}:{} {} - {} {}:{} {}",
+        //     self.start.date(),
+        //     self.start.hour(),
+        //     self.start.minute(),
+        //     self.start.offset(),
+        //     self.end.date(),
+        //     self.end.hour(),
+        //     self.end.minute(),
+        //     self.end.offset(),
+        // )
     }
 }

@@ -136,6 +136,7 @@ pub struct Event {
     pub can_edit: bool,
 }
 
+#[derive(Debug)]
 pub enum EventPrivileges {
     Owned,
     Shared { can_edit: bool },

@@ -79,14 +79,10 @@ pub fn generate_token_cookies(
         &secrets.access.0,
     )?;
 
-    trace!("Access JWT: {access_cookie:#?}");
-
     let refresh_cookie = generate_jwt_in_cookie(
         RefreshClaims::new(user_id, login, REFRESH_EXPIRATION),
         &secrets.refresh.0,
     )?;
-
-    trace!("Refresh JWT: {refresh_cookie:#?}");
 
     Ok(jar.add(access_cookie).add(refresh_cookie))
 }
@@ -97,7 +93,7 @@ fn generate_jwt_in_cookie<'a, T: AuthToken<'a>>(
 ) -> Result<Cookie<'a>, AuthError> {
     let token = payload.generate_jwt(secret)?;
     let access_cookie = T::generate_cookie(token);
-    trace!("Access JWT: {access_cookie:#?}");
+    trace!("JWT: {access_cookie}");
 
     Ok(access_cookie)
 }

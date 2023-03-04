@@ -7,6 +7,7 @@ use crate::utils::events::models::{RecurrenceRule, TimeRange};
 use sqlx::types::{time::OffsetDateTime, Json};
 use sqlx::{query, query_as};
 use std::collections::HashMap;
+use tracing::log::trace;
 use uuid::Uuid;
 
 use self::errors::EventError;
@@ -18,6 +19,7 @@ pub mod errors;
 pub mod event_range;
 pub mod models;
 
+#[derive(Debug)]
 pub struct QOverride {
     event_id: Uuid,
     override_starts_at: OffsetDateTime,
@@ -30,6 +32,7 @@ pub struct QOverride {
     deleted_at: Option<OffsetDateTime>,
 }
 
+#[derive(Debug)]
 pub struct QOwnedEvent {
     id: Uuid,
     name: String,
@@ -40,6 +43,7 @@ pub struct QOwnedEvent {
     recurrence_rule: Option<Json<RecurrenceRule>>,
 }
 
+#[derive(Debug)]
 pub struct QSharedEvent {
     id: Uuid,
     name: String,
@@ -51,6 +55,7 @@ pub struct QSharedEvent {
     can_edit: bool,
 }
 
+#[derive(Debug)]
 pub struct QEvent {
     id: Uuid,
     name: String,
@@ -73,7 +78,7 @@ impl EventQuery {
 
 impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create_event(&mut self, event: CreateEvent) -> Result<Uuid, EventError> {
-        let id = query!(
+        let event_id = query!(
             r#"
                 INSERT INTO events (owner_id, name, description, starts_at, ends_at, recurrence_rule)
                 VALUES
@@ -91,7 +96,8 @@ impl<'c> PgQuery<'c, EventQuery> {
             .await?
             .id;
 
-        Ok(id)
+        trace!("Created event {event_id}");
+        Ok(event_id)
     }
 
     pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {
@@ -109,6 +115,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         if let Some(event) = event {
             let payload = EventPayload::new(event.name, event.description);
             if event.owner_id == self.payload.user_id {
+                trace!("Got owned event {}", event.id);
                 return Ok(Some(Event::new(EventPrivileges::Owned, payload)));
             }
 
@@ -124,6 +131,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             .await?;
 
             if let Some(shared) = shared {
+                trace!("Got shared event {}", event.id);
                 return Ok(Some(Event::new(
                     EventPrivileges::Shared {
                         can_edit: shared.can_edit,
@@ -132,7 +140,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 )));
             }
         }
-
+        trace!("There is no event with id {event_id}");
         Ok(None)
     }
 
@@ -150,6 +158,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             .fetch_one(&mut *self.conn)
             .await?;
 
+        trace!("Got owned event {event_id}");
         Ok(event)
     }
 
@@ -170,6 +179,15 @@ impl<'c> PgQuery<'c, EventQuery> {
         )
             .fetch_all(&mut *self.conn)
             .await?;
+
+        if !events.is_empty() {
+            trace!(
+                "Got {} owned events in search range {search_range}",
+                events.len()
+            );
+        } else {
+            trace!("No owned events in search range {search_range}");
+        }
 
         let events = events
             .into_iter()
@@ -195,7 +213,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>", can_edit FROM user_events
                 JOIN events ON user_events.event_id = events.id
-                WHERE user_id = $1 AND starts_at > $2 AND ends_at < $3
+                WHERE user_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at IS NULL
                 ORDER BY events.starts_at ASC
             "#,
             self.payload.user_id,
@@ -204,6 +222,12 @@ impl<'c> PgQuery<'c, EventQuery> {
         )
             .fetch_all(&mut *self.conn)
             .await?;
+
+        if !shared_events.is_empty() {
+            trace!("Got shared events in search range {search_range}");
+        } else {
+            trace!("No shared events in search range {search_range}");
+        }
 
         let shared_events = shared_events
             .into_iter()
@@ -237,6 +261,10 @@ impl<'c> PgQuery<'c, EventQuery> {
             .fetch_all(&mut *self.conn)
             .await?;
 
+        if !overrides.is_empty() {
+            trace!("Got events' overrides for {overrides:#?}");
+        }
+
         Ok(overrides)
     }
 
@@ -252,6 +280,12 @@ impl<'c> PgQuery<'c, EventQuery> {
         .fetch_optional(&mut *self.conn)
         .await?
         .is_some();
+
+        if res {
+            trace!("Event {event_id} is owned")
+        } else {
+            trace!("Event {event_id} is not owned")
+        }
 
         Ok(res)
     }
@@ -273,6 +307,8 @@ impl<'c> PgQuery<'c, EventQuery> {
             ovr.data.starts_at,
             ovr.data.ends_at
         ).execute(&mut *self.conn).await?;
+
+        trace!("Created event override for event {event_id}");
 
         Ok(())
     }
@@ -302,6 +338,8 @@ impl<'c> PgQuery<'c, EventQuery> {
         .execute(&mut *self.conn)
         .await?;
 
+        trace!("Updated event {event_id}");
+
         Ok(())
     }
 
@@ -321,6 +359,8 @@ impl<'c> PgQuery<'c, EventQuery> {
         .execute(&mut *self.conn)
         .await?;
 
+        trace!("Temporarily deleted event {event_id}");
+
         Ok(())
     }
     pub async fn perm_delete(&mut self, event_id: Uuid) -> Result<(), EventError> {
@@ -334,6 +374,8 @@ impl<'c> PgQuery<'c, EventQuery> {
         )
         .execute(&mut *self.conn)
         .await?;
+
+        trace!("Permanently deleted event {event_id}");
 
         Ok(())
     }
@@ -403,7 +445,8 @@ fn map_events(overrides: Vec<QOverride>, events: Vec<QEvent>, search_range: Time
                     .get_event_range(search_range, event.time_range)
                     .unwrap();
 
-                add_entries(event.id, &mut entry_ranges, &mut ovrs, &mut entries);
+                let new_entries = get_entries(event.id, &mut entry_ranges, &mut ovrs);
+                entries.extend(new_entries);
             }
 
             (
@@ -434,28 +477,35 @@ fn group_overrides(overrides: Vec<QOverride>) -> HashMap<Uuid, Vec<(TimeRange, O
             .and_modify(|ranges| ranges.push((range, entry_override.clone())))
             .or_insert(vec![(range, entry_override)]);
     });
+    if !ovrs.is_empty() {
+        trace!("Grouped overrides {ovrs:#?}");
+    }
+
     ovrs
 }
 
-fn add_entries(
+fn get_entries(
     event_id: Uuid,
     entry_ranges: &mut Vec<TimeRange>,
     overrides: &mut HashMap<Uuid, Vec<(TimeRange, Override)>>,
-    entries: &mut Vec<Entry>,
-) {
+) -> impl IntoIterator<Item = Entry> {
     if let Some(range_overrides) = overrides.remove(&event_id) {
-        let event_entries = get_entries_for_event(event_id, entry_ranges, range_overrides);
-        entries.extend(event_entries);
-    } else {
-        entries.extend(
-            entry_ranges
-                .iter()
-                .map(|range| Entry::new(event_id, range.start, range.end, None)),
+        let event_entries = apply_event_overrides(event_id, entry_ranges, range_overrides);
+        trace!(
+            "Got {} entries with overrides for event {event_id}",
+            event_entries.len()
         );
+        return event_entries;
     }
+
+    trace!("Got {} entries for event {event_id}", entry_ranges.len());
+    entry_ranges
+        .into_iter()
+        .map(|range| Entry::new(event_id, range.start, range.end, None))
+        .collect()
 }
 
-fn get_entries_for_event(
+fn apply_event_overrides(
     event_id: Uuid,
     entry_ranges: &mut Vec<TimeRange>,
     overrides: Vec<(TimeRange, Override)>,
