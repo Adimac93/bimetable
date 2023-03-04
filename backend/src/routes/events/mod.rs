@@ -11,6 +11,7 @@ use http::StatusCode;
 use serde_json::json;
 use sqlx::types::JsonValue;
 use sqlx::{types::Uuid, PgPool};
+use tracing::debug;
 
 use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
@@ -44,6 +45,8 @@ pub async fn create_event(
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     let event_id = q.create_event(body).await?;
+    debug!("Created event: {}", event_id);
+
     Ok(Json(json!({ "event_id": event_id })))
 }
 
@@ -91,6 +94,7 @@ async fn update_event(
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     q.update_event(id, body.data).await?;
+    debug!("Updated event: {}", id);
 
     Ok(StatusCode::OK)
 }
@@ -105,6 +109,8 @@ async fn delete_event_temporarily(
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     q.temp_delete(id).await?;
+    debug!("Deleted event temporalily: {}", id);
+
     Ok(StatusCode::OK)
 }
 
@@ -118,6 +124,7 @@ async fn delete_event_permanently(
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     q.perm_delete(id).await?;
+    debug!("Deleted event permanently: {}", id);
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -139,5 +146,7 @@ async fn create_event_override(
     }
 
     q.create_override(id, body).await?;
+    debug!("Created override on event: {}", id);
+
     Ok(StatusCode::OK)
 }

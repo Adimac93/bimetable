@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use sqlx::PgPool;
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -35,11 +36,16 @@ pub fn router() -> Router<AppState> {
 #[debug_handler]
 #[utoipa::path(put, path = "/events/invitations/create", tag = "events", request_body = EventInvitation, responses((status = 200, description = "Created event invitation")))]
 async fn create_invitation(
-    _claims: Claims,
+    claims: Claims,
     State(pool): State<PgPool>,
     Json(invitation): Json<EventInvitation>,
 ) -> Result<(), InvitationError> {
-    Ok(try_create_event_invitation(&pool, invitation).await?)
+    try_create_event_invitation(&pool, invitation).await?;
+    debug!(
+        "Created event invitation from user: {} to user: {}",
+        claims.user_id, invitation.user_id
+    );
+    Ok(())
 }
 
 /// Fetch all invitations
@@ -49,7 +55,13 @@ async fn fetch_invitations(
     claims: Claims,
     State(pool): State<PgPool>,
 ) -> Result<Json<Vec<EventPayload>>, InvitationError> {
-    Ok(Json(fetch_event_invitations(&pool, claims.user_id).await?))
+    let invitations = fetch_event_invitations(&pool, claims.user_id).await?;
+    debug!(
+        "Fetched {} event(s) for user: {}",
+        invitations.len(),
+        claims.user_id
+    );
+    Ok(Json(invitations))
 }
 
 /// Accept invitation
@@ -60,7 +72,12 @@ async fn accept_invitation(
     State(pool): State<PgPool>,
     Json(event_id): Json<Uuid>, // query?
 ) -> Result<(), InvitationError> {
-    Ok(accept_event_invitation(&pool, claims.user_id, event_id).await?)
+    accept_event_invitation(&pool, claims.user_id, event_id).await?;
+    debug!(
+        "User: {} accepted invitation for event: {}",
+        event_id, claims.user_id
+    );
+    Ok(())
 }
 
 /// Reject invitation
@@ -71,5 +88,7 @@ async fn reject_invitation(
     State(pool): State<PgPool>,
     Json(event_id): Json<Uuid>, // query?
 ) -> Result<(), InvitationError> {
-    Ok(reject_event_invitation(&pool, claims.user_id, event_id).await?)
+    reject_event_invitation(&pool, claims.user_id, event_id).await?;
+    debug!("User: {} rejected invitation for event: {}", claims.user_id, event_id);
+    Ok(())
 }
