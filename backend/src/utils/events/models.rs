@@ -3,6 +3,7 @@ use sqlx::types::time::OffsetDateTime;
 use std::fmt::{Display, Formatter};
 use time::macros::format_description;
 use time::{serde::iso8601, Duration};
+use tracing::trace;
 use utoipa::ToSchema;
 
 use crate::validation::ValidateContent;
@@ -91,6 +92,7 @@ impl RecurrenceRule {
             interval: self.time_rules.interval,
             event_duration: event.duration(),
         };
+
         match self.kind {
             RecurrenceRuleKind::Yearly { is_by_day } => {
                 if is_by_day {
@@ -178,7 +180,7 @@ impl RecurrenceRule {
             RecurrenceEndsAt::Until(t) => Some(*t),
         });
 
-        match self.kind {
+        let res = match self.kind {
             RecurrenceRuleKind::Yearly { is_by_day } => {
                 if is_by_day {
                     // year and 12 months are the same
@@ -196,7 +198,11 @@ impl RecurrenceRule {
                 get_weekly_events(range_data, &string_week_map)
             }
             RecurrenceRuleKind::Daily => get_daily_events(range_data),
-        }
+        }?;
+
+        trace!("Got {} event entries using a time range search", res.len());
+
+        Ok(res)
     }
 }
 

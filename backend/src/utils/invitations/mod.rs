@@ -1,6 +1,7 @@
 pub mod errors;
 
 use sqlx::{query, query_as, PgPool};
+use tracing::trace;
 use uuid::Uuid;
 
 use crate::routes::{events::models::EventPayload, invitations::models::EventInvitation};
@@ -22,6 +23,11 @@ pub async fn try_create_event_invitation(
     .execute(pool)
     .await?;
 
+    trace!(
+        "Created user event invitation - event_id: {}",
+        invitation.event_id
+    );
+
     Ok(())
 }
 
@@ -40,6 +46,8 @@ pub async fn fetch_event_invitations(
     )
     .fetch_all(pool)
     .await?;
+
+    trace!("Got {} event invitation(s)", res.len());
 
     Ok(res)
 }
@@ -62,6 +70,8 @@ pub async fn accept_event_invitation(
     .execute(pool)
     .await?;
 
+    trace!("Accepted event invitation - event_id: {event_id}");
+
     Ok(())
 }
 
@@ -81,6 +91,8 @@ pub async fn reject_event_invitation(
     )
     .execute(pool)
     .await?;
+
+    trace!("Rejected event invitation - event_id: {event_id}");
 
     Ok(())
 }
