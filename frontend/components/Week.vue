@@ -39,7 +39,6 @@ const days = computed(() => {
     return result;
 });
 
-// TODO: zoom on desktop using a modifier key
 let startHeight = 1;
 let startScrollY = 0;
 let startDistance = 0;
@@ -79,7 +78,7 @@ function onTouchMove(event: TouchEvent) {
 
     let scale = distanceY / startDistance;
     let newHeight = startHeight * scale;
-    // FIXME: clientHeight doesn't take into account the height of the header with week names
+    // FIXME: also take into account the min-content height (how though?)
     const maxNewHeight = outer.value!.clientHeight;
 
     if (newHeight < maxNewHeight) {
@@ -119,6 +118,7 @@ function onWheel(event: WheelEvent) {
 
     let scale = 1 + cumulativeDeltaY;
     let newHeight = startHeight * scale;
+    // FIXME: also take into account the min-content height (how though?)
     const maxNewHeight = outer.value!.clientHeight;
 
     if (newHeight < maxNewHeight) {
