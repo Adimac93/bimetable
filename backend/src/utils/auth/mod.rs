@@ -1,6 +1,7 @@
 pub mod additions;
 pub mod errors;
 pub mod models;
+use crate::modules::database::PgQuery;
 use crate::modules::extensions::jwt::TokenSecrets;
 use crate::utils::auth::additions::{hash_pass, verify_pass};
 use axum_extra::extract::{cookie::Cookie, CookieJar};
@@ -25,7 +26,7 @@ pub async fn try_register_user<'c>(
 ) -> Result<Uuid, AuthError> {
     let mut transaction = acq.begin().await?;
 
-    let mut user = AuthUser::new(login, &mut transaction);
+    let mut user = PgQuery::new(AuthUser::new(&login), &mut transaction);
 
     if !user.is_new().await? {
         return Err(AuthError::UserAlreadyExists);
@@ -38,7 +39,7 @@ pub async fn try_register_user<'c>(
         return Err(AuthError::MissingCredential);
     }
 
-    validate_usernames(login, username)?;
+    validate_usernames(&login, &username)?;
 
     if !additions::pass_is_strong(password.expose_secret(), &[&login]) {
         return Err(AuthError::WeakPassword);
@@ -46,7 +47,7 @@ pub async fn try_register_user<'c>(
 
     let hashed_pass = hash_pass(password.expose_secret().to_owned())?;
 
-    let user_id = user.create_account(hashed_pass, username).await?;
+    let user_id = user.create_account(hashed_pass, &username).await?;
 
     transaction.commit().await?;
 
@@ -63,7 +64,7 @@ pub async fn verify_user_credentials<'c>(
         return Err(AuthError::MissingCredential)?;
     }
 
-    let mut q = AuthUser::new(login, conn);
+    let mut q = PgQuery::new(AuthUser::new(login), conn);
     let user_id = q.verify_credentials(password).await?;
     Ok(user_id)
 }
@@ -100,14 +101,15 @@ fn generate_jwt_in_cookie<'a, T: AuthToken<'a>>(
 
 pub struct AuthUser<'c> {
     login: &'c str,
-    conn: &'c mut PgConnection,
 }
 
 impl<'c> AuthUser<'c> {
-    fn new(login: &'c str, conn: &'c mut PgConnection) -> Self {
-        Self { login, conn }
+    fn new(login: &'c str) -> Self {
+        Self { login }
     }
+}
 
+impl<'c> PgQuery<'c, AuthUser<'c>> {
     async fn create_user(&mut self, username: &'c str) -> Result<Uuid, AuthError> {
         let user_id = query!(
             r#"
@@ -134,7 +136,7 @@ impl<'c> AuthUser<'c> {
                 values ($1, $2, $3)
             "#,
             user_id,
-            self.login,
+            self.payload.login,
             hashed_password
         )
         .execute(&mut *self.conn)
@@ -157,7 +159,7 @@ impl<'c> AuthUser<'c> {
             r#"
                 select * from credentials where login = $1
             "#,
-            self.login
+            self.payload.login
         )
         .fetch_optional(&mut *self.conn)
         .await?
@@ -172,7 +174,7 @@ impl<'c> AuthUser<'c> {
             join users on credentials.user_id = users.id
             where login = $1
         "#,
-            self.login
+            self.payload.login
         )
         .fetch_optional(&mut *self.conn)
         .await?
