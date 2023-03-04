@@ -11,15 +11,15 @@
 import type { CalendarEvent } from "@/utils/CalendarEvent";
 
 const props = defineProps<{
-    day: number,
-    highlight: boolean,
-    events: CalendarEvent[]
+    day: number;
+    highlight: boolean;
+    events: CalendarEvent[];
 }>();
 
 const cellElement = ref<HTMLDivElement | null>(null);
 
 const emit = defineEmits<{
-    (event: "activate"): void
+    (event: "activate"): void;
 }>();
 
 function toggleEvents() {
@@ -29,7 +29,7 @@ function toggleEvents() {
 
 <style scoped lang="scss">
 .highlight {
-    background-color: #AFE9D5;
+    background-color: #afe9d5;
 }
 
 .cell-wrapper {

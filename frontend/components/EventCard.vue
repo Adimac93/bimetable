@@ -4,9 +4,9 @@
         <h3 class="heading">{{ event.name }}</h3>
         <div class="info">
             <div class="timing" v-if="event.startTime && event.endTime">
-                <div class="timing-date">{{ event.day.format('DD MMM YYYY') }}</div>
+                <div class="timing-date">{{ event.day.format("DD MMM YYYY") }}</div>
                 <div class="timing-time">
-                    {{ event.startTime.format('HH:MM') }} - {{ event.endTime.format('HH:MM') }}
+                    {{ event.startTime.format("HH:MM") }} - {{ event.endTime.format("HH:MM") }}
                 </div>
             </div>
             <div class="notes">There are supposed to be notes here. However, they are not in the test data I made.</div>
@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import type { CalendarEvent } from '@/utils/CalendarEvent';
+import type { CalendarEvent } from "@/utils/CalendarEvent";
 
 const props = defineProps<{
     event: CalendarEvent;

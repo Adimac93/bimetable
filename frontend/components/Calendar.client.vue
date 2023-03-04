@@ -7,7 +7,7 @@
                     <div class="header">
                         <button @click="changeMonth(-1)">&lt;</button>
                         <span>
-                            {{ monthStart.format('MMM YYYY') }}
+                            {{ monthStart.format("MMM YYYY") }}
                         </span>
                         <button @click="changeMonth(1)">&gt;</button>
                     </div>
@@ -37,8 +37,8 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from '@/utils/dayjs';
-import { CalendarEvent } from '@/utils/CalendarEvent';
+import dayjs from "@/utils/dayjs";
+import { CalendarEvent } from "@/utils/CalendarEvent";
 
 type CalendarSpace =
     | { date: dayjs.Dayjs; events: CalendarEvent[] }
@@ -47,7 +47,7 @@ type CalendarSpace =
       };
 
 function getDateString(date: dayjs.Dayjs) {
-    return date.format('YYYY-MM-DD');
+    return date.format("YYYY-MM-DD");
 }
 
 interface Event {
@@ -61,14 +61,14 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (event: 'select', data: { date: dayjs.Dayjs; events: CalendarEvent[] } | null): void;
+    (event: "select", data: { date: dayjs.Dayjs; events: CalendarEvent[] } | null): void;
 }>();
 
 function selectCell(date: dayjs.Dayjs, events: CalendarEvent[]) {
     if (!events.length) {
-        emit('select', null);
+        emit("select", null);
     } else {
-        emit('select', { date, events });
+        emit("select", { date, events });
     }
 }
 
@@ -91,7 +91,7 @@ const eventMap = computed(() => {
 const weekdays = dayjs.weekdaysMin(true);
 
 const today = dayjs();
-const monthStart = ref(dayjs().date(1).startOf('day'));
+const monthStart = ref(dayjs().date(1).startOf("day"));
 const daysInMonth = computed(() => monthStart.value.daysInMonth());
 const days = computed(() => {
     const days: CalendarSpace[][] = [];
@@ -101,7 +101,7 @@ const days = computed(() => {
     }
 
     for (let i = 0; i < daysInMonth.value; i++) {
-        const day = monthStart.value.add(i, 'days');
+        const day = monthStart.value.add(i, "days");
         const weekDay = day.weekday();
         if (weekDay == 0) {
             days.push([]);
@@ -117,7 +117,7 @@ const days = computed(() => {
 });
 
 function changeMonth(offset: number) {
-    monthStart.value = monthStart.value.add(offset, 'months');
+    monthStart.value = monthStart.value.add(offset, "months");
 }
 </script>
 
