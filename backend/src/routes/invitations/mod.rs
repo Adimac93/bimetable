@@ -50,7 +50,7 @@ async fn create_invitation(
 
 /// Fetch all invitations
 #[debug_handler]
-#[utoipa::path(put, path = "/events/invitations/fetch", tag = "events", responses((status = 200, description = "Fetched event invitations")))]
+#[utoipa::path(get, path = "/events/invitations/fetch", tag = "events", responses((status = 200, description = "Fetched event invitations")))]
 async fn fetch_invitations(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -66,7 +66,7 @@ async fn fetch_invitations(
 
 /// Accept invitation
 #[debug_handler]
-#[utoipa::path(put, path = "/events/invitations/accept", tag = "events", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
+#[utoipa::path(patch, path = "/events/invitations/accept", tag = "events", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
 async fn accept_invitation(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -82,13 +82,16 @@ async fn accept_invitation(
 
 /// Reject invitation
 #[debug_handler]
-#[utoipa::path(put, path = "/events/invitations/reject", tag = "events", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
+#[utoipa::path(delete, path = "/events/invitations/reject", tag = "events", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
 async fn reject_invitation(
     claims: Claims,
     State(pool): State<PgPool>,
     Json(event_id): Json<Uuid>, // query?
 ) -> Result<(), InvitationError> {
     reject_event_invitation(&pool, claims.user_id, event_id).await?;
-    debug!("User: {} rejected invitation for event: {}", claims.user_id, event_id);
+    debug!(
+        "User: {} rejected invitation for event: {}",
+        claims.user_id, event_id
+    );
     Ok(())
 }
