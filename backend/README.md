@@ -72,7 +72,6 @@ database_name = "postgres"
 > Default configuration settings might be loaded automatically during `development` if config is partially or fully incompatible.
 > All settings will default to example above.
 > _Read server logs!_
-#### 
 
 #### Order of database url sourcing
 
