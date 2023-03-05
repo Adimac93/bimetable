@@ -1,6 +1,5 @@
 pub mod models;
 
-use crate::modules::extensions::jwt::TokenSecrets;
 use crate::modules::AppState;
 use crate::routes::auth::models::{LoginCredentials, RegisterCredentials};
 use crate::utils::auth::errors::AuthError;
@@ -16,6 +15,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
+use crate::config::tokens::JwtSettings;
 use time::Duration;
 use tracing::debug;
 
@@ -33,7 +33,7 @@ pub fn router() -> Router<AppState> {
 #[debug_handler]
 async fn post_register_user(
     State(pool): State<PgPool>,
-    Extension(secrets): Extension<TokenSecrets>,
+    Extension(secrets): Extension<JwtSettings>,
     jar: CookieJar,
     Json(register_credentials): Json<RegisterCredentials>,
 ) -> Result<CookieJar, AuthError> {
@@ -59,7 +59,7 @@ async fn post_register_user(
 #[utoipa::path(post, path = "/auth/login", tag = "auth", request_body = LoginCredentials, responses((status = 200, description = "User has successfully logged in")))]
 async fn post_login_user(
     State(pool): State<PgPool>,
-    Extension(secrets): Extension<TokenSecrets>,
+    Extension(secrets): Extension<JwtSettings>,
     jar: CookieJar,
     Json(login_credentials): Json<LoginCredentials>,
 ) -> Result<CookieJar, AuthError> {
@@ -93,16 +93,18 @@ async fn protected_zone(claims: Claims) -> Result<Json<Value>, StatusCode> {
 #[utoipa::path(post, path = "/auth/logout", tag = "auth")]
 async fn post_logout_user(
     State(state): State<AppState>,
-    Extension(secrets): Extension<TokenSecrets>,
+    Extension(secrets): Extension<JwtSettings>,
     jar: CookieJar,
 ) -> Result<CookieJar, AuthError> {
     let validation = Validation::default();
 
-    if let Ok(Some(data)) = Claims::decode_jwt(&jar, Some(&validation), secrets.access.0) {
+    if let Ok(Some(data)) = Claims::decode_jwt(&jar, Some(&validation), secrets.access.0.token) {
         let _ = &data.claims.add_token_to_blacklist(&state.pool).await?;
     }
 
-    if let Ok(Some(data)) = RefreshClaims::decode_jwt(&jar, Some(&validation), secrets.refresh.0) {
+    if let Ok(Some(data)) =
+        RefreshClaims::decode_jwt(&jar, Some(&validation), secrets.refresh.0.token)
+    {
         let _ = &data.claims.add_token_to_blacklist(&state.pool).await?;
     }
 
@@ -124,7 +126,7 @@ fn get_remove_cookie(name: &str) -> Cookie {
 #[utoipa::path(post, path = "/auth/refresh", tag = "auth", responses((status = 200, description = "Refreshed user access token")))]
 async fn post_refresh_user_token(
     State(state): State<AppState>,
-    Extension(secrets): Extension<TokenSecrets>,
+    Extension(secrets): Extension<JwtSettings>,
     jar: CookieJar,
     refresh_claims: RefreshClaims,
 ) -> Result<CookieJar, AuthError> {

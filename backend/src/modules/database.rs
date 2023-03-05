@@ -1,14 +1,14 @@
-use crate::config::{ConnectionPrep, PostgresSettings};
+use crate::config::database::{ConnectionPrep, PostgresSettings};
 pub use sqlx::PgPool;
 use sqlx::{migrate, Acquire, Connection, Executor, PgConnection, Postgres};
 use tracing::info;
 
 pub async fn get_postgres_pool(config: PostgresSettings) -> PgPool {
     info!("Connecting to Postgres database");
-    let pool = PgPool::connect(&config.get_connection_string())
+    let pool = PgPool::connect(&config.database_url)
         .await
         .expect("Cannot establish postgres connection");
-    if config.is_migrating() {
+    if config.is_migrating {
         migrate!("./migrations")
             .run(&pool)
             .await

@@ -1,22 +1,17 @@
 pub mod additions;
 pub mod errors;
 pub mod models;
+use self::additions::validate_usernames;
+use crate::config::tokens::JwtSettings;
 use crate::modules::database::PgQuery;
-use crate::modules::extensions::jwt::TokenSecrets;
 use crate::utils::auth::additions::{hash_pass, verify_pass};
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use errors::*;
 use models::*;
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::{query, Acquire, PgConnection, Postgres};
-use time::Duration;
 use tracing::{debug, trace};
 use uuid::Uuid;
-
-use self::additions::validate_usernames;
-
-const ACCESS_EXPIRATION: Duration = Duration::minutes(5);
-const REFRESH_EXPIRATION: Duration = Duration::days(7);
 
 pub async fn try_register_user<'c>(
     acq: impl Acquire<'c, Database = Postgres>,
@@ -72,17 +67,17 @@ pub async fn verify_user_credentials<'c>(
 pub fn generate_token_cookies(
     user_id: Uuid,
     login: &str,
-    secrets: TokenSecrets,
+    secrets: JwtSettings,
     jar: CookieJar,
 ) -> Result<CookieJar, AuthError> {
     let access_cookie = generate_jwt_in_cookie(
-        Claims::new(user_id, login, ACCESS_EXPIRATION),
-        &secrets.access.0,
+        Claims::new(user_id, login, secrets.access.0.expiration),
+        &secrets.access.0.token,
     )?;
 
     let refresh_cookie = generate_jwt_in_cookie(
-        RefreshClaims::new(user_id, login, REFRESH_EXPIRATION),
-        &secrets.refresh.0,
+        RefreshClaims::new(user_id, login, secrets.access.0.expiration),
+        &secrets.refresh.0.token,
     )?;
 
     Ok(jar.add(access_cookie).add(refresh_cookie))

@@ -1,11 +1,10 @@
-use self::{
-    database::get_postgres_pool,
-    extensions::jwt::{JwtAccessSecret, JwtRefreshSecret, TokenSecrets},
-};
-use crate::config::{get_config, Environment};
+use self::database::get_postgres_pool;
+use crate::config::app::ApplicationSettings;
+use crate::config::environment::Environment;
+use crate::config::get_config;
+use crate::config::tokens::JwtSettings;
 use axum::extract::FromRef;
 use core::fmt::Display;
-use secrecy::Secret;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use tracing::{error, info};
@@ -13,21 +12,10 @@ use tracing::{error, info};
 pub mod database;
 pub mod extensions;
 
-pub struct Core {
-    pub addr: SocketAddr,
-    pub origin: String,
-}
-
-impl Core {
-    fn new(addr: SocketAddr, origin: String) -> Self {
-        Self { addr, origin }
-    }
-}
-
 pub struct Modules {
-    pub core: Core,
+    pub app: ApplicationSettings,
     pool: PgPool,
-    jwt: TokenSecrets,
+    jwt: JwtSettings,
     environment: Environment,
 }
 
@@ -39,13 +27,11 @@ impl Modules {
         info!("Settings loaded");
         info!("Loading modules");
         let pool = get_postgres_pool(settings.postgres).await;
-        let addr = settings.app.get_addr();
-        let origin = settings.app.origin;
         info!("Modules loaded");
         Self {
             pool,
-            core: Core::new(addr, origin),
-            jwt: TokenSecrets::from_settings(settings.jwt),
+            app: settings.app,
+            jwt: settings.jwt,
             environment: settings.environment,
         }
     }
@@ -54,14 +40,14 @@ impl Modules {
         pool: PgPool,
         addr: SocketAddr,
         origin: String,
-        access: Secret<String>,
-        refresh: Secret<String>,
+        access: &str,
+        refresh: &str,
         environment: Environment,
     ) -> Self {
         Self {
             pool,
-            core: Core::new(addr, origin),
-            jwt: TokenSecrets::new(JwtAccessSecret(access), JwtRefreshSecret(refresh)),
+            app: ApplicationSettings::new(addr, origin),
+            jwt: JwtSettings::new(access, refresh),
             environment,
         }
     }
@@ -101,7 +87,7 @@ impl Display for AppState {
 }
 
 pub struct AppExtensions {
-    pub jwt: TokenSecrets,
+    pub jwt: JwtSettings,
 }
 
 impl AppExtensions {

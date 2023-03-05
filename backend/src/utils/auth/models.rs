@@ -15,7 +15,7 @@ use sqlx::{query, PgPool};
 use time::{Duration, OffsetDateTime};
 use tracing::trace;
 
-use crate::modules::extensions::jwt::TokenSecrets;
+use crate::config::tokens::JwtSettings;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -135,10 +135,10 @@ where
     async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let secret = req
             .extensions
-            .get::<TokenSecrets>()
+            .get::<JwtSettings>()
             .context("Failed to get JWT secrets")?
             .to_owned();
-        verify_token::<Self>(req, &secret.access.0).await
+        verify_token::<Self>(req, &secret.access.0.token).await
     }
 }
 
@@ -171,10 +171,10 @@ where
     async fn from_request_parts(req: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let secret = req
             .extensions
-            .get::<TokenSecrets>()
+            .get::<JwtSettings>()
             .context("Failed to get JWT secrets")?
             .to_owned();
-        verify_token::<Self>(req, &secret.refresh.0).await
+        verify_token::<Self>(req, &secret.refresh.0.token).await
     }
 }
 

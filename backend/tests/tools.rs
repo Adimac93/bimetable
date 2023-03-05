@@ -1,5 +1,5 @@
 use bimetable::app;
-use bimetable::config::Environment;
+use bimetable::config::environment::Environment;
 use bimetable::modules::Modules;
 use dotenv::dotenv;
 use reqwest::Client;
@@ -15,8 +15,8 @@ async fn spawn_app(pool: PgPool) -> SocketAddr {
 
     let origin = String::from("http://localhost:3000");
 
-    let access = Secret::from(String::from("SECRET"));
-    let refresh = Secret::from(String::from("VERY_SECRET"));
+    let access = "SECRET";
+    let refresh = "VERY_SECRET";
 
     let modules = Modules::use_custom(
         pool,

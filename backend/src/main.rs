@@ -18,8 +18,8 @@ async fn main() {
     let modules = Modules::load_from_settings().await;
 
     info!("Starting server on {} machine", machine_kind());
-    info!("Listening on {}", &modules.core.addr);
-    axum::Server::bind(&modules.core.addr)
+    info!("Listening on {}", &modules.app.addr);
+    axum::Server::bind(&modules.app.addr)
         .serve(
             app(modules)
                 .await

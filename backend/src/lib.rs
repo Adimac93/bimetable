@@ -6,7 +6,7 @@ pub mod routes;
 pub mod utils;
 pub mod validation;
 
-use crate::config::Environment;
+use crate::config::environment::Environment;
 use crate::modules::{AppState, Modules};
 use axum::extract::State;
 use axum::response::{IntoResponse, Redirect};
