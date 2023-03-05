@@ -56,6 +56,7 @@ impl RecurrenceRule {
     /// Currently, the point in time the search starts in must be the same as the beggining of any event occurrence.
     ///
     /// ```rust
+    /// use bimetable::utils::events::models::RecurrenceRuleKind;
     /// use bimetable::utils::events::models::TimeRules;
     /// use bimetable::utils::events::models::RecurrenceRule;
     /// use bimetable::utils::events::models::TimeRange;
@@ -66,7 +67,8 @@ impl RecurrenceRule {
     ///     datetime!(2023-02-18 10:00 UTC),
     ///     datetime!(2023-02-18 12:15 UTC),
     /// );
-    /// let rec_rules = RecurrenceRule::Daily {
+    /// let rec_rules = RecurrenceRule {
+    ///     kind: RecurrenceRuleKind::Daily,
     ///     time_rules: TimeRules {
     ///         ends_at: Some(RecurrenceEndsAt::Count(15)),
     ///         interval: 3,
@@ -122,17 +124,19 @@ impl RecurrenceRule {
     /// which means that the occurrence must end strictly after the range, and vice versa.
     ///
     /// ```rust
-    /// use bimetable::utils::events::models::RecurrenceRule;
+    /// use bimetable::utils::events::models::RecurrenceRuleKind;
     /// use bimetable::utils::events::models::TimeRules;
-    /// use bimetable::utils::events::models::RecurrenceEndsAt;
+    /// use bimetable::utils::events::models::RecurrenceRule;
     /// use bimetable::utils::events::models::TimeRange;
+    /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use time::macros::datetime;
     ///
     /// let event = TimeRange::new(
     ///     datetime!(2023-02-17 22:45 UTC),
     ///     datetime!(2023-02-18 0:00 UTC),
     /// );
-    /// let rec_rules = RecurrenceRule::Daily {
+    /// let rec_rules = RecurrenceRule {
+    ///     kind: RecurrenceRuleKind::Daily,
     ///     time_rules: TimeRules {
     ///         ends_at: Some(RecurrenceEndsAt::Count(50)),
     ///         interval: 2,
