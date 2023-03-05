@@ -3,10 +3,8 @@ import settings from "./configuration/settings.json";
 
 export default defineNuxtConfig({
     // these may be overwritten by env vars
-    appConfig: {
-        apiURL: settings.apiURL ?? "http://localhost:3001"
+    runtimeConfig: {
+        apiURL: settings.apiURL ?? "http://127.0.0.1:3001",
     },
-    css: [
-        "assets/global.scss"
-    ],
-})
+    css: ["assets/global.scss"],
+});
