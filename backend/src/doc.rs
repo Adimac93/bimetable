@@ -49,6 +49,7 @@ UpdateEvent,
 LoginCredentials,
 RegisterCredentials,
 EventInvitation,
+CreateEventResult,
 )),
 tags((name = "auth"),(name = "events"))
 )]

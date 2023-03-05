@@ -72,12 +72,18 @@ pub enum EventFilter {
 }
 
 // Send payloads
-#[derive(Debug, Deserialize, Serialize, ToSchema, IntoParams)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateEvent {
     pub data: EventData,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recurrence_rule: Option<RecurrenceRule>,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateEventResult {
+    pub event_id: Uuid,
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]

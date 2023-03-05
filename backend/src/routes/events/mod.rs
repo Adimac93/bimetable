@@ -15,7 +15,8 @@ use tracing::debug;
 
 use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
-    Event, EventData, EventPayload, Events, OptionalEventData, OverrideEvent, UpdateEvent,
+    CreateEventResult, Event, EventData, EventPayload, Events, OptionalEventData, OverrideEvent,
+    UpdateEvent,
 };
 use crate::utils::events::models::TimeRange;
 use crate::utils::events::{get_many_events, EventQuery};
@@ -35,19 +36,19 @@ pub fn router() -> Router<AppState> {
 }
 
 /// Create event
-#[utoipa::path(put, path = "/events", tag = "events", request_body = CreateEvent, responses((status = 200, description = "Created event")))]
+#[utoipa::path(put, path = "/events", tag = "events", request_body = CreateEvent, responses((status = 200, description = "Created event", body = CreateEventResult)))]
 pub async fn create_event(
     claims: Claims,
     State(pool): State<PgPool>,
     Json(body): Json<CreateEvent>,
-) -> Result<Json<JsonValue>, EventError> {
+) -> Result<Json<CreateEventResult>, EventError> {
     body.validate_content()?;
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
     let event_id = q.create_event(body).await?;
     debug!("Created event: {}", event_id);
 
-    Ok(Json(json!({ "event_id": event_id })))
+    Ok(Json(CreateEventResult { event_id }))
 }
 
 /// Get many events
