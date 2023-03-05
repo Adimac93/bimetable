@@ -76,7 +76,7 @@ pub fn generate_token_cookies(
     )?;
 
     let refresh_cookie = generate_jwt_in_cookie(
-        RefreshClaims::new(user_id, login, secrets.access.0.expiration),
+        RefreshClaims::new(user_id, login, secrets.refresh.0.expiration),
         &secrets.refresh.0.token,
     )?;
 
