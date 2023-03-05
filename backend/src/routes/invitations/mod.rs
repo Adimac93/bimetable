@@ -33,7 +33,7 @@ pub fn router() -> Router<AppState> {
 
 /// Create user event invitation
 #[debug_handler]
-#[utoipa::path(put, path = "/events/invitations/create", tag = "events", request_body = EventInvitation, responses((status = 200, description = "Created event invitation")))]
+#[utoipa::path(put, path = "/events/invitations/create", tag = "invitations", request_body = EventInvitation, responses((status = 200, description = "Created event invitation")))]
 async fn create_invitation(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -49,7 +49,7 @@ async fn create_invitation(
 
 /// Fetch all invitations
 #[debug_handler]
-#[utoipa::path(get, path = "/events/invitations/fetch", tag = "events", responses((status = 200, description = "Fetched event invitations")))]
+#[utoipa::path(get, path = "/events/invitations/fetch", tag = "invitations", responses((status = 200, description = "Fetched event invitations")))]
 async fn fetch_invitations(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -65,7 +65,7 @@ async fn fetch_invitations(
 
 /// Accept invitation
 #[debug_handler]
-#[utoipa::path(patch, path = "/events/invitations/accept/{id}", tag = "events", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
+#[utoipa::path(patch, path = "/events/invitations/accept/{id}", tag = "invitations", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
 async fn accept_invitation(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -81,7 +81,7 @@ async fn accept_invitation(
 
 /// Reject invitation
 #[debug_handler]
-#[utoipa::path(delete, path = "/events/invitations/reject/{id}", tag = "events", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
+#[utoipa::path(delete, path = "/events/invitations/reject/{id}", tag = "invitations", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
 async fn reject_invitation(
     claims: Claims,
     State(pool): State<PgPool>,

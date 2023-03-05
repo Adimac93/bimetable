@@ -51,6 +51,6 @@ RegisterCredentials,
 EventInvitation,
 CreateEventResult,
 )),
-tags((name = "auth"),(name = "events"))
+tags((name = "auth"),(name = "events"), (name = "invitations"))
 )]
 pub struct ApiDoc;
