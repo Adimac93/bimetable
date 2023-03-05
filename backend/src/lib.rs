@@ -11,7 +11,7 @@ use crate::modules::{AppState, Modules};
 use axum::extract::State;
 use axum::response::{IntoResponse, Redirect};
 use axum::{Extension, Router};
-use http::StatusCode;
+use http::{StatusCode, Uri};
 use tracing::info;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -47,8 +47,9 @@ pub async fn app(modules: Modules) -> Router {
 
 async fn not_found(
     State(environment): State<Environment>,
+    uri: Uri,
 ) -> Result<Redirect, (StatusCode, &'static str)> {
-    if environment.is_dev() {
+    if environment.is_dev() && uri.path() == "/" {
         return Ok(Redirect::to(SWAGGER_URI));
     }
     Err((StatusCode::NOT_FOUND, "404 Not Found"))
