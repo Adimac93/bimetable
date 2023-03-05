@@ -40,6 +40,7 @@ To choose app environment set `APP_ENVIRONMENT` environmental variable to one of
 
 #### Example settings
 
+
 ```toml
 [app]
 host = "127.0.0.1"
@@ -47,27 +48,31 @@ port = 3001
 origin = "http://localhost:3000"
 
 [jwt]
-access_secret = "YOUR_SECRET_HERE"
-refresh_secret = "YOUR_DIFFERENT_SECRET_HERE"
+is_super_user = true
+[jwt.access]
+token = "JWT_ACCESS_TOKEN"
+expiration = "600.0" # 10 minutes
+[jwt.refresh]
+token = "JWT_REFRESH_TOKEN"
+expiration = "604800.0" # 7 days
 
 [postgres]
-database_url = "postgresql://postgres@localhost:5432/bimetable"
+database_url = "postgresql://postgres@localhost:5432/postgres"
 is_migrating = false
 
 [postgres.fields]
 username = "postgres"
-password = "leave_empty_if_you_wish"
+password = ""
 port = 5432
 host = "localhost"
-database_name = "bimetable"
+database_name = "postgres"
 ```
 
-> **Note**
-> Most fields have corresponding uppercase environment variables names.
-
 > **Warning**
-> Particular default configuration settings might be loaded automatically during `development` if config is partially or fully incompatible. 
+> Default configuration settings might be loaded automatically during `development` if config is partially or fully incompatible.
+> All settings will default to example above.
 > _Read server logs!_
+#### 
 
 #### Order of database url sourcing
 
