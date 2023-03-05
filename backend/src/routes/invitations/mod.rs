@@ -1,8 +1,7 @@
 pub mod models;
-
 use axum::{
     debug_handler,
-    extract::{Query, State},
+    extract::{Path, State},
     routing::{delete, get, patch, post, put},
     Json, Router,
 };
@@ -28,8 +27,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/create", put(create_invitation))
         .route("/fetch", get(fetch_invitations))
-        .route("/accept", patch(accept_invitation))
-        .route("/reject", delete(reject_invitation))
+        .route("/accept/:id", patch(accept_invitation))
+        .route("/reject/:id", delete(reject_invitation))
 }
 
 /// Create user event invitation
@@ -66,32 +65,32 @@ async fn fetch_invitations(
 
 /// Accept invitation
 #[debug_handler]
-#[utoipa::path(patch, path = "/events/invitations/accept", tag = "events", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
+#[utoipa::path(patch, path = "/events/invitations/accept/{id}", tag = "events", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
 async fn accept_invitation(
     claims: Claims,
     State(pool): State<PgPool>,
-    Json(event_id): Json<Uuid>, // query?
+    Path(id): Path<Uuid>,
 ) -> Result<(), InvitationError> {
-    accept_event_invitation(&pool, claims.user_id, event_id).await?;
+    accept_event_invitation(&pool, claims.user_id, id).await?;
     debug!(
         "User: {} accepted invitation for event: {}",
-        event_id, claims.user_id
+        claims.user_id, id
     );
     Ok(())
 }
 
 /// Reject invitation
 #[debug_handler]
-#[utoipa::path(delete, path = "/events/invitations/reject", tag = "events", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
+#[utoipa::path(delete, path = "/events/invitations/reject/{id}", tag = "events", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
 async fn reject_invitation(
     claims: Claims,
     State(pool): State<PgPool>,
-    Json(event_id): Json<Uuid>, // query?
+    Path(id): Path<Uuid>,
 ) -> Result<(), InvitationError> {
-    reject_event_invitation(&pool, claims.user_id, event_id).await?;
+    reject_event_invitation(&pool, claims.user_id, id).await?;
     debug!(
         "User: {} rejected invitation for event: {}",
-        claims.user_id, event_id
+        claims.user_id, id
     );
     Ok(())
 }
