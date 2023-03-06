@@ -103,7 +103,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {
         let event = query!(
             r#"
-                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
+                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>"
                 FROM events
                 WHERE id = $1 AND deleted_at IS NULL
             "#,
@@ -148,7 +148,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         let event = query_as!(
             QOwnedEvent,
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>"
                 FROM events
                 WHERE owner_id = $1 AND id = $2
             "#,
@@ -168,9 +168,9 @@ impl<'c> PgQuery<'c, EventQuery> {
     ) -> Result<Vec<QEvent>, EventError> {
         let events = query!(
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>" 
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>"
                 FROM events
-                WHERE owner_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at IS NULL
+                WHERE owner_id = $1 AND starts_at >= $2 AND ends_at < $3 AND deleted_at IS NULL
                 ORDER BY starts_at ASC
             "#,
             self.payload.user_id,
@@ -213,7 +213,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>", can_edit FROM user_events
                 JOIN events ON user_events.event_id = events.id
-                WHERE user_id = $1 AND starts_at > $2 AND ends_at < $3 AND deleted_at IS NULL
+                WHERE user_id = $1 AND starts_at >= $2 AND ends_at < $3 AND deleted_at IS NULL
                 ORDER BY events.starts_at ASC
             "#,
             self.payload.user_id,
