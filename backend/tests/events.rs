@@ -1,6 +1,17 @@
+use std::collections::HashMap;
+
 use bimetable::{
-    routes::events::models::{CreateEvent, GetEventsQuery},
-    utils::events::models::{RecurrenceEndsAt, RecurrenceRule, TimeRules},
+    modules::database::PgQuery,
+    routes::events::models::{
+        CreateEvent, Entry, Event, EventData, EventFilter, EventPayload, Events, GetEventsQuery,
+        OptionalEventData, UpdateEvent,
+    },
+    utils::events::{
+        errors::EventError,
+        get_many_events,
+        models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules},
+        EventQuery,
+    },
 };
 use http::StatusCode;
 use serde_json::json;
@@ -14,361 +25,277 @@ use crate::tools::AppData;
 
 mod tools;
 
-// const HUBERT_ID: Uuid = uuid!("a9c5900e-a445-4888-8612-4a5c8cadbd9e");
+const ADIMAC_ID: Uuid = uuid!("910e81a9-56df-4c24-965a-13eff739f469");
+const PKBPMJ_ID: Uuid = uuid!("29e40c2a-7595-42d3-98e8-9fe93ce99972");
+const MABI19_ID: Uuid = uuid!("32190025-7c15-4adb-82fd-9acc3dc8e7b6");
+const HUBERT_ID: Uuid = uuid!("a9c5900e-a445-4888-8612-4a5c8cadbd9e");
 
-/*
 #[traced_test]
-#[sqlx::test(fixtures("users"))]
+#[sqlx::test(fixtures("users", "events"))]
+async fn create_event_test(pool: PgPool) {
+    let event = CreateEvent {
+        data: EventData {
+            starts_at: datetime!(2023-03-07 19:00 UTC),
+            ends_at: datetime!(2023-03-07 20:00 UTC),
+            payload: EventPayload {
+                name: "New event".to_string(),
+                description: None,
+            },
+        },
+        recurrence_rule: None,
+    };
+
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
+
+    assert!(query.create_event(event).await.is_ok())
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events"))]
 async fn does_not_create_event_with_wrong_time(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
-
-    let req = CreateEvent {
-        starts_at: datetime!(2023-02-06 8:45 +1),
-        ends_at: datetime!(2023-02-06 8:44 +1),
-        name: "Matematyka".into(),
-        owner_id: Uuid::parse_str(HUBERT_ID).unwrap(),
-        recurrence_rules: None,
-    };
-
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
-        .await
-        .unwrap();
-
-    // which status?
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-
-    let _res: Uuid = res.json().await.unwrap();
-}
-
-#[traced_test]
-#[sqlx::test(fixtures("events"))]
-async fn get_events_in_time_range(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
-
-    let query = GetEventsQuery {
-        starts_at: Some(datetime!(2023-02-06 8:00 +1)),
-        ends_at: Some(datetime!(2023-02-06 9:35 +1)),
-    };
-
-    let payload = json!({
-        "login": "pkbpkp",
-        "password": "#strong#_#pass#",
-    });
-
-    let res = client
-        .post(app.api("/auth/login"))
-        .json(&payload)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::OK);
-
-    let res = client
-        .get(app.api("/events"))
-        .query(&query)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::OK);
-
-    let expected = vec![
-        Event {
-            id: uuid!("248c5f26-e48e-4ada-bace-384b1badb95c"),
-            owner_id: uuid!("29e40c2a-7595-42d3-98e8-9fe93ce99972"),
-            starts_at: Some(datetime!(2023-02-06 8:00 +1)),
-            ends_at: Some(datetime!(2023-02-06 8:45 +1)),
-            recurrence_rule: None,
-            name: "Matematyka".into(),
+    let event = CreateEvent {
+        data: EventData {
+            starts_at: datetime!(2023-03-07 19:00 UTC),
+            ends_at: datetime!(2023-03-07 18:59 UTC),
+            payload: EventPayload {
+                name: "New event".to_string(),
+                description: None,
+            },
         },
-        Event {
-            id: uuid!("73cb2256-80ce-4c0b-b753-34fdd2c7f5e5"),
-            owner_id: uuid!("29e40c2a-7595-42d3-98e8-9fe93ce99972"),
-            starts_at: Some(datetime!(2023-02-06 8:50 +1)),
-            ends_at: Some(datetime!(2023-02-06 9:35 +1)),
-            recurrence_rule: None,
-            name: "Fizyka".into(),
-        },
-    ];
+        recurrence_rule: None,
+    };
 
-    let actual: Vec<Event> = res.json().await.unwrap();
-    assert_eq!(actual.len(), expected.len());
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
 
-    for (actual, expected) in actual.iter().zip(expected.iter()) {
-        assert_eq!(actual.starts_at, expected.starts_at);
-        assert_eq!(actual.ends_at, expected.ends_at);
-        assert_eq!(actual.name, expected.name);
-    }
+    assert!(query.create_event(event).await.is_err())
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users"))]
-async fn create_recurring_event(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn get_many_events_test(pool: PgPool) {
+    let res = get_many_events(
+        HUBERT_ID,
+        TimeRange::new(
+            datetime!(2023-03-06 0:00 UTC),
+            datetime!(2023-03-13 0:00 UTC),
+        ),
+        EventFilter::All,
+        pool,
+    )
+    .await
+    .unwrap();
 
-    let rules = RecurrenceRules {
-        week_map: Some(BitVec::from_bytes(&[0b1111100])),
-        interval: Some(21),
-        is_by_day: None,
-    };
-
-    let req = CreateEvent {
-        starts_at: datetime!(2023-02-06 8:45 +1),
-        ends_at: datetime!(2023-02-06 9:35 +1),
-        name: "Matematyka".into(),
-        owner_id: Uuid::parse_str(HUBERT_ID).unwrap(),
-        recurrence_rules: Some(rules),
-    };
-
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::CREATED);
-
-    let _res: Uuid = res.json().await.unwrap();
+    assert_eq!(
+        res,
+        Events {
+            events: HashMap::from([
+                (
+                    uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
+                    Event {
+                        can_edit: true,
+                        is_owned: true,
+                        payload: EventPayload {
+                            name: "Informatyka".to_string(),
+                            description: None,
+                        }
+                    }
+                ),
+                (
+                    uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                    Event {
+                        can_edit: true,
+                        is_owned: false,
+                        payload: EventPayload {
+                            name: "Fizyka".to_string(),
+                            description: Some("fizyka kwantowa :O".to_string()),
+                        }
+                    }
+                )
+            ]),
+            entries: vec![
+                Entry {
+                    event_id: uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
+                    starts_at: datetime!(2023-03-07 11:40 UTC),
+                    ends_at: datetime!(2023-03-07 13:15 UTC),
+                    recurrence_override: None,
+                },
+                Entry {
+                    event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                    starts_at: datetime!(2023-03-08 09:35 UTC),
+                    ends_at: datetime!(2023-03-08 10:30 UTC),
+                    recurrence_override: None,
+                },
+                Entry {
+                    event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                    starts_at: datetime!(2023-03-09 09:35 UTC),
+                    ends_at: datetime!(2023-03-09 10:30 UTC),
+                    recurrence_override: None,
+                },
+                Entry {
+                    event_id: uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
+                    starts_at: datetime!(2023-03-09 11:40 UTC),
+                    ends_at: datetime!(2023-03-09 13:15 UTC),
+                    recurrence_override: None,
+                },
+            ],
+        }
+    )
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users"))]
-async fn does_not_create_event_with_wrong_interval(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn get_owned_test(pool: PgPool) {
+    let res = get_many_events(
+        HUBERT_ID,
+        TimeRange::new(
+            datetime!(2023-03-06 0:00 UTC),
+            datetime!(2023-03-13 0:00 UTC),
+        ),
+        EventFilter::Owned,
+        pool,
+    )
+    .await
+    .unwrap();
 
-    let rules = RecurrenceRules {
-        week_map: Some(BitVec::from_bytes(&[0b1111100])),
-        interval: Some(0),
-        is_by_day: None,
-    };
-
-    let req = CreateEvent {
-        starts_at: datetime!(2023-02-06 8:45 +1),
-        ends_at: datetime!(2023-02-06 9:35 +1),
-        name: "Matematyka".into(),
-        owner_id: Uuid::parse_str(HUBERT_ID).unwrap(),
-        recurrence_rules: Some(rules),
-    };
-
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
-        .await
-        .unwrap();
-
-    // which status?
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-
-    let _res: Uuid = res.json().await.unwrap();
+    assert_eq!(
+        res,
+        Events {
+            events: HashMap::from([(
+                uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
+                Event {
+                    can_edit: true,
+                    is_owned: true,
+                    payload: EventPayload {
+                        name: "Informatyka".to_string(),
+                        description: None,
+                    }
+                }
+            ),]),
+            entries: vec![
+                Entry {
+                    event_id: uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
+                    starts_at: datetime!(2023-03-07 11:40 UTC),
+                    ends_at: datetime!(2023-03-07 13:15 UTC),
+                    recurrence_override: None,
+                },
+                Entry {
+                    event_id: uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
+                    starts_at: datetime!(2023-03-09 11:40 UTC),
+                    ends_at: datetime!(2023-03-09 13:15 UTC),
+                    recurrence_override: None,
+                },
+            ],
+        }
+    )
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users", "events"))]
-async fn get_events_of_user(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
-    let user_id = Uuid::parse_str(HUBERT_ID).unwrap();
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn get_shared_test(pool: PgPool) {
+    let res = get_many_events(
+        HUBERT_ID,
+        TimeRange::new(
+            datetime!(2023-03-06 0:00 UTC),
+            datetime!(2023-03-13 0:00 UTC),
+        ),
+        EventFilter::Shared,
+        pool,
+    )
+    .await
+    .unwrap();
 
-    let query = GetEventsQuery {
-        starts_at: datetime!(2023-02-06 0:00 +1),
-        ends_at: datetime!(2023-02-12 23:59 +1),
-        user_id,
-    };
-
-    let res = client
-        .get(app.api("/events"))
-        .query(&query)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-
-    let mut expected: Vec<UserEvent> = Vec::new();
-
-    (0..5).for_each(|i| {
-        // it may be better to get events with user event data separated from
-        // standard event data
-        expected.push(UserEvent {
-            id: uuid!("248c5f26-e48e-4ada-bace-384b1badb95c"),
-            starts_at: datetime!(2023-02-06 8:00 +1) + Duration::days(i),
-            ends_at: datetime!(2023-02-06 8:45 +1) + Duration::days(i),
-            name: "Matematyka".into(),
-            user_id,
-            can_edit: true,
-        })
-    });
-
-    let actual: Vec<Event> = res.json().await.unwrap();
-    assert_eq!(actual.len(), expected.len());
-
-    for (actual, expected) in actual.iter().zip(expected.iter()) {
-        assert_eq!(actual.starts_at, expected.starts_at);
-        assert_eq!(actual.ends_at, expected.ends_at);
-        assert_eq!(actual.name, expected.name);
-    }
+    assert_eq!(
+        res,
+        Events {
+            events: HashMap::from([(
+                uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                Event {
+                    can_edit: true,
+                    is_owned: false,
+                    payload: EventPayload {
+                        name: "Fizyka".to_string(),
+                        description: Some("fizyka kwantowa :O".to_string()),
+                    }
+                }
+            )]),
+            entries: vec![
+                Entry {
+                    event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                    starts_at: datetime!(2023-03-08 09:35 UTC),
+                    ends_at: datetime!(2023-03-08 10:30 UTC),
+                    recurrence_override: None,
+                },
+                Entry {
+                    event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                    starts_at: datetime!(2023-03-09 09:35 UTC),
+                    ends_at: datetime!(2023-03-09 10:30 UTC),
+                    recurrence_override: None,
+                },
+            ],
+        }
+    )
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users", "events"))]
-async fn update_event(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
-
-    let rules = RecurrenceRules {
-        week_map: Some(BitVec::from_bytes(&[0b1111100])),
-        interval: Some(21),
-        is_by_day: None,
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn update_event_test(pool: PgPool) {
+    let data = OptionalEventData {
+        name: Some("Polski".to_string()),
+        description: Some("niespodzianka!!".to_string()),
+        starts_at: None,
+        ends_at: None,
     };
 
-    let req = UpdateEvent {
-        starts_at: datetime!(2023-02-06 8:45 +1),
-        ends_at: datetime!(2023-02-06 9:35 +1),
-        name: "Polski".into(),
-        recurrence_rules: Some(rules),
-        user_id: Uuid::parse_str(HUBERT_ID).unwrap(),
-        event_id: uuid!(248c5f26-e48e-4ada-bace-384b1badb95c),
-    };
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(PKBPMJ_ID), &mut conn);
 
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
+    assert!(query
+        .update_event(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"), data)
         .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::OK);
-
-    let _res: Uuid = res.json().await.unwrap();
+        .is_ok())
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users", "events"))]
-async fn does_not_update_if_wrong_time(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
-
-    let rules = RecurrenceRules {
-        week_map: Some(BitVec::from_bytes(&[0b1111100])),
-        interval: Some(21),
-        is_by_day: None,
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_update_event_without_permissions(pool: PgPool) {
+    let data = OptionalEventData {
+        name: Some("Polski".to_string()),
+        description: Some("niespodzianka!!".to_string()),
+        starts_at: None,
+        ends_at: None,
     };
 
-    let req = UpdateEvent {
-        starts_at: datetime!(2023-02-06 8:45 +1),
-        ends_at: datetime!(2023-02-06 8:44 +1),
-        name: "Matematyka".into(),
-        recurrence_rules: Some(rules),
-        user_id: Uuid::parse_str(HUBERT_ID).unwrap(),
-        event_id: uuid!(248c5f26-e48e-4ada-bace-384b1badb95c),
-    };
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(MABI19_ID), &mut conn);
 
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
+    assert!(query
+        .update_event(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"), data)
         .await
-        .unwrap();
-
-    // which status?
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-
-    let _res: Uuid = res.json().await.unwrap();
+        .is_err())
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users", "events"))]
-async fn does_not_update_if_cannot_edit(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn delete_event_test(pool: PgPool) {
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(PKBPMJ_ID), &mut conn);
 
-    let rules = RecurrenceRules {
-        week_map: Some(BitVec::from_bytes(&[0b1111100])),
-        interval: Some(0),
-        is_by_day: None,
-    };
-
-    let req = UpdateEvent {
-        starts_at: datetime!(2023-02-06 8:45 +1),
-        ends_at: datetime!(2023-02-06 9:35 +1),
-        name: "Matematyka".into(),
-        recurrence_rules: Some(rules),
-        user_id: uuid!("32190025-7c15-4adb-82fd-9acc3dc8e7b6"),
-        event_id: uuid!("248c5f26-e48e-4ada-bace-384b1badb95c"),
-    };
-
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
+    assert!(query
+        .perm_delete(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
         .await
-        .unwrap();
-
-    // which status?
-    assert_eq!(res.status(), StatusCode::FORBIDDEN);
-
-    let _res: Uuid = res.json().await.unwrap();
+        .is_ok())
 }
 
 #[traced_test]
-#[sqlx::test(fixtures("users", "events"))]
-async fn remove_event(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_delete_event_if_not_owned(pool: PgPool) {
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
 
-    let req = RemoveEvent {
-        event_id: uuid!("248c5f26-e48e-4ada-bace-384b1badb95c"),
-        user_id: Uuid::parse_str(HUBERT_ID).unwrap(),
-    };
-
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
+    assert!(query
+        .perm_delete(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
         .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::OK);
-
-    let _res: Uuid = res.json().await.unwrap();
+        .is_ok())
 }
-
-#[traced_test]
-#[sqlx::test(fixtures("users", "events"))]
-async fn does_not_remove_if_not_owner(pool: PgPool) {
-    let app = AppData::new(pool).await;
-    let client = app.client();
-
-    let req = RemoveEvent {
-        event_id: uuid!("248c5f26-e48e-4ada-bace-384b1badb95c"),
-        user_id: uuid!("29e40c2a-7595-42d3-98e8-9fe93ce99972"),
-    };
-
-    // change path probably
-    let res = client
-        .put(app.api("/events"))
-        .json(&req)
-        .send()
-        .await
-        .unwrap();
-
-    assert_eq!(res.status(), StatusCode::FORBIDDEN);
-
-    let _res: Uuid = res.json().await.unwrap();
-}
-*/

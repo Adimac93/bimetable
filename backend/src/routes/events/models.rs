@@ -22,7 +22,7 @@ pub struct OptionalEventData {
     pub ends_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
 pub struct EventPayload {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,7 +116,7 @@ pub struct DeleteOverride {
 }
 
 // Receive payloads
-#[derive(Debug, Deserialize, Serialize, ToResponse, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToResponse, ToSchema, PartialEq)]
 pub struct Events {
     pub events: HashMap<Uuid, Event>,
     pub entries: Vec<Entry>,
@@ -135,7 +135,7 @@ impl Events {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
 pub struct Event {
     pub payload: EventPayload,
     pub is_owned: bool,
@@ -165,7 +165,7 @@ impl Event {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, PartialEq)]
 pub struct Entry {
     pub event_id: Uuid,
     pub starts_at: OffsetDateTime,
@@ -189,7 +189,7 @@ impl Entry {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, PartialEq)]
 pub struct Override {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
