@@ -1,7 +1,7 @@
 use crate::modules::database::{PgPool, PgQuery};
 use crate::routes::events::models::{
     CreateEvent, Entry, Event, EventFilter, EventPayload, EventPrivileges, Events,
-    OptionalEventData, Override, OverrideEvent,
+    OptionalEventData, Override, OverrideEvent, UpdateEvent,
 };
 use crate::utils::events::models::{RecurrenceRule, TimeRange};
 use sqlx::types::{time::OffsetDateTime, Json};
@@ -548,4 +548,80 @@ fn apply_event_overrides(
         }
     }
     entries
+}
+
+pub async fn create_new_event(
+    pool: PgPool,
+    user_id: Uuid,
+    body: CreateEvent,
+) -> Result<Uuid, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let event_id = q.create_event(body).await?;
+
+    Ok(event_id)
+}
+
+pub async fn get_one_event(
+    pool: PgPool,
+    user_id: Uuid,
+    event_id: Uuid,
+) -> Result<Event, EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let event = q.get_event(event_id).await?.ok_or(EventError::NotFound)?;
+
+    Ok(event)
+}
+
+pub async fn update_one_event(
+    pool: PgPool,
+    user_id: Uuid,
+    body: UpdateEvent,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    q.update_event(event_id, body.data).await?;
+    Ok(())
+}
+
+pub async fn delete_one_event_temporally(
+    pool: PgPool,
+    user_id: Uuid,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    q.temp_delete(event_id).await?;
+    Ok(())
+}
+
+pub async fn create_one_event_override(
+    pool: PgPool,
+    user_id: Uuid,
+    body: OverrideEvent,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.begin().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let is_owned = q.is_owned_event(event_id).await?;
+    if !is_owned {
+        return Err(EventError::NotFound);
+    }
+
+    q.create_override(event_id, body).await?;
+    Ok(())
+}
+
+pub async fn delete_one_event_permanently(
+    pool: PgPool,
+    user_id: Uuid,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    q.perm_delete(event_id).await?;
+
+    Ok(())
 }

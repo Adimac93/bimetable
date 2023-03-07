@@ -8,18 +8,17 @@ use axum::{
     Json, Router,
 };
 use http::StatusCode;
-use serde_json::json;
-use sqlx::types::JsonValue;
 use sqlx::{types::Uuid, PgPool};
 use tracing::debug;
 
-use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
-    CreateEventResult, Event, EventData, EventPayload, Events, OptionalEventData, OverrideEvent,
-    UpdateEvent,
+    CreateEventResult, Event, Events, OptionalEventData, OverrideEvent, UpdateEvent,
 };
 use crate::utils::events::models::TimeRange;
-use crate::utils::events::{get_many_events, EventQuery};
+use crate::utils::events::{
+    create_new_event, create_one_event_override, delete_one_event_permanently,
+    delete_one_event_temporally, get_many_events, get_one_event, update_one_event,
+};
 
 use self::models::{CreateEvent, GetEventsQuery};
 
@@ -41,14 +40,12 @@ pub async fn create_event(
     claims: Claims,
     State(pool): State<PgPool>,
     Json(body): Json<CreateEvent>,
-) -> Result<Json<CreateEventResult>, EventError> {
+) -> Result<(StatusCode, Json<CreateEventResult>), EventError> {
     body.validate_content()?;
-    let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
-    let event_id = q.create_event(body).await?;
+    let event_id = create_new_event(pool, claims.user_id, body).await?;
     debug!("Created event: {}", event_id);
 
-    Ok(Json(CreateEventResult { event_id }))
+    Ok((StatusCode::CREATED, Json(CreateEventResult { event_id })))
 }
 
 /// Get many events
@@ -76,9 +73,7 @@ async fn get_event(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Event>, EventError> {
-    let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
-    let event = q.get_event(id).await?.ok_or(EventError::NotFound)?;
+    let event = get_one_event(pool, claims.user_id, id).await?;
 
     Ok(Json(event))
 }
@@ -92,12 +87,10 @@ async fn update_event(
     Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
     body.validate_content()?;
-    let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
-    q.update_event(id, body.data).await?;
+    update_one_event(pool, claims.user_id, body, id).await?;
     debug!("Updated event: {}", id);
 
-    Ok(StatusCode::OK)
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Delete event temporarily
@@ -107,12 +100,10 @@ async fn delete_event_temporarily(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
-    let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
-    q.temp_delete(id).await?;
-    debug!("Deleted event temporalily: {}", id);
+    delete_one_event_temporally(pool, claims.user_id, id).await?;
+    debug!("Deleted event temporally: {}", id);
 
-    Ok(StatusCode::OK)
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Delete event permanently
@@ -122,9 +113,7 @@ async fn delete_event_permanently(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
-    let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
-    q.perm_delete(id).await?;
+    delete_one_event_permanently(pool, claims.user_id, id).await?;
     debug!("Deleted event permanently: {}", id);
 
     Ok(StatusCode::NO_CONTENT)
@@ -139,15 +128,8 @@ async fn create_event_override(
     Json(body): Json<OverrideEvent>,
 ) -> Result<StatusCode, EventError> {
     body.validate_content()?;
-    let mut conn = pool.begin().await?;
-    let mut q = PgQuery::new(EventQuery::new(claims.user_id), &mut *conn);
-    let is_owned = q.is_owned_event(id).await?;
-    if !is_owned {
-        return Err(EventError::NotFound);
-    }
-
-    q.create_override(id, body).await?;
+    create_one_event_override(pool, claims.user_id, body, id).await?;
     debug!("Created override on event: {}", id);
 
-    Ok(StatusCode::OK)
+    Ok(StatusCode::CREATED)
 }
