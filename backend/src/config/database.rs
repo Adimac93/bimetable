@@ -3,6 +3,8 @@ use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 use tracing::info;
 
+pub const NAME_POSTGRES: &str = "DATABASE_URL";
+
 #[derive(Deserialize, Clone)]
 pub struct DatabaseFieldsModel {
     username: Option<String>,
@@ -99,7 +101,7 @@ impl ConnectionPrep for PostgresSettingsModel {
     }
 
     fn env_database_url() -> Option<String> {
-        try_get_env("DATABASE_URL")
+        try_get_env(NAME_POSTGRES)
     }
 }
 
@@ -130,7 +132,7 @@ pub struct PostgresSettings {
 impl PostgresSettings {
     pub fn from_env() -> Self {
         Self {
-            database_url: get_env("DATABASE_URL"),
+            database_url: get_env(NAME_POSTGRES),
             is_migrating: true,
         }
     }
@@ -139,7 +141,7 @@ impl PostgresSettings {
 impl Default for PostgresSettings {
     fn default() -> Self {
         Self {
-            database_url: get_env("DATABASE_URL"),
+            database_url: get_env(NAME_POSTGRES),
             is_migrating: false,
         }
     }

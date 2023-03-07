@@ -1,12 +1,14 @@
-use crate::config::app::{ApplicationSettings, ApplicationSettingsModel};
-use crate::config::database::{PostgresSettings, PostgresSettingsModel};
+use crate::config::app::{ApplicationSettings, ApplicationSettingsModel, NAME_ORIGIN, NAME_PORT};
+use crate::config::database::{PostgresSettings, PostgresSettingsModel, NAME_POSTGRES};
 use crate::config::environment::Environment;
-use crate::config::tokens::{JwtSettings, JwtSettingsModel};
+use crate::config::tokens::{
+    JwtSettings, JwtSettingsModel, NAME_ACCESS_SECRET, NAME_REFRESH_SECRET,
+};
 use config::{Config, ConfigError};
-use secrecy::{ExposeSecret, Secret};
+use secrecy::Secret;
 use serde::Deserialize;
-use std::fmt::{Display, Formatter};
-use tracing::{error, info, warn};
+use std::env;
+use tracing::{error, warn};
 
 pub mod app;
 pub mod database;
@@ -126,7 +128,12 @@ pub fn get_config() -> Result<Settings, anyhow::Error> {
             return Ok(default);
         }
 
-        Environment::Production => Ok(Settings::prod()),
+        Environment::Production => {
+            if !is_ok_env() {
+                panic!("Enter all required environment variables")
+            }
+            Ok(Settings::prod())
+        }
     };
 }
 
@@ -144,4 +151,27 @@ pub fn get_env(name: &str) -> String {
 
 pub fn get_secret_env(name: &str) -> Secret<String> {
     Secret::from(get_env(name))
+}
+
+fn is_ok_env() -> bool {
+    let args: Vec<String> = env::vars().map(|(key, _)| key).collect();
+    let required_variables = [
+        NAME_ORIGIN,
+        NAME_PORT,
+        NAME_POSTGRES,
+        NAME_ACCESS_SECRET,
+        NAME_REFRESH_SECRET,
+    ];
+    let mut buf = vec![];
+    for required_var in required_variables {
+        let var = required_var.to_owned();
+        if !args.contains(&var) {
+            buf.push(var);
+        }
+    }
+    if buf.is_empty() {
+        return true;
+    }
+    error!("Provide missing environment variables {buf:?}");
+    false
 }

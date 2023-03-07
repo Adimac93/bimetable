@@ -5,8 +5,11 @@ use serde::Deserialize;
 use time::Duration;
 use tracing::log::warn;
 
-const ACCESS_SECRET: &str = "JWT_ACCESS_SECRET";
-const REFRESH_SECRET: &str = "JWT_REFRESH_SECRET";
+pub const NAME_ACCESS_SECRET: &str = "ACCESS_SECRET";
+pub const NAME_REFRESH_SECRET: &str = "REFRESH_SECRET";
+
+const DEFAULT_ACCESS_SECRET: &str = "JWT_ACCESS_SECRET";
+const DEFAULT_REFRESH_SECRET: &str = "JWT_REFRESH_SECRET";
 
 const ACCESS_EXPIRATION: Duration = Duration::minutes(5);
 const REFRESH_EXPIRATION: Duration = Duration::days(7);
@@ -28,7 +31,7 @@ pub struct TokenDataModel {
 impl TokenDataModel {
     fn to_access(self) -> AccessTokenData {
         AccessTokenData(TokenData::new(
-            &self.token.unwrap_or(ACCESS_SECRET.to_string()),
+            &self.token.unwrap_or(DEFAULT_ACCESS_SECRET.to_string()),
             self.expiration.map_or(ACCESS_EXPIRATION, |expiration| {
                 warn!("Using custom access token expiration of {}", &expiration);
                 expiration
@@ -38,7 +41,7 @@ impl TokenDataModel {
 
     fn to_refresh(self) -> RefreshTokenData {
         RefreshTokenData(TokenData::new(
-            &self.token.unwrap_or(REFRESH_SECRET.to_string()),
+            &self.token.unwrap_or(DEFAULT_REFRESH_SECRET.to_string()),
             self.expiration.map_or(REFRESH_EXPIRATION, |expiration| {
                 warn!("Using custom refresh token expiration of {}", &expiration);
                 expiration
@@ -96,16 +99,19 @@ pub struct AccessTokenData(pub TokenData);
 
 impl AccessTokenData {
     fn super_token() -> Self {
-        Self(TokenData::new(ACCESS_SECRET, SUPER_EXPIRATION))
+        Self(TokenData::new(DEFAULT_ACCESS_SECRET, SUPER_EXPIRATION))
     }
     fn from_env() -> Self {
-        Self(TokenData::new(&get_env("ACCESS_SECRET"), ACCESS_EXPIRATION))
+        Self(TokenData::new(
+            &get_env(NAME_ACCESS_SECRET),
+            ACCESS_EXPIRATION,
+        ))
     }
 }
 
 impl Default for AccessTokenData {
     fn default() -> Self {
-        Self(TokenData::new(ACCESS_SECRET, ACCESS_EXPIRATION))
+        Self(TokenData::new(DEFAULT_ACCESS_SECRET, ACCESS_EXPIRATION))
     }
 }
 
@@ -114,11 +120,11 @@ pub struct RefreshTokenData(pub TokenData);
 
 impl RefreshTokenData {
     fn super_token() -> Self {
-        Self(TokenData::new(REFRESH_SECRET, SUPER_EXPIRATION))
+        Self(TokenData::new(DEFAULT_REFRESH_SECRET, SUPER_EXPIRATION))
     }
     fn from_env() -> Self {
         Self(TokenData::new(
-            &get_env("REFRESH_SECRET"),
+            &get_env(NAME_REFRESH_SECRET),
             REFRESH_EXPIRATION,
         ))
     }
@@ -126,7 +132,7 @@ impl RefreshTokenData {
 
 impl Default for RefreshTokenData {
     fn default() -> Self {
-        Self(TokenData::new(REFRESH_SECRET, REFRESH_EXPIRATION))
+        Self(TokenData::new(DEFAULT_REFRESH_SECRET, REFRESH_EXPIRATION))
     }
 }
 
