@@ -418,6 +418,13 @@ mod validation_tests {
                 name: "test_name".to_string(),
                 description: Some("test_desc".to_string()),
             },
+            recurrence_rule: Some(RecurrenceRule {
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Count(2)),
+                    interval: 2,
+                },
+                kind: RecurrenceRuleKind::Daily,
+            }),
             is_owned: true,
             can_edit: true,
         };
@@ -432,6 +439,7 @@ mod validation_tests {
                 name: "test_name".to_string(),
                 description: Some("test_desc".to_string()),
             },
+            recurrence_rule: None,
             is_owned: true,
             can_edit: false,
         };

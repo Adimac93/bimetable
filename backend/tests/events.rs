@@ -17,6 +17,7 @@ use http::StatusCode;
 use serde_json::json;
 use sqlx::{query, query_as, PgPool};
 
+use bimetable::utils::events::models::RecurrenceRuleKind;
 use time::{macros::datetime, OffsetDateTime};
 use tracing_test::traced_test;
 use uuid::{uuid, Uuid};
@@ -96,6 +97,7 @@ async fn get_many_events_test(pool: PgPool) {
                     Event {
                         can_edit: true,
                         is_owned: true,
+                        recurrence_rule: None,
                         payload: EventPayload {
                             name: "Informatyka".to_string(),
                             description: None,
@@ -107,6 +109,7 @@ async fn get_many_events_test(pool: PgPool) {
                     Event {
                         can_edit: true,
                         is_owned: false,
+                        recurrence_rule: None,
                         payload: EventPayload {
                             name: "Fizyka".to_string(),
                             description: Some("fizyka kwantowa :O".to_string()),
@@ -167,6 +170,13 @@ async fn get_owned_test(pool: PgPool) {
                 Event {
                     can_edit: true,
                     is_owned: true,
+                    recurrence_rule: Some(RecurrenceRule {
+                        time_rules: TimeRules {
+                            ends_at: Some(RecurrenceEndsAt::Count(2)),
+                            interval: 2
+                        },
+                        kind: RecurrenceRuleKind::Daily
+                    }),
                     payload: EventPayload {
                         name: "Informatyka".to_string(),
                         description: None,
@@ -214,6 +224,13 @@ async fn get_shared_test(pool: PgPool) {
                 Event {
                     can_edit: true,
                     is_owned: false,
+                    recurrence_rule: Some(RecurrenceRule {
+                        time_rules: TimeRules {
+                            ends_at: Some(RecurrenceEndsAt::Count(2)),
+                            interval: 1
+                        },
+                        kind: RecurrenceRuleKind::Daily
+                    }),
                     payload: EventPayload {
                         name: "Fizyka".to_string(),
                         description: Some("fizyka kwantowa :O".to_string()),
