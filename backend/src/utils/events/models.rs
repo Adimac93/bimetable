@@ -27,7 +27,7 @@ pub struct EventPart {
     pub length: Option<RecurrenceEndsAt>,
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RecurrenceRule {
     pub time_rules: TimeRules,
@@ -35,7 +35,7 @@ pub struct RecurrenceRule {
     pub kind: RecurrenceRuleKind,
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum RecurrenceRuleKind {
     #[serde(rename_all = "camelCase")]
@@ -210,7 +210,7 @@ impl RecurrenceRule {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum RecurrenceEndsAt {
     #[serde(with = "iso8601")]
@@ -218,7 +218,7 @@ pub enum RecurrenceEndsAt {
     Count(u32),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeRules {
     pub ends_at: Option<RecurrenceEndsAt>,

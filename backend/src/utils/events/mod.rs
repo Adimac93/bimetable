@@ -114,9 +114,11 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         if let Some(event) = event {
             let payload = EventPayload::new(event.name, event.description);
+            let rec_rule = event.recurrence_rule.map(|Json(x)| Some(x)).unwrap_or(None);
             if event.owner_id == self.payload.user_id {
                 trace!("Got owned event {}", event.id);
-                return Ok(Some(Event::new(EventPrivileges::Owned, payload)));
+
+                return Ok(Some(Event::new(EventPrivileges::Owned, payload, rec_rule)));
             }
 
             let shared = query!(
@@ -137,6 +139,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                         can_edit: shared.can_edit,
                     },
                     payload,
+                    rec_rule,
                 )));
             }
         }
@@ -447,15 +450,25 @@ fn map_events(overrides: Vec<QOverride>, events: Vec<QEvent>, search_range: Time
 
                 let new_entries = get_entries(event.id, &mut entry_ranges, &mut ovrs);
                 entries.extend(new_entries);
+
+                return (
+                    event.id,
+                    Event::new(
+                        event.privileges,
+                        EventPayload::new(event.name, event.description),
+                        Some(rule),
+                    ),
+                );
             }
 
-            (
+            return (
                 event.id,
                 Event::new(
                     event.privileges,
                     EventPayload::new(event.name, event.description),
+                    None,
                 ),
-            )
+            );
         })
         .collect();
 

@@ -1,4 +1,4 @@
-use crate::utils::events::models::RecurrenceRule;
+use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind};
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
 use std::collections::HashMap;
@@ -110,13 +110,14 @@ pub struct DeleteEvent {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteOverride {
     pub override_id: Uuid,
     pub is_permanent: bool,
 }
 
 // Receive payloads
-#[derive(Debug, Deserialize, Serialize, ToResponse, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, ToResponse, ToSchema, PartialEq)]
 pub struct Events {
     pub events: HashMap<Uuid, Event>,
     pub entries: Vec<Entry>,
@@ -135,9 +136,11 @@ impl Events {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Event {
     pub payload: EventPayload,
+    pub recurrence_rule: Option<RecurrenceRule>,
     pub is_owned: bool,
     pub can_edit: bool,
 }
@@ -149,15 +152,21 @@ pub enum EventPrivileges {
 }
 
 impl Event {
-    pub fn new(privileges: EventPrivileges, payload: EventPayload) -> Self {
+    pub fn new(
+        privileges: EventPrivileges,
+        payload: EventPayload,
+        recurrence_rule: Option<RecurrenceRule>,
+    ) -> Self {
         match privileges {
             EventPrivileges::Owned => Self {
                 payload,
+                recurrence_rule,
                 is_owned: true,
                 can_edit: true,
             },
             EventPrivileges::Shared { can_edit } => Self {
                 payload,
+                recurrence_rule,
                 is_owned: false,
                 can_edit,
             },
@@ -165,11 +174,14 @@ impl Event {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, Clone, ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Entry {
     pub event_id: Uuid,
     pub starts_at: OffsetDateTime,
     pub ends_at: OffsetDateTime,
+    #[serde(rename(serialize = "override"))]
+    #[schema(rename = "override")]
     pub recurrence_override: Option<Override>,
 }
 
@@ -189,7 +201,8 @@ impl Entry {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, Clone, ToSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Override {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -228,6 +241,7 @@ fn merge_events_1() {
             Event::new(
                 EventPrivileges::Owned,
                 EventPayload::new(String::from("A"), None),
+                None,
             ),
         )]),
         entries,
@@ -260,6 +274,7 @@ fn merge_events_1() {
             Event::new(
                 EventPrivileges::Owned,
                 EventPayload::new(String::from("A"), None),
+                None,
             ),
         )]),
         other_entries,
