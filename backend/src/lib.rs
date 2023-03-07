@@ -23,7 +23,6 @@ pub async fn app(modules: Modules) -> Router {
     let state = modules.state();
     let extensions = modules.extensions();
 
-    info!("Environment: {}", state.environment);
     if state.environment.is_dev() {
         info!("Enabling Swagger UI");
         router = router.merge(

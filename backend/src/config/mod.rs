@@ -8,7 +8,7 @@ use config::{Config, ConfigError};
 use secrecy::Secret;
 use serde::Deserialize;
 use std::env;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 pub mod app;
 pub mod database;
@@ -114,6 +114,8 @@ pub fn get_config() -> Result<Settings, anyhow::Error> {
         .map_or(Environment::Development, |env| {
             env.try_into().expect("Failed to parse APP_ENVIRONMENT.")
         });
+
+    info!("Environment: {environment}");
 
     return match environment {
         Environment::Development => {
