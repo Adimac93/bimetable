@@ -22,7 +22,7 @@ pub fn get_offset_from_the_map(week_map: &str, mut event_number: u8, start_at: u
             return i;
         }
     }
-    return 7;
+    7
 }
 
 pub trait AddTime
@@ -37,27 +37,25 @@ where
 
 impl AddTime for OffsetDateTime {
     fn add_days(self, chg: i64) -> anyhow::Result<Self> {
-        Ok(self.checked_add((chg as i64).days()).dc()?)
+        self.checked_add(chg.days()).dc()
     }
 
     fn add_weeks(self, chg: i64) -> anyhow::Result<Self> {
-        Ok(self.checked_add((chg as i64).weeks()).dc()?)
+        self.checked_add(chg.weeks()).dc()
     }
 
     fn add_months(self, chg: i64) -> anyhow::Result<OffsetDateTime> {
         let month_res = nth_next_month(self.month(), chg)?;
         let year_offset = (((self.month() as i64).checked_add(chg)).dc()? - 1).div_euclid(12);
-        Ok(self
-            .replace_year(self.year().checked_add(year_offset as i32).dc()?)
+        self.replace_year(self.year().checked_add(year_offset as i32).dc()?)
             .dc()?
             .replace_month(month_res)
-            .dc()?)
+            .dc()
     }
 
     fn add_years(self, chg: i64) -> anyhow::Result<Self> {
-        Ok(self
-            .replace_year(self.year().checked_add(chg as i32).dc()?)
-            .dc()?)
+        self.replace_year(self.year().checked_add(chg as i32).dc()?)
+            .dc()
     }
 }
 

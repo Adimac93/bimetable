@@ -44,7 +44,7 @@ pub trait ValidateContent {
 impl ValidateContent for TimeRange {
     fn validate_content(&self) -> Result<(), ValidateContentError> {
         if self.duration() < Duration::seconds(0) {
-            return Err(ValidateContentError::new("TimeRange duration is negative"));
+            Err(ValidateContentError::new("TimeRange duration is negative"))
         } else {
             Ok(())
         }

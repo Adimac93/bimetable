@@ -423,7 +423,7 @@ pub async fn get_many_events(
     pool: PgPool,
 ) -> Result<Events, EventError> {
     let mut conn = pool.begin().await?;
-    let mut q = PgQuery::new(EventQuery { user_id }, &mut *conn);
+    let mut q = PgQuery::new(EventQuery { user_id }, &mut conn);
     return match filter {
         EventFilter::All => {
             let owned_events = get_owned(search_range, &mut q).await?;
@@ -461,14 +461,14 @@ fn map_events(overrides: Vec<QOverride>, events: Vec<QEvent>, search_range: Time
                 );
             }
 
-            return (
+            (
                 event.id,
                 Event::new(
                     event.privileges,
                     EventPayload::new(event.name, event.description),
                     None,
                 ),
-            );
+            )
         })
         .collect();
 
@@ -513,7 +513,7 @@ fn get_entries(
 
     trace!("Got {} entries for event {event_id}", entry_ranges.len());
     entry_ranges
-        .into_iter()
+        .iter_mut()
         .map(|range| Entry::new(event_id, range.start, range.end, None))
         .collect()
 }
@@ -526,7 +526,7 @@ fn apply_event_overrides(
     let mut entries: Vec<Entry> = vec![];
     for (ovr_range, ovr_payload) in overrides {
         while let Some(entry_range) = entry_ranges.last() {
-            if entry_range.is_contained(&entry_range) {
+            if entry_range.is_contained(entry_range) {
                 entries.push(Entry::new(
                     event_id,
                     ovr_range.start,
@@ -556,7 +556,7 @@ pub async fn create_new_event(
     body: CreateEvent,
 ) -> Result<Uuid, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     let event_id = q.create_event(body).await?;
 
     Ok(event_id)
@@ -568,7 +568,7 @@ pub async fn get_one_event(
     event_id: Uuid,
 ) -> Result<Event, EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     let event = q.get_event(event_id).await?.ok_or(EventError::NotFound)?;
 
     Ok(event)
@@ -581,7 +581,7 @@ pub async fn update_one_event(
     event_id: Uuid,
 ) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     q.update_event(event_id, body.data).await?;
     Ok(())
 }
@@ -592,7 +592,7 @@ pub async fn delete_one_event_temporally(
     event_id: Uuid,
 ) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     q.temp_delete(event_id).await?;
     Ok(())
 }
@@ -604,7 +604,7 @@ pub async fn create_one_event_override(
     event_id: Uuid,
 ) -> Result<(), EventError> {
     let mut conn = pool.begin().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     let is_owned = q.is_owned_event(event_id).await?;
     if !is_owned {
         return Err(EventError::NotFound);
@@ -620,7 +620,7 @@ pub async fn delete_one_event_permanently(
     event_id: Uuid,
 ) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut *conn);
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     q.perm_delete(event_id).await?;
 
     Ok(())
