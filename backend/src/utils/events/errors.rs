@@ -16,7 +16,7 @@ pub enum EventError {
 impl IntoResponse for EventError {
     fn into_response(self) -> axum::response::Response {
         let status_code = match &self {
-            EventError::InvalidData(_) => StatusCode::BAD_REQUEST,
+            EventError::InvalidData(e) => StatusCode::from(e),
             EventError::NotFound => StatusCode::NOT_FOUND,
             EventError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");

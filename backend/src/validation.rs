@@ -1,5 +1,7 @@
+use http::StatusCode;
 use thiserror::Error;
 use time::Duration;
+use tracing::error;
 
 use crate::{
     app_errors::DefaultContext,
@@ -23,6 +25,15 @@ pub enum ValidateContentError {
 impl ValidateContentError {
     pub fn new(content: impl ToString) -> Self {
         Self::Expected(content.to_string())
+    }
+}
+
+impl From<&ValidateContentError> for StatusCode {
+    fn from(value: &ValidateContentError) -> Self {
+        match value {
+            ValidateContentError::Expected(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            ValidateContentError::Unexpected(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 }
 

@@ -15,7 +15,7 @@ pub enum AuthError {
     WrongLoginOrPassword,
     #[error("Invalid or expired token")]
     InvalidToken,
-    #[error("Invalid username")]
+    #[error("Invalid login or username")]
     InvalidUsername(#[from] ValidationErrors),
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
