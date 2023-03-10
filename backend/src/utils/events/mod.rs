@@ -402,7 +402,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     }
 
     pub async fn can_edit(&mut self, event_id: Uuid) -> Result<bool, EventError> {
-        Ok(query!(
+        let res = query!(
             r#"
                 SELECT * 
                 FROM user_events
@@ -413,7 +413,8 @@ impl<'c> PgQuery<'c, EventQuery> {
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .is_some())
+        .ok_or(EventError::NotFound)?;
+        Ok(res.can_edit)
     }
 }
 
