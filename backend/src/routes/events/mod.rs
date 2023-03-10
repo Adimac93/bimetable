@@ -11,14 +11,12 @@ use http::StatusCode;
 use sqlx::{types::Uuid, PgPool};
 use tracing::debug;
 
-use crate::routes::events::models::{
-    CreateEventResult, Event, Events, OptionalEventData, OverrideEvent, UpdateEvent,
-};
-use crate::utils::events::models::TimeRange;
-use crate::utils::events::{
+use crate::routes::events::models::{CreateEventResult, Event, Events, OverrideEvent, UpdateEvent};
+use crate::utils::events::exe::{
     create_new_event, create_one_event_override, delete_one_event_permanently,
     delete_one_event_temporally, get_many_events, get_one_event, update_one_event,
 };
+use crate::utils::events::models::TimeRange;
 
 use self::models::{CreateEvent, GetEventsQuery};
 
