@@ -85,7 +85,7 @@ pub async fn create_one_event_override(
 ) -> Result<(), EventError> {
     let mut conn = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
-    let is_owned = q.is_owned_event(event_id).await?;
+    let is_owned = q.is_owner(event_id).await?;
     if !is_owned {
         return Err(EventError::NotFound);
     }

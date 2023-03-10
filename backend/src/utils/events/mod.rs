@@ -275,23 +275,6 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(overrides)
     }
 
-    pub async fn is_owned_event(&mut self, event_id: Uuid) -> Result<bool, EventError> {
-        let res = query!(
-            r#"
-                SELECT * FROM events
-                WHERE owner_id = $1 AND id = $2
-            "#,
-            self.payload.user_id,
-            event_id
-        )
-        .fetch_optional(&mut *self.conn)
-        .await?
-        .is_some();
-
-        
-
-        Ok(res)
-    }
     pub async fn create_override(
         &mut self,
         event_id: Uuid,
@@ -400,7 +383,10 @@ impl<'c> PgQuery<'c, EventQuery> {
         if res {
             trace!("User {} owns the event {event_id}", self.payload.user_id)
         } else {
-            trace!("User {} does not own the event {event_id}", self.payload.user_id)
+            trace!(
+                "User {} does not own the event {event_id}",
+                self.payload.user_id
+            )
         }
 
         Ok(res)
@@ -421,9 +407,15 @@ impl<'c> PgQuery<'c, EventQuery> {
         .ok_or(EventError::NotFound)?;
 
         if res.can_edit {
-            trace!("User {} can edit the event {event_id}", self.payload.user_id)
+            trace!(
+                "User {} can edit the event {event_id}",
+                self.payload.user_id
+            )
         } else {
-            trace!("User {} can not edit the event {event_id}", self.payload.user_id)
+            trace!(
+                "User {} can not edit the event {event_id}",
+                self.payload.user_id
+            )
         }
 
         Ok(res.can_edit)
@@ -574,4 +566,20 @@ fn apply_event_overrides(
         }
     }
     entries
+}
+
+enum RecEndsAt {
+    Until(OffsetDateTime),
+    Count(u64),
+}
+
+enum RecEndsType {
+    Until,
+    Count,
+}
+
+struct RecEndsAtt {
+    kind: RecEndsType,
+    count: u64,
+    until: OffsetDateTime,
 }
