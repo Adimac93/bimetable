@@ -158,13 +158,13 @@ async fn get_many_events_test(pool: PgPool) {
                 },
                 Entry {
                     event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
-                    starts_at: datetime!(2023-03-08 09:35 UTC),
+                    starts_at: datetime!(2023-03-08 09:45 UTC),
                     ends_at: datetime!(2023-03-08 10:30 UTC),
                     recurrence_override: None,
                 },
                 Entry {
                     event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
-                    starts_at: datetime!(2023-03-09 09:35 UTC),
+                    starts_at: datetime!(2023-03-09 09:45 UTC),
                     ends_at: datetime!(2023-03-09 10:30 UTC),
                     recurrence_override: None,
                 },
@@ -272,13 +272,13 @@ async fn get_shared_test(pool: PgPool) {
             entries: vec![
                 Entry {
                     event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
-                    starts_at: datetime!(2023-03-08 09:35 UTC),
+                    starts_at: datetime!(2023-03-08 09:45 UTC),
                     ends_at: datetime!(2023-03-08 10:30 UTC),
                     recurrence_override: None,
                 },
                 Entry {
                     event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
-                    starts_at: datetime!(2023-03-09 09:35 UTC),
+                    starts_at: datetime!(2023-03-09 09:45 UTC),
                     ends_at: datetime!(2023-03-09 10:30 UTC),
                     recurrence_override: None,
                 },

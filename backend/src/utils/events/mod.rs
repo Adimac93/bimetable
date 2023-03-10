@@ -219,7 +219,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             r#"
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>", can_edit FROM user_events
                 JOIN events ON user_events.event_id = events.id
-                WHERE user_id = $1 AND starts_at >= $2 AND ends_at < $3 AND deleted_at IS NULL
+                WHERE user_id = $1 AND starts_at >= $2 AND ends_at < $3 AND deleted_at IS NULL AND owner_id <> $1
                 ORDER BY events.starts_at ASC
             "#,
             self.payload.user_id,
