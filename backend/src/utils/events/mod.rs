@@ -386,6 +386,18 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         Ok(())
     }
+
+    pub async fn is_owner(&mut self, event_id: Uuid) -> Result<bool, EventError> {
+        let res = query!(
+            r#"
+                SELECT owner_id FROM events WHERE id = $1
+            "#,
+            event_id
+        )
+        .fetch_optional(&mut *self.conn)
+        .await?.ok_or(EventError::NotFound)?;
+        Ok(res.owner_id == self.payload.user_id)
+    }
 }
 
 async fn get_owned(

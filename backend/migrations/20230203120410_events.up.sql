@@ -37,5 +37,5 @@ CREATE TABLE user_events
     is_accepted BOOL NOT NULL DEFAULT FALSE,
     PRIMARY KEY (user_id, event_id),
     FOREIGN KEY (user_id) REFERENCES users (id),
-    FOREIGN KEY (event_id) REFERENCES events (id)
+    FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
 );

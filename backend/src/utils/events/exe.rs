@@ -99,7 +99,8 @@ pub async fn delete_one_event_permanently(
 ) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
-    q.perm_delete(event_id).await?;
-
-    Ok(())
+    if q.is_owner(event_id).await? {
+        return q.perm_delete(event_id).await;
+    }
+    Err(EventError::NotFound)
 }

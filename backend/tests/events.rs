@@ -8,7 +8,7 @@ use bimetable::{
     },
     utils::events::{
         errors::EventError,
-        get_many_events,
+        exe::{delete_one_event_permanently, get_many_events},
         models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules},
         EventQuery,
     },
@@ -359,11 +359,11 @@ async fn delete_event_test(pool: PgPool) {
 #[traced_test]
 #[sqlx::test(fixtures("users", "events", "user_events"))]
 async fn cannot_delete_event_if_not_owned(pool: PgPool) {
-    let mut conn = pool.acquire().await.unwrap();
-    let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
-
-    assert!(query
-        .perm_delete(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
-        .await
-        .is_err())
+    assert!(delete_one_event_permanently(
+        pool,
+        ADIMAC_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err())
 }
