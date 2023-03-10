@@ -103,7 +103,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {
         let event = query!(
             r#"
-                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule as "recurrence_rule: sqlx::types::Json<RecurrenceRule>"
+                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence_rule
                 FROM events
                 WHERE id = $1 AND deleted_at IS NULL
             "#,
@@ -114,7 +114,10 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         if let Some(event) = event {
             let payload = EventPayload::new(event.name, event.description);
-            let rec_rule = event.recurrence_rule.map(|Json(x)| Some(x)).unwrap_or(None);
+            let rec_rule = event
+                .recurrence_rule
+                .and_then(|x| serde_json::from_value(x).ok()?);
+
             if event.owner_id == self.payload.user_id {
                 trace!("Got owned event {}", event.id);
 

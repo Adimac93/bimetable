@@ -19,6 +19,7 @@ use sqlx::{query, query_as, PgPool};
 
 use bimetable::utils::events::models::RecurrenceRuleKind;
 use time::{macros::datetime, OffsetDateTime};
+use tracing::{debug, trace};
 use tracing_test::traced_test;
 use uuid::{uuid, Uuid};
 
@@ -49,7 +50,26 @@ async fn create_event_test(pool: PgPool) {
     let mut conn = pool.acquire().await.unwrap();
     let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
 
-    assert!(query.create_event(event).await.is_ok())
+    let event_id = query.create_event(event).await;
+    trace!("{:?}", event_id);
+    let event_id = event_id.unwrap();
+
+    let get_result = query.get_event(event_id).await;
+    trace!("{:?}", get_result);
+    let get_result = get_result.unwrap();
+
+    assert_eq!(
+        get_result,
+        Some(Event {
+            can_edit: true,
+            is_owned: true,
+            payload: EventPayload {
+                name: "New event".to_string(),
+                description: None
+            },
+            recurrence_rule: None,
+        })
+    )
 }
 
 #[traced_test]
@@ -97,7 +117,13 @@ async fn get_many_events_test(pool: PgPool) {
                     Event {
                         can_edit: true,
                         is_owned: true,
-                        recurrence_rule: None,
+                        recurrence_rule: Some(RecurrenceRule {
+                            kind: RecurrenceRuleKind::Weekly { week_map: 40 },
+                            time_rules: TimeRules {
+                                ends_at: Some(RecurrenceEndsAt::Count(15)),
+                                interval: 1,
+                            },
+                        }),
                         payload: EventPayload {
                             name: "Informatyka".to_string(),
                             description: None,
@@ -109,7 +135,13 @@ async fn get_many_events_test(pool: PgPool) {
                     Event {
                         can_edit: true,
                         is_owned: false,
-                        recurrence_rule: None,
+                        recurrence_rule: Some(RecurrenceRule {
+                            kind: RecurrenceRuleKind::Weekly { week_map: 24 },
+                            time_rules: TimeRules {
+                                ends_at: Some(RecurrenceEndsAt::Count(15)),
+                                interval: 1,
+                            },
+                        }),
                         payload: EventPayload {
                             name: "Fizyka".to_string(),
                             description: Some("fizyka kwantowa :O".to_string()),
@@ -171,11 +203,11 @@ async fn get_owned_test(pool: PgPool) {
                     can_edit: true,
                     is_owned: true,
                     recurrence_rule: Some(RecurrenceRule {
+                        kind: RecurrenceRuleKind::Weekly { week_map: 40 },
                         time_rules: TimeRules {
-                            ends_at: Some(RecurrenceEndsAt::Count(2)),
-                            interval: 2
+                            ends_at: Some(RecurrenceEndsAt::Count(15)),
+                            interval: 1,
                         },
-                        kind: RecurrenceRuleKind::Daily
                     }),
                     payload: EventPayload {
                         name: "Informatyka".to_string(),
@@ -225,11 +257,11 @@ async fn get_shared_test(pool: PgPool) {
                     can_edit: true,
                     is_owned: false,
                     recurrence_rule: Some(RecurrenceRule {
+                        kind: RecurrenceRuleKind::Weekly { week_map: 24 },
                         time_rules: TimeRules {
-                            ends_at: Some(RecurrenceEndsAt::Count(2)),
-                            interval: 1
+                            ends_at: Some(RecurrenceEndsAt::Count(15)),
+                            interval: 1,
                         },
-                        kind: RecurrenceRuleKind::Daily
                     }),
                     payload: EventPayload {
                         name: "Fizyka".to_string(),
@@ -258,6 +290,8 @@ async fn get_shared_test(pool: PgPool) {
 #[traced_test]
 #[sqlx::test(fixtures("users", "events", "user_events"))]
 async fn update_event_test(pool: PgPool) {
+    let event_id = uuid!("6d185de5-ddec-462a-aeea-7628f03d417b");
+
     let data = OptionalEventData {
         name: Some("Polski".to_string()),
         description: Some("niespodzianka!!".to_string()),
@@ -268,10 +302,26 @@ async fn update_event_test(pool: PgPool) {
     let mut conn = pool.acquire().await.unwrap();
     let mut query = PgQuery::new(EventQuery::new(PKBPMJ_ID), &mut conn);
 
-    assert!(query
-        .update_event(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"), data)
-        .await
-        .is_ok())
+    query.update_event(event_id, data).await.unwrap();
+
+    assert_eq!(
+        query.get_event(event_id).await.unwrap(),
+        Some(Event {
+            can_edit: true,
+            is_owned: true,
+            recurrence_rule: Some(RecurrenceRule {
+                kind: RecurrenceRuleKind::Monthly { is_by_day: true },
+                time_rules: TimeRules {
+                    ends_at: Some(RecurrenceEndsAt::Count(10)),
+                    interval: 1,
+                },
+            }),
+            payload: EventPayload {
+                name: "Polski".to_string(),
+                description: Some("niespodzianka!!".to_string()),
+            },
+        })
+    )
 }
 
 #[traced_test]
@@ -296,13 +346,14 @@ async fn cannot_update_event_without_permissions(pool: PgPool) {
 #[traced_test]
 #[sqlx::test(fixtures("users", "events", "user_events"))]
 async fn delete_event_test(pool: PgPool) {
+    let event_id = uuid!("6d185de5-ddec-462a-aeea-7628f03d417b");
+
     let mut conn = pool.acquire().await.unwrap();
     let mut query = PgQuery::new(EventQuery::new(PKBPMJ_ID), &mut conn);
 
-    assert!(query
-        .perm_delete(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
-        .await
-        .is_ok())
+    query.perm_delete(event_id).await.unwrap();
+
+    assert!(query.get_event(event_id).await.unwrap().is_none())
 }
 
 #[traced_test]
@@ -314,5 +365,5 @@ async fn cannot_delete_event_if_not_owned(pool: PgPool) {
     assert!(query
         .perm_delete(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
         .await
-        .is_ok())
+        .is_err())
 }
