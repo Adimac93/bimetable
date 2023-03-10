@@ -40,7 +40,7 @@ pub async fn create_event(
     Json(body): Json<CreateEvent>,
 ) -> Result<(StatusCode, Json<CreateEventResult>), EventError> {
     body.validate_content()?;
-    let event_id = create_new_event(pool, claims.user_id, body).await?;
+    let event_id = create_new_event(&pool, claims.user_id, body).await?;
     debug!("Created event: {}", event_id);
 
     Ok((StatusCode::CREATED, Json(CreateEventResult { event_id })))
@@ -58,7 +58,7 @@ async fn get_events(
         claims.user_id,
         TimeRange::new(query.starts_at, query.ends_at),
         query.filter,
-        pool,
+        &pool,
     )
     .await?;
     Ok(Json(events))
@@ -71,7 +71,7 @@ async fn get_event(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Event>, EventError> {
-    let event = get_one_event(pool, claims.user_id, id).await?;
+    let event = get_one_event(&pool, claims.user_id, id).await?;
 
     Ok(Json(event))
 }
@@ -85,7 +85,7 @@ async fn update_event(
     Json(body): Json<UpdateEvent>,
 ) -> Result<StatusCode, EventError> {
     body.validate_content()?;
-    update_one_event(pool, claims.user_id, body, id).await?;
+    update_one_event(&pool, claims.user_id, body, id).await?;
     debug!("Updated event: {}", id);
 
     Ok(StatusCode::NO_CONTENT)
@@ -98,7 +98,7 @@ async fn delete_event_temporarily(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
-    delete_one_event_temporally(pool, claims.user_id, id).await?;
+    delete_one_event_temporally(&pool, claims.user_id, id).await?;
     debug!("Deleted event temporally: {}", id);
 
     Ok(StatusCode::NO_CONTENT)
@@ -111,7 +111,7 @@ async fn delete_event_permanently(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, EventError> {
-    delete_one_event_permanently(pool, claims.user_id, id).await?;
+    delete_one_event_permanently(&pool, claims.user_id, id).await?;
     debug!("Deleted event permanently: {}", id);
 
     Ok(StatusCode::NO_CONTENT)
@@ -126,7 +126,7 @@ async fn create_event_override(
     Json(body): Json<OverrideEvent>,
 ) -> Result<StatusCode, EventError> {
     body.validate_content()?;
-    create_one_event_override(pool, claims.user_id, body, id).await?;
+    create_one_event_override(&pool, claims.user_id, body, id).await?;
     debug!("Created override on event: {}", id);
 
     Ok(StatusCode::CREATED)

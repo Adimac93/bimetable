@@ -370,6 +370,7 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         Ok(())
     }
+
     pub async fn perm_delete(&mut self, event_id: Uuid) -> Result<(), EventError> {
         query!(
             r#"
@@ -395,8 +396,24 @@ impl<'c> PgQuery<'c, EventQuery> {
             event_id
         )
         .fetch_optional(&mut *self.conn)
-        .await?.ok_or(EventError::NotFound)?;
+        .await?
+        .ok_or(EventError::NotFound)?;
         Ok(res.owner_id == self.payload.user_id)
+    }
+
+    pub async fn can_edit(&mut self, event_id: Uuid) -> Result<bool, EventError> {
+        Ok(query!(
+            r#"
+                SELECT * 
+                FROM user_events
+                WHERE user_id = $1 AND event_id = $2
+            "#,
+            self.payload.user_id,
+            event_id
+        )
+        .fetch_optional(&mut *self.conn)
+        .await?
+        .is_some())
     }
 }
 

@@ -12,7 +12,7 @@ pub async fn get_many_events(
     user_id: Uuid,
     search_range: TimeRange,
     filter: EventFilter,
-    pool: PgPool,
+    pool: &PgPool,
 ) -> Result<Events, EventError> {
     let mut conn = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery { user_id }, &mut conn);
@@ -29,7 +29,7 @@ pub async fn get_many_events(
 }
 
 pub async fn create_new_event(
-    pool: PgPool,
+    pool: &PgPool,
     user_id: Uuid,
     body: CreateEvent,
 ) -> Result<Uuid, EventError> {
@@ -41,7 +41,7 @@ pub async fn create_new_event(
 }
 
 pub async fn get_one_event(
-    pool: PgPool,
+    pool: &PgPool,
     user_id: Uuid,
     event_id: Uuid,
 ) -> Result<Event, EventError> {
@@ -53,19 +53,21 @@ pub async fn get_one_event(
 }
 
 pub async fn update_one_event(
-    pool: PgPool,
+    pool: &PgPool,
     user_id: Uuid,
     body: UpdateEvent,
     event_id: Uuid,
 ) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
-    q.update_event(event_id, body.data).await?;
-    Ok(())
+    if q.is_owner(event_id).await? || q.can_edit(event_id).await? {
+        return q.update_event(event_id, body.data).await;
+    }
+    Err(EventError::NotFound)
 }
 
 pub async fn delete_one_event_temporally(
-    pool: PgPool,
+    pool: &PgPool,
     user_id: Uuid,
     event_id: Uuid,
 ) -> Result<(), EventError> {
@@ -76,7 +78,7 @@ pub async fn delete_one_event_temporally(
 }
 
 pub async fn create_one_event_override(
-    pool: PgPool,
+    pool: &PgPool,
     user_id: Uuid,
     body: OverrideEvent,
     event_id: Uuid,
@@ -93,7 +95,7 @@ pub async fn create_one_event_override(
 }
 
 pub async fn delete_one_event_permanently(
-    pool: PgPool,
+    pool: &PgPool,
     user_id: Uuid,
     event_id: Uuid,
 ) -> Result<(), EventError> {

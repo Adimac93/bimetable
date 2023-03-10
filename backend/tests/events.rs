@@ -17,6 +17,7 @@ use http::StatusCode;
 use serde_json::json;
 use sqlx::{query, query_as, PgPool};
 
+use bimetable::utils::events::exe::{get_one_event, update_one_event};
 use bimetable::utils::events::models::RecurrenceRuleKind;
 use time::{macros::datetime, OffsetDateTime};
 use tracing::{debug, trace};
@@ -103,7 +104,7 @@ async fn get_many_events_test(pool: PgPool) {
             datetime!(2023-03-13 0:00 UTC),
         ),
         EventFilter::All,
-        pool,
+        &pool,
     )
     .await
     .unwrap();
@@ -189,7 +190,7 @@ async fn get_owned_test(pool: PgPool) {
             datetime!(2023-03-13 0:00 UTC),
         ),
         EventFilter::Owned,
-        pool,
+        &pool,
     )
     .await
     .unwrap();
@@ -243,7 +244,7 @@ async fn get_shared_test(pool: PgPool) {
             datetime!(2023-03-13 0:00 UTC),
         ),
         EventFilter::Shared,
-        pool,
+        &pool,
     )
     .await
     .unwrap();
@@ -299,14 +300,14 @@ async fn update_event_test(pool: PgPool) {
         ends_at: None,
     };
 
-    let mut conn = pool.acquire().await.unwrap();
-    let mut query = PgQuery::new(EventQuery::new(PKBPMJ_ID), &mut conn);
-
-    query.update_event(event_id, data).await.unwrap();
+    let update_data = UpdateEvent { data };
+    update_one_event(&pool, PKBPMJ_ID, update_data, event_id)
+        .await
+        .unwrap();
 
     assert_eq!(
-        query.get_event(event_id).await.unwrap(),
-        Some(Event {
+        get_one_event(&pool, PKBPMJ_ID, event_id).await.unwrap(),
+        Event {
             can_edit: true,
             is_owned: true,
             recurrence_rule: Some(RecurrenceRule {
@@ -320,7 +321,7 @@ async fn update_event_test(pool: PgPool) {
                 name: "Polski".to_string(),
                 description: Some("niespodzianka!!".to_string()),
             },
-        })
+        }
     )
 }
 
@@ -334,13 +335,18 @@ async fn cannot_update_event_without_permissions(pool: PgPool) {
         ends_at: None,
     };
 
+    let update_data = UpdateEvent { data };
     let mut conn = pool.acquire().await.unwrap();
     let mut query = PgQuery::new(EventQuery::new(MABI19_ID), &mut conn);
 
-    assert!(query
-        .update_event(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"), data)
-        .await
-        .is_err())
+    assert!(update_one_event(
+        &pool,
+        MABI19_ID,
+        update_data,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b")
+    )
+    .await
+    .is_err())
 }
 
 #[traced_test]
@@ -360,7 +366,7 @@ async fn delete_event_test(pool: PgPool) {
 #[sqlx::test(fixtures("users", "events", "user_events"))]
 async fn cannot_delete_event_if_not_owned(pool: PgPool) {
     assert!(delete_one_event_permanently(
-        pool,
+        &pool,
         ADIMAC_ID,
         uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
     )
