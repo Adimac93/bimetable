@@ -288,11 +288,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         .await?
         .is_some();
 
-        if res {
-            trace!("Event {event_id} is owned")
-        } else {
-            trace!("Event {event_id} is not owned")
-        }
+        
 
         Ok(res)
     }
@@ -389,7 +385,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     }
 
     pub async fn is_owner(&mut self, event_id: Uuid) -> Result<bool, EventError> {
-        let res = query!(
+        let query_res = query!(
             r#"
                 SELECT owner_id FROM events WHERE id = $1
             "#,
@@ -398,13 +394,22 @@ impl<'c> PgQuery<'c, EventQuery> {
         .fetch_optional(&mut *self.conn)
         .await?
         .ok_or(EventError::NotFound)?;
-        Ok(res.owner_id == self.payload.user_id)
+
+        let res = query_res.owner_id == self.payload.user_id;
+
+        if res {
+            trace!("User {} owns the event {event_id}", self.payload.user_id)
+        } else {
+            trace!("User {} does not own the event {event_id}", self.payload.user_id)
+        }
+
+        Ok(res)
     }
 
     pub async fn can_edit(&mut self, event_id: Uuid) -> Result<bool, EventError> {
         let res = query!(
             r#"
-                SELECT * 
+                SELECT can_edit
                 FROM user_events
                 WHERE user_id = $1 AND event_id = $2
             "#,
@@ -414,6 +419,13 @@ impl<'c> PgQuery<'c, EventQuery> {
         .fetch_optional(&mut *self.conn)
         .await?
         .ok_or(EventError::NotFound)?;
+
+        if res.can_edit {
+            trace!("User {} can edit the event {event_id}", self.payload.user_id)
+        } else {
+            trace!("User {} can not edit the event {event_id}", self.payload.user_id)
+        }
+
         Ok(res.can_edit)
     }
 }

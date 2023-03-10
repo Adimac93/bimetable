@@ -29,6 +29,7 @@ where
     fn jti(&self) -> Uuid;
     fn exp(&self) -> u64;
     fn generate_cookie(token: String) -> Cookie<'s> {
+        trace!("Generating cookie with token");
         Cookie::build(Self::NAME, token)
             .http_only(true)
             .secure(true)
@@ -37,6 +38,7 @@ where
             .finish()
     }
     fn generate_jwt(&self, key: &Secret<String>) -> Result<String, AuthError> {
+        trace!("Generating JWT token");
         Ok(encode(
             &Header::default(),
             &self,
@@ -188,8 +190,12 @@ where
         .await
         .context("Failed to fetch cookie jar")?;
 
+    trace!("Verifying tokens");
+
     let decoded = T::decode_jwt(&jar, None, secret.to_owned())?;
     let payload = decoded.ok_or(AuthError::InvalidToken)?;
+
+    trace!("Tokens passed the verification step");
 
     Ok(payload.claims)
 }

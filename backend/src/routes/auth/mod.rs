@@ -49,7 +49,7 @@ async fn post_register_user(
 
     debug!(
         "User {} ({}) registered successfully",
-        user_id, &register_credentials.login
+        user_id, &register_credentials.username,
     );
 
     Ok(jar)
@@ -75,10 +75,7 @@ async fn post_login_user(
 
     let jar = generate_token_cookies(user_id, &login_credentials.login, secrets, jar)?;
 
-    debug!(
-        "User {} ({}) logged in successfully",
-        user_id, &login_credentials.login
-    );
+    debug!("User {} logged in successfully", user_id);
 
     Ok(jar)
 }
@@ -135,8 +132,8 @@ async fn post_refresh_user_token(
     refresh_claims.add_token_to_blacklist(&state.pool).await?;
 
     debug!(
-        "User {} ({})'s access token refreshed successfully",
-        &refresh_claims.user_id, &refresh_claims.login
+        "Access token of user {} refreshed successfully",
+        &refresh_claims.user_id,
     );
 
     Ok(jar)

@@ -24,19 +24,30 @@ pub async fn try_register_user<'c>(
     let mut user = PgQuery::new(AuthUser::new(&login), &mut transaction);
 
     if !user.is_new().await? {
+        trace!("User with a specified name already exists");
+
         return Err(AuthError::UserAlreadyExists);
     }
 
-    if login.trim().is_empty()
-        || password.expose_secret().trim().is_empty()
-        || username.trim().is_empty()
-    {
+    if login.trim().is_empty() {
+        trace!("Attempted to register with empty login");
+        return Err(AuthError::MissingCredential);
+    }
+
+    if password.expose_secret().trim().is_empty() {
+        trace!("Attempted to register with empty password");
+        return Err(AuthError::MissingCredential);
+    }
+
+    if username.trim().is_empty() {
+        trace!("Attempted to register with empty username");
         return Err(AuthError::MissingCredential);
     }
 
     validate_usernames(&login, &username)?;
 
     if !additions::pass_is_strong(password.expose_secret(), &[&login]) {
+        trace!("Attempted to register with weak password");
         return Err(AuthError::WeakPassword);
     }
 
@@ -55,12 +66,19 @@ pub async fn verify_user_credentials<'c>(
     password: SecretString,
 ) -> Result<Uuid, AuthError> {
     debug!("Verifying credentials");
-    if login.trim().is_empty() || password.expose_secret().trim().is_empty() {
+    if login.trim().is_empty() {
+        trace!("Attempted to login the user with empty login");
+        return Err(AuthError::MissingCredential)?;
+    }
+
+    if password.expose_secret().trim().is_empty() {
+        trace!("Attempted to login the user with empty password");
         return Err(AuthError::MissingCredential)?;
     }
 
     let mut q = PgQuery::new(AuthUser::new(login), conn);
     let user_id = q.verify_credentials(password).await?;
+
     Ok(user_id)
 }
 
@@ -80,6 +98,7 @@ pub fn generate_token_cookies(
         &secrets.refresh.0.token,
     )?;
 
+    trace!("JWT cookies generated successfully");
     Ok(jar.add(access_cookie).add(refresh_cookie))
 }
 
@@ -117,6 +136,7 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
         .fetch_one(&mut *self.conn)
         .await?
         .id;
+        trace!("Created user");
         Ok(user_id)
     }
 
@@ -136,6 +156,7 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
         )
         .execute(&mut *self.conn)
         .await?;
+        trace!("Created credentials");
         Ok(())
     }
 
@@ -146,6 +167,7 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
     ) -> Result<Uuid, AuthError> {
         let user_id = self.create_user(username).await?;
         self.create_credentials(&user_id, hashed_password).await?;
+        trace!("Created user account successfully");
         Ok(user_id)
     }
 
@@ -159,6 +181,11 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
         .fetch_optional(&mut *self.conn)
         .await?
         .is_none();
+        if is_new {
+            trace!("User with this login does not exist");
+        } else {
+            trace!("User with this login exists");
+        }
         Ok(is_new)
     }
 
@@ -173,13 +200,18 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .ok_or(AuthError::WrongLoginOrPassword)?;
+        .ok_or_else(|| {
+            trace!("Wrong login or password");
+            AuthError::WrongLoginOrPassword
+        })?;
 
         let is_verified = verify_pass(password.expose_secret().to_owned(), res.password)?;
 
         if is_verified {
+            trace!("Login and password verified");
             return Ok(res.id);
         }
+        trace!("Wrong login or password");
         Err(AuthError::WrongLoginOrPassword)
     }
 }
