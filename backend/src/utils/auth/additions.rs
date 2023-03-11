@@ -2,6 +2,9 @@ use anyhow::anyhow;
 use argon2::password_hash::SaltString;
 use argon2::{password_hash, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use rand;
+use rand::seq::IteratorRandom;
+use rand::thread_rng;
+use std::collections::HashSet;
 use validator::{Validate, ValidationError, ValidationErrors};
 
 use super::models::ValidatedUserData;
@@ -45,4 +48,11 @@ pub fn is_ascii_or_latin_extended(text: &str) -> Result<(), ValidationError> {
             "Non-ASCII and non-latin-extended characters detected",
         ))
     }
+}
+
+pub fn random_username_tag(used_tags: HashSet<i32>) -> Option<i32> {
+    let mut rng = thread_rng();
+    (0..10000)
+        .filter(|x| !used_tags.contains(x))
+        .choose(&mut rng)
 }

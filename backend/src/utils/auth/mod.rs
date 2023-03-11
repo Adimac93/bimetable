@@ -4,12 +4,13 @@ pub mod models;
 use self::additions::validate_usernames;
 use crate::config::tokens::JwtSettings;
 use crate::modules::database::PgQuery;
-use crate::utils::auth::additions::{hash_pass, verify_pass};
+use crate::utils::auth::additions::{hash_pass, random_username_tag, verify_pass};
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use errors::*;
 use models::*;
 use secrecy::{ExposeSecret, SecretString};
 use sqlx::{query, Acquire, PgConnection, Postgres};
+use std::collections::HashSet;
 use tracing::{debug, trace};
 use uuid::Uuid;
 
@@ -46,6 +47,9 @@ pub async fn try_register_user<'c>(
 
     validate_usernames(&login, &username)?;
 
+    let tag = random_username_tag(user.get_username_tags(&username).await?)
+        .ok_or(AuthError::TagOverflow)?;
+
     if !additions::pass_is_strong(password.expose_secret(), &[&login]) {
         trace!("Attempted to register with weak password");
         return Err(AuthError::WeakPassword);
@@ -53,7 +57,7 @@ pub async fn try_register_user<'c>(
 
     let hashed_pass = hash_pass(password.expose_secret().to_owned())?;
 
-    let user_id = user.create_account(hashed_pass, &username).await?;
+    let user_id = user.create_account(hashed_pass, &username, tag).await?;
 
     transaction.commit().await?;
 
@@ -124,14 +128,15 @@ impl<'c> AuthUser<'c> {
 }
 
 impl<'c> PgQuery<'c, AuthUser<'c>> {
-    async fn create_user(&mut self, username: &'c str) -> Result<Uuid, AuthError> {
+    async fn create_user(&mut self, username: &str, tag: i32) -> Result<Uuid, AuthError> {
         let user_id = query!(
             r#"
-            insert into users (username)
-            values ($1)
+            insert into users (username, tag)
+            values ($1, $2)
             returning (id)
         "#,
             username,
+            tag
         )
         .fetch_one(&mut *self.conn)
         .await?
@@ -163,9 +168,10 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
     async fn create_account(
         &mut self,
         hashed_password: String,
-        username: &'c str,
+        username: &str,
+        tag: i32,
     ) -> Result<Uuid, AuthError> {
-        let user_id = self.create_user(username).await?;
+        let user_id = self.create_user(username, tag).await?;
         self.create_credentials(&user_id, hashed_password).await?;
         trace!("Created user account successfully");
         Ok(user_id)
@@ -213,5 +219,20 @@ impl<'c> PgQuery<'c, AuthUser<'c>> {
         }
         trace!("Wrong login or password");
         Err(AuthError::WrongLoginOrPassword)
+    }
+
+    async fn get_username_tags(&mut self, username: &str) -> Result<HashSet<i32>, AuthError> {
+        let res = query!(
+            r#"
+            SELECT tag
+            FROM users
+            WHERE username = $1
+        "#,
+            username
+        )
+        .fetch_all(&mut *self.conn)
+        .await?;
+
+        Ok(res.iter().map(|rec| rec.tag).collect())
     }
 }

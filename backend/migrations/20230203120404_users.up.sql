@@ -2,7 +2,9 @@ CREATE TABLE users
 (
     id       UUID DEFAULT gen_random_uuid(),
     username TEXT NOT NULL,
-    PRIMARY KEY (id)
+    tag INT NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (username, tag)
 );
 
 CREATE TABLE credentials

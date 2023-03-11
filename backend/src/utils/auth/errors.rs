@@ -17,6 +17,8 @@ pub enum AuthError {
     InvalidToken,
     #[error("Invalid login or username")]
     InvalidUsername(#[from] ValidationErrors),
+    #[error("To many users named like you")]
+    TagOverflow,
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
@@ -30,6 +32,7 @@ impl IntoResponse for AuthError {
             AuthError::WrongLoginOrPassword => StatusCode::UNAUTHORIZED,
             AuthError::InvalidToken => StatusCode::UNAUTHORIZED,
             AuthError::InvalidUsername(_e) => StatusCode::BAD_REQUEST,
+            AuthError::TagOverflow => StatusCode::BAD_REQUEST,
             AuthError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");
                 StatusCode::INTERNAL_SERVER_ERROR
