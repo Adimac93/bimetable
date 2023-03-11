@@ -56,3 +56,19 @@ pub fn random_username_tag(used_tags: HashSet<i32>) -> Option<i32> {
         .filter(|x| !used_tags.contains(x))
         .choose(&mut rng)
 }
+
+#[test]
+fn random_username_tag_overflow() {
+    let set = HashSet::<i32>::from_iter(0..10000);
+    let res = random_username_tag(set);
+
+    assert_eq!(None, res)
+}
+
+#[test]
+fn random_username_tag_not_overflowing() {
+    let set = HashSet::<i32>::from_iter(1..10000);
+    let res = random_username_tag(set);
+
+    assert!(res.is_some())
+}
