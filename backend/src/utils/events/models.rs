@@ -5,6 +5,7 @@ use time::macros::format_description;
 use time::{serde::iso8601, Duration};
 use tracing::trace;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 use crate::validation::ValidateContent;
 
@@ -294,5 +295,23 @@ impl Display for TimeRange {
         //     self.end.minute(),
         //     self.end.offset(),
         // )
+    }
+}
+
+pub struct UserEvent {
+    pub user_id: Uuid,
+    pub event_id: Uuid,
+    pub can_edit: bool,
+    pub is_accepted: bool,
+}
+
+impl UserEvent {
+    pub fn new(user_id: Uuid, event_id: Uuid, can_edit: bool, is_accepted: bool) -> Self {
+        Self {
+            user_id,
+            event_id,
+            can_edit,
+            is_accepted,
+        }
     }
 }

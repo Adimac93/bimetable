@@ -11,6 +11,7 @@ use tracing::log::trace;
 use uuid::Uuid;
 
 use self::errors::EventError;
+use self::models::UserEvent;
 
 pub mod additions;
 pub mod calculations;
@@ -99,6 +100,29 @@ impl<'c> PgQuery<'c, EventQuery> {
 
         trace!("Created event {event_id}");
         Ok(event_id)
+    }
+
+    pub async fn create_user_event(&mut self, user_event: UserEvent) -> Result<(), EventError> {
+        query!(
+            r#"
+                INSERT INTO user_events (user_id, event_id, can_edit, is_accepted)
+                VALUES
+                ($1, $2, $3, $4)
+            "#,
+            self.payload.user_id,
+            user_event.event_id,
+            user_event.can_edit,
+            user_event.is_accepted,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+
+        trace!(
+            "Created user event with user_id {} and event_id {}",
+            self.payload.user_id,
+            user_event.can_edit
+        );
+        Ok(())
     }
 
     pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {

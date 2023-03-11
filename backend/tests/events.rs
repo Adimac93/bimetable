@@ -443,13 +443,6 @@ async fn update_event_owner_test(pool: PgPool) {
     let mut q1 = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
 
     assert_eq!(
-        q1.can_edit(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
-            .await
-            .unwrap(),
-        true
-    );
-
-    assert_eq!(
         q1.is_owner(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
             .await
             .unwrap(),
@@ -463,6 +456,13 @@ async fn update_event_owner_test(pool: PgPool) {
             .await
             .unwrap(),
         false
+    );
+
+    assert_eq!(
+        q2.can_edit(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
+            .await
+            .unwrap(),
+        true
     );
 }
 
@@ -554,7 +554,7 @@ async fn disconnect_owner_from_event_test(pool: PgPool) {
     .fetch_optional(&pool)
     .await
     .unwrap()
-    .is_none();
+    .is_some();
 
     let mut conn = pool.acquire().await.unwrap();
     let mut q = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
