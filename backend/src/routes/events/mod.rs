@@ -38,7 +38,7 @@ pub fn router() -> Router<AppState> {
         .route("/set-edit/:id", patch(update_edit_privileges))
         .route("/set-owner/:id", patch(update_event_owner))
         .route("/leave-event/:id", delete(disconnect_user_from_event))
-        .route("/remove-owner/:id", delete(disconnect_owner_from_event))
+        .route("/remove-owner/:id", patch(disconnect_owner_from_event))
 }
 
 /// Create event
@@ -189,7 +189,7 @@ async fn disconnect_user_from_event(
 }
 
 /// Disconnect event owner from its event
-#[utoipa::path(delete, path = "/events/remove-owner/{id}", tag = "events")]
+#[utoipa::path(patch, path = "/events/remove-owner/{id}", tag = "events")]
 async fn disconnect_owner_from_event(
     claims: Claims,
     State(pool): State<PgPool>,
