@@ -1,15 +1,16 @@
-import { BaseCalendarEvent, CalendarEvent } from "./CalendarEvent";
+import { useAPI } from "~~/composables/useAPI";
+import { BaseCalendarEvent, CalendarEvent, StoredCalendarEvent } from "./CalendarEvent";
 import dayjs from "./dayjs";
 
 // TODO: implement overrides
 export interface EventEntry {
     eventID: string;
-    startTime: dayjs.Dayjs;
-    endTime: dayjs.Dayjs;
+    startsAt: dayjs.Dayjs;
+    endsAt: dayjs.Dayjs;
 }
 
 export type ProcessedEvent = CalendarEvent & {
-    raw: CalendarEvent;
+    raw: StoredCalendarEvent;
     entry: EventEntry;
 };
 
@@ -72,13 +73,19 @@ class EventIteratorContext {
         for (let i = startIndex; i < endIndex; i++) {
             const entry = this.store.entries[i];
             const original = this.store.data.get(entry.eventID)!;
-            const incomplete: Partial<ProcessedEvent> = original.clone();
+            const incomplete: Partial<ProcessedEvent> = new CalendarEvent(
+                original.id,
+                original.name,
+                original.description,
+                dayjs(), // these are placeholders
+                dayjs() // and are replaced later in the code
+            );
             incomplete.raw = original;
             incomplete.entry = entry;
 
             const event = incomplete as ProcessedEvent;
-            incomplete.startTime = entry.startTime;
-            incomplete.endTime = entry.endTime;
+            incomplete.startTime = entry.startsAt;
+            incomplete.endTime = entry.endsAt;
             // TODO: implement overrides
             yield event;
         }
@@ -88,13 +95,15 @@ class EventIteratorContext {
 export class EventStore {
     // Chronological list of entries
     entries: EventEntry[];
-    data: Map<string, CalendarEvent>;
+    data: Map<string, StoredCalendarEvent>;
+    start: dayjs.Dayjs;
+    end: dayjs.Dayjs;
 
-    constructor() {
-        // TODO: example data
-        // TODO^2: fetch from API
+    constructor(start: dayjs.Dayjs, end: dayjs.Dayjs) {
         this.entries = [];
         this.data = new Map();
+        this.start = start;
+        this.end = end;
     }
 
     findIndexBefore(timestamp: dayjs.Dayjs): number | null {
@@ -109,12 +118,12 @@ export class EventStore {
             const next = this.entries[mid + 1];
             if (!next) {
                 // the last element may be appropriate
-                return el.startTime.unix() < timestamp.unix() ? mid : null;
+                return el.startsAt.unix() < timestamp.unix() ? mid : null;
             }
 
-            if (el.startTime.unix() < timestamp.unix() && next.startTime.unix() >= timestamp.unix()) {
+            if (el.startsAt.unix() < timestamp.unix() && next.startsAt.unix() >= timestamp.unix()) {
                 return mid;
-            } else if (el.startTime.unix() < timestamp.unix()) {
+            } else if (el.startsAt.unix() < timestamp.unix()) {
                 // both less
                 start = mid + 1;
             } else {
@@ -127,7 +136,7 @@ export class EventStore {
 
     // This is really "not before" - it will find a value exactly at the timestamp if one exists
     findIndexAfter(timestamp: dayjs.Dayjs): number | null {
-        if (this.entries.length > 0 && this.entries[0].startTime.unix() >= timestamp.unix()) {
+        if (this.entries.length > 0 && this.entries[0].startsAt.unix() >= timestamp.unix()) {
             return 0;
         }
 
@@ -147,8 +156,8 @@ export class EventStore {
     // contained in [start, end)
     get loadedBounds() {
         return {
-            start: this.entries[0].startTime,
-            end: this.entries[this.entries.length - 1].endTime.add(1, "second"),
+            start: this.entries[0].startsAt,
+            end: this.entries[this.entries.length - 1].endsAt.add(1, "second"),
         };
     }
 
@@ -181,19 +190,110 @@ export interface EventStoreAPIData {
     data: Record<string, { name: string; description: string; startTime: string; endTime: string }>;
 }
 
+// You should probably use `fetchEventStore` instead`
 export function makeEventStore(data: EventStoreAPIData) {
-    const store = reactive(new EventStore());
+    const store = reactive(
+        new EventStore(
+            dayjs(data.entries[0].startTime),
+            dayjs(data.entries[data.entries.length - 1].startTime).add(1, "second")
+        )
+    );
     store.entries = data.entries.map((entry) => ({
         eventID: entry.eventID,
-        startTime: dayjs(entry.startTime),
-        endTime: dayjs(entry.endTime),
+        startsAt: dayjs(entry.startTime),
+        endsAt: dayjs(entry.endTime),
     }));
 
     for (const [uuid, value] of Object.entries(data.data)) {
-        store.data.set(
-            uuid,
-            new CalendarEvent(uuid, value.name, value.description, dayjs(value.startTime), dayjs(value.endTime))
-        );
+        store.data.set(uuid, {
+            id: uuid,
+            name: value.name,
+            description: value.description,
+            repetitionStart: dayjs(value.startTime),
+            repetitionEnd: dayjs(value.endTime),
+        });
     }
     return store;
+}
+
+interface APIEventsGetResult {
+    entries: {
+        starts_at: string;
+        ends_at: string;
+        event_id: string;
+        recurrence_override?: {
+            created_at: string;
+            deleted_at: string;
+            name: string;
+            description: string;
+        };
+    }[];
+    events: Record<
+        string,
+        {
+            can_edit: boolean;
+            is_owned: boolean;
+            payload: {
+                name: string;
+                description?: string;
+            };
+        }
+    >;
+}
+
+// Fetch the event data in an event range [start, end) from the API.
+export async function fetchEventStore(start: dayjs.Dayjs, end: dayjs.Dayjs) {
+    if (start > end) {
+        throw new RangeError("Start of date range must be before end");
+    }
+    // TODO: test this (this will require putting some events in the database)
+    const { data, pending, refresh, error } = await useAPI<APIEventsGetResult>("/api/events", {
+        params: {
+            starts_at: start.toISOString(),
+            ends_at: end.toISOString(),
+            filter: "all",
+        },
+        default: () => ({
+            entries: [],
+            events: {},
+        }),
+    });
+    console.log(data.value);
+
+    const store = ref<EventStore | null>(null);
+    // put it in a store
+    function putItInTheStore() {
+        if (!data.value) {
+            store.value = null;
+            return;
+        }
+
+        if (!store.value) {
+            store.value = new EventStore(start, end);
+        }
+
+        store.value!.entries = data.value.entries.map((entry) => ({
+            eventID: entry.event_id,
+            startsAt: dayjs(entry.starts_at),
+            endsAt: dayjs(entry.ends_at),
+        }));
+
+        store.value!.data = new Map();
+        for (const [id, apiEvent] of Object.entries(data.value.events)) {
+            const ev = {
+                id,
+                name: apiEvent.payload.name,
+                description: apiEvent.payload.description,
+                // TODO: get this from the API when that is implemented
+                repetitionStart: dayjs(new Date(NaN)),
+                repetitionEnd: dayjs(new Date(NaN)),
+            };
+            store.value!.data.set(id, ev);
+        }
+    }
+
+    putItInTheStore();
+    watch(data, () => putItInTheStore());
+
+    return { store, pending, refresh, error };
 }

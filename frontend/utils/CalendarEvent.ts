@@ -3,18 +3,26 @@ import dayjs from "./dayjs";
 export interface BaseCalendarEvent {
     name: string;
     description?: string;
-    startTime?: dayjs.Dayjs;
-    endTime?: dayjs.Dayjs;
+    startTime: dayjs.Dayjs;
+    endTime: dayjs.Dayjs;
+}
+
+export interface StoredCalendarEvent {
+    id: string;
+    name: string;
+    description?: string;
+    repetitionStart: dayjs.Dayjs;
+    repetitionEnd?: dayjs.Dayjs;
 }
 
 export class CalendarEvent implements BaseCalendarEvent {
     id: string;
     name: string;
     description?: string;
-    startTime?: dayjs.Dayjs;
-    endTime?: dayjs.Dayjs;
+    startTime: dayjs.Dayjs;
+    endTime: dayjs.Dayjs;
 
-    constructor(id: string, name: string, description?: string, start?: dayjs.Dayjs, end?: dayjs.Dayjs) {
+    constructor(id: string, name: string, description: string | undefined, start: dayjs.Dayjs, end: dayjs.Dayjs) {
         if (!(start && end)) {
             throw new Error("Invalid event (no start and end)");
         }
