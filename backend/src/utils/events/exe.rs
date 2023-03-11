@@ -65,7 +65,7 @@ pub async fn update_one_event(
     if q.is_owner(event_id).await? || q.can_edit(event_id).await? {
         return q.update_event(event_id, body.data).await;
     }
-    Err(EventError::NotFound)
+    Err(EventError::MismatchedPrivileges)
 }
 
 pub async fn delete_one_event_temporally(
@@ -89,7 +89,7 @@ pub async fn create_one_event_override(
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     let is_owned = q.is_owner(event_id).await?;
     if !is_owned {
-        return Err(EventError::NotFound);
+        return Err(EventError::MismatchedPrivileges);
     }
 
     q.create_override(event_id, body).await?;
@@ -106,7 +106,7 @@ pub async fn delete_one_event_permanently(
     if q.is_owner(event_id).await? {
         return q.perm_delete(event_id).await;
     }
-    Err(EventError::NotFound)
+    Err(EventError::MismatchedPrivileges)
 }
 
 pub async fn update_user_editing_privileges(
@@ -123,7 +123,7 @@ pub async fn update_user_editing_privileges(
             .update_edit_privileges(target_user_id, event_id, can_edit)
             .await;
     }
-    Err(EventError::NotFound)
+    Err(EventError::MismatchedPrivileges)
 }
 
 pub async fn set_event_ownership(
@@ -143,7 +143,7 @@ pub async fn set_event_ownership(
 
         return Ok(transaction.commit().await?);
     }
-    Err(EventError::NotFound)
+    Err(EventError::MismatchedPrivileges)
 }
 
 pub async fn delete_user_event(
@@ -157,7 +157,7 @@ pub async fn delete_user_event(
     if !q.is_owner(event_id).await? {
         return Ok(q.delete_user_event(user_id, event_id).await?);
     }
-    Err(EventError::NotFound)
+    Err(EventError::MismatchedPrivileges)
 }
 
 pub async fn delete_owner_from_event(
@@ -175,5 +175,5 @@ pub async fn delete_owner_from_event(
 
         return Ok(transaction.commit().await?);
     }
-    Err(EventError::NotFound)
+    Err(EventError::MismatchedPrivileges)
 }

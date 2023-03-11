@@ -5,6 +5,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum EventError {
+    #[error("Query rejected because of event ownership")]
+    MismatchedPrivileges,
     #[error("Event data rejected with validation")]
     InvalidData(#[from] ValidateContentError),
     #[error("Not Found")]
@@ -22,6 +24,7 @@ impl IntoResponse for EventError {
                 tracing::error!("Internal server error: {e:?}");
                 StatusCode::INTERNAL_SERVER_ERROR
             }
+            EventError::MismatchedPrivileges => StatusCode::FORBIDDEN,
         };
 
         let info = match self {
