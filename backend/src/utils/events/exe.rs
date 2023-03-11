@@ -5,7 +5,7 @@ use crate::routes::events::models::{
 use crate::utils::events::errors::EventError;
 use crate::utils::events::models::TimeRange;
 use crate::utils::events::{get_owned, get_shared, EventQuery};
-use sqlx::PgPool;
+use sqlx::{Acquire, PgPool, Postgres};
 use uuid::Uuid;
 
 pub async fn get_many_events(
@@ -124,25 +124,56 @@ pub async fn update_user_editing_privileges(
     Err(EventError::NotFound)
 }
 
-pub async fn set_event_ownership(
-    pool: &PgPool,
+pub async fn set_event_ownership<'c>(
+    acq: impl Acquire<'c, Database = Postgres>,
     user_id: Uuid,
     target_user_id: Uuid,
     event_id: Uuid,
 ) -> Result<(), EventError> {
+    let mut transaction = acq.begin().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut transaction);
+
+    if q.is_owner(event_id).await? && user_id != target_user_id {
+        q.update_event_owner(target_user_id, event_id).await?;
+        q.update_edit_privileges(target_user_id, event_id, true)
+            .await?;
+
+        return Ok(transaction.commit().await?);
+    }
+    Err(EventError::NotFound)
+}
+
+pub async fn delete_user_event(
+    pool: &PgPool,
+    user_id: Uuid,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
+
+    if !q.is_owner(event_id).await? {
+        return Ok(q.delete_user_event(user_id, event_id).await?);
+    }
+    Err(EventError::NotFound)
+}
+
+pub async fn delete_owner_from_event(
+    pool: &PgPool,
+    user_id: Uuid,
+    event_id: Uuid,
+    new_owner_id: Uuid,
+) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
     let mut q1 = PgQuery::new(EventQuery::new(user_id), &mut conn);
 
-    if q1.is_owner(event_id).await? && user_id != target_user_id {
+    if q1.is_owner(event_id).await? && user_id != new_owner_id {
         let mut transaction = pool.begin().await?;
+        set_event_ownership(&mut transaction, user_id, new_owner_id, event_id).await?;
         let mut q2 = PgQuery::new(EventQuery::new(user_id), &mut transaction);
-
-        q2.update_event_owner(target_user_id, event_id).await?;
-        q2.update_edit_privileges(target_user_id, event_id, true)
+        q2.update_edit_privileges(new_owner_id, event_id, true)
             .await?;
 
-        Ok(transaction.commit().await?)
-    } else {
-        Err(EventError::NotFound)
+        return Ok(transaction.commit().await?);
     }
+    Err(EventError::NotFound)
 }

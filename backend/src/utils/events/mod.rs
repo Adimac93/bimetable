@@ -427,7 +427,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         event_id: Uuid,
         can_edit: bool,
     ) -> Result<(), EventError> {
-        let _res = query!(
+        query!(
             r#"
                 UPDATE user_events
                 SET can_edit = $1
@@ -451,7 +451,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         owner_id: Uuid,
         event_id: Uuid,
     ) -> Result<(), EventError> {
-        let _res = query!(
+        query!(
             r#"
                 UPDATE events
                 SET owner_id = $1
@@ -464,6 +464,28 @@ impl<'c> PgQuery<'c, EventQuery> {
         .await?;
 
         trace!("Set owner of the event {event_id} to {owner_id}");
+
+        Ok(())
+    }
+
+    pub async fn delete_user_event(
+        &mut self,
+        user_id: Uuid,
+        event_id: Uuid,
+    ) -> Result<(), EventError> {
+        query!(
+            r#"
+                DELETE FROM user_events
+                WHERE user_id = $1
+                AND event_id = $2
+            "#,
+            user_id,
+            event_id
+        )
+        .execute(&mut *self.conn)
+        .await?;
+
+        trace!("Removed user {user_id} from event {event_id}");
 
         Ok(())
     }

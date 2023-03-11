@@ -9,8 +9,8 @@ use bimetable::{
     utils::events::{
         errors::EventError,
         exe::{
-            delete_one_event_permanently, get_many_events, set_event_ownership,
-            update_user_editing_privileges,
+            delete_one_event_permanently, delete_owner_from_event, delete_user_event,
+            get_many_events, set_event_ownership, update_user_editing_privileges,
         },
         models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules},
         EventQuery,
@@ -487,6 +487,95 @@ async fn cannot_self_update_ownership(pool: PgPool) {
         PKBPMJ_ID,
         PKBPMJ_ID,
         uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err())
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn disconnect_user_from_event_test(pool: PgPool) {
+    delete_user_event(
+        &pool,
+        ADIMAC_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .unwrap();
+
+    assert!(query!(
+        r#"
+            SELECT FROM user_events
+            WHERE user_id = $1
+            AND event_id = $2
+        "#,
+        ADIMAC_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .is_none())
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_disconnect_owner_from_event(pool: PgPool) {
+    assert!(delete_user_event(
+        &pool,
+        PKBPMJ_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err())
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn disconnect_owner_from_event_test(pool: PgPool) {
+    delete_owner_from_event(
+        &pool,
+        PKBPMJ_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+        ADIMAC_ID,
+    )
+    .await
+    .unwrap();
+
+    let user_exists = query!(
+        r#"
+            SELECT FROM user_events
+            WHERE user_id = $1
+            AND event_id = $2
+        "#,
+        PKBPMJ_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .is_none();
+
+    let mut conn = pool.acquire().await.unwrap();
+    let mut q = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
+
+    assert!(!user_exists);
+    assert_eq!(
+        q.is_owner(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
+            .await
+            .unwrap(),
+        true
+    )
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn does_not_disconnect_user_as_owner(pool: PgPool) {
+    assert!(delete_owner_from_event(
+        &pool,
+        ADIMAC_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+        PKBPMJ_ID,
     )
     .await
     .is_err())

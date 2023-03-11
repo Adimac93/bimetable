@@ -3,6 +3,7 @@ use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
 use crate::{modules::AppState, validation::ValidateContent};
 use axum::debug_handler;
+use axum::routing::delete;
 use axum::{
     extract::{Path, Query, State},
     routing::{get, patch, post},
@@ -15,12 +16,14 @@ use tracing::debug;
 use crate::routes::events::models::{CreateEventResult, Event, Events, OverrideEvent, UpdateEvent};
 use crate::utils::events::exe::{
     create_new_event, create_one_event_override, delete_one_event_permanently,
-    delete_one_event_temporally, get_many_events, get_one_event, set_event_ownership,
-    update_one_event, update_user_editing_privileges,
+    delete_one_event_temporally, delete_owner_from_event, delete_user_event, get_many_events,
+    get_one_event, set_event_ownership, update_one_event, update_user_editing_privileges,
 };
 use crate::utils::events::models::TimeRange;
 
-use self::models::{CreateEvent, GetEventsQuery, UpdateEditPrivilege, UpdateEventOwner};
+use self::models::{
+    CreateEvent, GetEventsQuery, NewEventOwner, UpdateEditPrivilege, UpdateEventOwner,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -34,6 +37,8 @@ pub fn router() -> Router<AppState> {
         .route("/override/:id", patch(create_event_override))
         .route("/set-edit/:id", patch(update_edit_privileges))
         .route("/set-owner/:id", patch(update_event_owner))
+        .route("/leave-event/:id", delete(disconnect_user_from_event))
+        .route("/remove-owner/:id", delete(disconnect_owner_from_event))
 }
 
 /// Create event
@@ -163,6 +168,39 @@ async fn update_event_owner(
 ) -> Result<(), EventError> {
     set_event_ownership(&pool, claims.user_id, body.user_id, id).await?;
     debug!("Updated owner of event {id} to {}", body.user_id);
+
+    Ok(())
+}
+
+/// Disconnect user from event
+#[utoipa::path(delete, path = "/events/leave-event/{id}", tag = "events")]
+async fn disconnect_user_from_event(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+) -> Result<(), EventError> {
+    delete_user_event(&pool, claims.user_id, id).await?;
+    debug!(
+        "User {} has been disconnected from the event {id}",
+        claims.user_id
+    );
+
+    Ok(())
+}
+
+/// Disconnect event owner from its event
+#[utoipa::path(delete, path = "/events/remove-owner/{id}", tag = "events")]
+async fn disconnect_owner_from_event(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<NewEventOwner>,
+) -> Result<(), EventError> {
+    delete_owner_from_event(&pool, claims.user_id, id, body.user_id).await?;
+    debug!(
+        "Event owner {} left the event {id}, making {} the new owner",
+        claims.user_id, body.user_id
+    );
 
     Ok(())
 }

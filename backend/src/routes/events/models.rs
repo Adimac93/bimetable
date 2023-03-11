@@ -226,6 +226,12 @@ pub struct UpdateEventOwner {
     pub user_id: Uuid,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NewEventOwner {
+    pub user_id: Uuid,
+}
+
 #[test]
 fn merge_events_1() {
     let mut entries = vec![];
