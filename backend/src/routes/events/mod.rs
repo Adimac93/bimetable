@@ -142,7 +142,7 @@ async fn create_event_override(
 }
 
 /// Update editing privileges
-#[utoipa::path(patch, path = "/events/set-edit/{id}", tag = "events", request_body = UpdateEditPrivilege)]
+#[utoipa::path(patch, path = "/events/set-edit/{id}", tag = "event-ownership", request_body = UpdateEditPrivilege)]
 async fn update_edit_privileges(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -159,7 +159,7 @@ async fn update_edit_privileges(
 }
 
 /// Update event owner
-#[utoipa::path(patch, path = "/events/set-owner/{id}", tag = "events", request_body = UpdateEventOwner)]
+#[utoipa::path(patch, path = "/events/set-owner/{id}", tag = "event-ownership", request_body = UpdateEventOwner)]
 async fn update_event_owner(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -173,7 +173,7 @@ async fn update_event_owner(
 }
 
 /// Disconnect user from event
-#[utoipa::path(delete, path = "/events/leave-event/{id}", tag = "events")]
+#[utoipa::path(delete, path = "/events/leave-event/{id}", tag = "event-ownership")]
 async fn disconnect_user_from_event(
     claims: Claims,
     State(pool): State<PgPool>,
@@ -189,7 +189,7 @@ async fn disconnect_user_from_event(
 }
 
 /// Disconnect event owner from its event
-#[utoipa::path(patch, path = "/events/remove-owner/{id}", tag = "events")]
+#[utoipa::path(patch, path = "/events/remove-owner/{id}", tag = "event-ownership", request_body = NewEventOwner)]
 async fn disconnect_owner_from_event(
     claims: Claims,
     State(pool): State<PgPool>,

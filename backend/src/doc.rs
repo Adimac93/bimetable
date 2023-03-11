@@ -58,6 +58,6 @@ UpdateEditPrivilege,
 UpdateEventOwner,
 NewEventOwner,
 )),
-tags((name = "auth"),(name = "events"), (name = "invitations"))
+tags((name = "auth"),(name = "events"),(name = "event-ownership"),(name = "invitations"))
 )]
 pub struct ApiDoc;
