@@ -2,6 +2,7 @@ pub mod models;
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
 use crate::{modules::AppState, validation::ValidateContent};
+use axum::debug_handler;
 use axum::{
     extract::{Path, Query, State},
     routing::{get, patch, post},
@@ -14,11 +15,12 @@ use tracing::debug;
 use crate::routes::events::models::{CreateEventResult, Event, Events, OverrideEvent, UpdateEvent};
 use crate::utils::events::exe::{
     create_new_event, create_one_event_override, delete_one_event_permanently,
-    delete_one_event_temporally, get_many_events, get_one_event, update_one_event,
+    delete_one_event_temporally, get_many_events, get_one_event, set_event_ownership,
+    update_one_event, update_user_editing_privileges,
 };
 use crate::utils::events::models::TimeRange;
 
-use self::models::{CreateEvent, GetEventsQuery};
+use self::models::{CreateEvent, GetEventsQuery, UpdateEditPrivilege, UpdateEventOwner};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -30,6 +32,8 @@ pub fn router() -> Router<AppState> {
                 .delete(delete_event_permanently),
         )
         .route("/override/:id", patch(create_event_override))
+        .route("/set-edit/:id", patch(update_edit_privileges))
+        .route("/set-owner/:id", patch(update_event_owner))
 }
 
 /// Create event
@@ -130,4 +134,35 @@ async fn create_event_override(
     debug!("Created override on event: {}", id);
 
     Ok(StatusCode::CREATED)
+}
+
+/// Update editing privileges
+#[utoipa::path(patch, path = "/events/set-edit/{id}", tag = "events", request_body = UpdateEditPrivilege)]
+async fn update_edit_privileges(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateEditPrivilege>,
+) -> Result<(), EventError> {
+    update_user_editing_privileges(&pool, claims.user_id, body.user_id, body.can_edit, id).await?;
+    debug!(
+        "Updated editing privileges for user {} and event {id} to {}",
+        body.user_id, body.can_edit
+    );
+
+    Ok(())
+}
+
+/// Update event owner
+#[utoipa::path(patch, path = "/events/set-owner/{id}", tag = "events", request_body = UpdateEventOwner)]
+async fn update_event_owner(
+    claims: Claims,
+    State(pool): State<PgPool>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateEventOwner>,
+) -> Result<(), EventError> {
+    set_event_ownership(&pool, claims.user_id, body.user_id, id).await?;
+    debug!("Updated owner of event {id} to {}", body.user_id);
+
+    Ok(())
 }

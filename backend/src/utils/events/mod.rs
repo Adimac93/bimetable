@@ -5,7 +5,7 @@ use crate::routes::events::models::{
 };
 use crate::utils::events::models::{RecurrenceRule, TimeRange};
 use sqlx::types::{time::OffsetDateTime, Json};
-use sqlx::{query, query_as};
+use sqlx::{query, query_as, Acquire};
 use std::collections::HashMap;
 use tracing::log::trace;
 use uuid::Uuid;
@@ -419,6 +419,53 @@ impl<'c> PgQuery<'c, EventQuery> {
         }
 
         Ok(res.can_edit)
+    }
+
+    pub async fn update_edit_privileges(
+        &mut self,
+        target_user_id: Uuid,
+        event_id: Uuid,
+        can_edit: bool,
+    ) -> Result<(), EventError> {
+        let _res = query!(
+            r#"
+                UPDATE user_events
+                SET can_edit = $1
+                WHERE user_id = $2
+                AND event_id = $3
+            "#,
+            can_edit,
+            target_user_id,
+            event_id,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+
+        trace!("Updated editing privileges for user {target_user_id} and event {event_id} to {can_edit}");
+
+        Ok(())
+    }
+
+    pub async fn update_event_owner(
+        &mut self,
+        owner_id: Uuid,
+        event_id: Uuid,
+    ) -> Result<(), EventError> {
+        let _res = query!(
+            r#"
+                UPDATE events
+                SET owner_id = $1
+                WHERE id = $2
+            "#,
+            owner_id,
+            event_id,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+
+        trace!("Set owner of the event {event_id} to {owner_id}");
+
+        Ok(())
     }
 }
 

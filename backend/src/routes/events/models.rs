@@ -213,6 +213,19 @@ pub struct Override {
     pub created_at: OffsetDateTime,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateEditPrivilege {
+    pub user_id: Uuid,
+    pub can_edit: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateEventOwner {
+    pub user_id: Uuid,
+}
+
 #[test]
 fn merge_events_1() {
     let mut entries = vec![];

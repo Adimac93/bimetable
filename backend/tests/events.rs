@@ -4,11 +4,14 @@ use bimetable::{
     modules::database::PgQuery,
     routes::events::models::{
         CreateEvent, Entry, Event, EventData, EventFilter, EventPayload, Events, GetEventsQuery,
-        OptionalEventData, UpdateEvent,
+        OptionalEventData, UpdateEditPrivilege, UpdateEvent,
     },
     utils::events::{
         errors::EventError,
-        exe::{delete_one_event_permanently, get_many_events},
+        exe::{
+            delete_one_event_permanently, get_many_events, set_event_ownership,
+            update_user_editing_privileges,
+        },
         models::{RecurrenceEndsAt, RecurrenceRule, TimeRange, TimeRules},
         EventQuery,
     },
@@ -336,8 +339,6 @@ async fn cannot_update_event_without_permissions(pool: PgPool) {
     };
 
     let update_data = UpdateEvent { data };
-    let mut conn = pool.acquire().await.unwrap();
-    let mut query = PgQuery::new(EventQuery::new(MABI19_ID), &mut conn);
 
     assert!(update_one_event(
         &pool,
@@ -368,6 +369,123 @@ async fn cannot_delete_event_if_not_owned(pool: PgPool) {
     assert!(delete_one_event_permanently(
         &pool,
         ADIMAC_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err())
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn update_edit_privileges_test(pool: PgPool) {
+    update_user_editing_privileges(
+        &pool,
+        PKBPMJ_ID,
+        ADIMAC_ID,
+        true,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .unwrap();
+
+    let mut conn = pool.acquire().await.unwrap();
+    let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
+    assert_eq!(
+        query
+            .can_edit(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
+            .await
+            .unwrap(),
+        true
+    )
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_update_privileges_without_ownership(pool: PgPool) {
+    assert!(update_user_editing_privileges(
+        &pool,
+        ADIMAC_ID,
+        PKBPMJ_ID,
+        false,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err());
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_self_update_privileges(pool: PgPool) {
+    assert!(update_user_editing_privileges(
+        &pool,
+        PKBPMJ_ID,
+        PKBPMJ_ID,
+        false,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err());
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn update_event_owner_test(pool: PgPool) {
+    set_event_ownership(
+        &pool,
+        PKBPMJ_ID,
+        ADIMAC_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .unwrap();
+
+    let mut conn = pool.acquire().await.unwrap();
+    let mut q1 = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
+
+    assert_eq!(
+        q1.can_edit(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
+            .await
+            .unwrap(),
+        true
+    );
+
+    assert_eq!(
+        q1.is_owner(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
+            .await
+            .unwrap(),
+        true
+    );
+
+    let mut q2 = PgQuery::new(EventQuery::new(PKBPMJ_ID), &mut conn);
+
+    assert_eq!(
+        q2.is_owner(uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"))
+            .await
+            .unwrap(),
+        false
+    );
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_update_owner_without_ownership(pool: PgPool) {
+    assert!(set_event_ownership(
+        &pool,
+        ADIMAC_ID,
+        PKBPMJ_ID,
+        uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
+    )
+    .await
+    .is_err())
+}
+
+#[traced_test]
+#[sqlx::test(fixtures("users", "events", "user_events"))]
+async fn cannot_self_update_ownership(pool: PgPool) {
+    assert!(set_event_ownership(
+        &pool,
+        PKBPMJ_ID,
+        PKBPMJ_ID,
         uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
     )
     .await

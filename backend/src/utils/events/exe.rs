@@ -1,6 +1,6 @@
 use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
-    CreateEvent, Event, EventFilter, Events, OverrideEvent, UpdateEvent,
+    CreateEvent, Event, EventFilter, Events, OverrideEvent, UpdateEditPrivilege, UpdateEvent,
 };
 use crate::utils::events::errors::EventError;
 use crate::utils::events::models::TimeRange;
@@ -105,4 +105,44 @@ pub async fn delete_one_event_permanently(
         return q.perm_delete(event_id).await;
     }
     Err(EventError::NotFound)
+}
+
+pub async fn update_user_editing_privileges(
+    pool: &PgPool,
+    user_id: Uuid,
+    target_user_id: Uuid,
+    can_edit: bool,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
+    if q.is_owner(event_id).await? && user_id != target_user_id {
+        return q
+            .update_edit_privileges(target_user_id, event_id, can_edit)
+            .await;
+    }
+    Err(EventError::NotFound)
+}
+
+pub async fn set_event_ownership(
+    pool: &PgPool,
+    user_id: Uuid,
+    target_user_id: Uuid,
+    event_id: Uuid,
+) -> Result<(), EventError> {
+    let mut conn = pool.acquire().await?;
+    let mut q1 = PgQuery::new(EventQuery::new(user_id), &mut conn);
+
+    if q1.is_owner(event_id).await? && user_id != target_user_id {
+        let mut transaction = pool.begin().await?;
+        let mut q2 = PgQuery::new(EventQuery::new(user_id), &mut transaction);
+
+        q2.update_event_owner(target_user_id, event_id).await?;
+        q2.update_edit_privileges(target_user_id, event_id, true)
+            .await?;
+
+        Ok(transaction.commit().await?)
+    } else {
+        Err(EventError::NotFound)
+    }
 }
