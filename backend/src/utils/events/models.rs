@@ -345,16 +345,14 @@ pub struct UserEvent {
     pub user_id: Uuid,
     pub event_id: Uuid,
     pub can_edit: bool,
-    pub is_accepted: bool,
 }
 
 impl UserEvent {
-    pub fn new(user_id: Uuid, event_id: Uuid, can_edit: bool, is_accepted: bool) -> Self {
+    pub fn new(user_id: Uuid, event_id: Uuid, can_edit: bool) -> Self {
         Self {
             user_id,
             event_id,
             can_edit,
-            is_accepted,
         }
     }
 }

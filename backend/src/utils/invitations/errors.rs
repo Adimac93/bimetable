@@ -6,6 +6,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum InvitationError {
+    #[error("Invitation is missing")]
+    Missing,
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 }
@@ -13,6 +15,7 @@ pub enum InvitationError {
 impl IntoResponse for InvitationError {
     fn into_response(self) -> axum::response::Response {
         let status_code = match &self {
+            InvitationError::Missing => StatusCode::NOT_FOUND,
             InvitationError::Unexpected(e) => {
                 tracing::error!("Internal server error: {e:?}");
                 StatusCode::INTERNAL_SERVER_ERROR
@@ -21,6 +24,7 @@ impl IntoResponse for InvitationError {
 
         let info = match self {
             InvitationError::Unexpected(_) => "Unexpected server error".to_string(),
+            _ => self.to_string(),
         };
 
         (status_code, Json(json!({ "error_info": info }))).into_response()

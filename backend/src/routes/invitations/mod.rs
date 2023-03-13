@@ -9,52 +9,57 @@ use sqlx::PgPool;
 use tracing::debug;
 use uuid::Uuid;
 
+use crate::routes::invitations::models::{
+    CreateDirectInvitation, DirectInvitation, RespondDirectInvitation,
+};
+use crate::utils::invitations::{
+    create_direct_invitation, get_all_direct_invitations, respond_to_direct_invitation,
+};
 use crate::{
     modules::AppState,
-    routes::invitations::models::EventInvitation,
-    utils::{
-        auth::models::Claims,
-        invitations::{
-            accept_event_invitation, errors::InvitationError, fetch_event_invitations,
-            reject_event_invitation, try_create_event_invitation,
-        },
-    },
+    utils::{auth::models::Claims, invitations::errors::InvitationError},
 };
-
-use super::events::models::EventPayload;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/create", put(create_invitation))
-        .route("/fetch", get(fetch_invitations))
-        .route("/accept/:id", patch(accept_invitation))
-        .route("/reject/:id", delete(reject_invitation))
+        .route("/create", put(create_direct))
+        .route("/fetch", get(fetch_direct))
+        .route("/respond/:id", patch(respond_direct))
 }
 
 /// Create user event invitation
 #[debug_handler]
-#[utoipa::path(put, path = "/events/invitations/create", tag = "invitations", request_body = EventInvitation, responses((status = 200, description = "Created event invitation")))]
-async fn create_invitation(
+#[utoipa::path(put, path = "/events/invitations/create", tag = "invitations", request_body = CreateDirectInvitation, responses((status = 200, description = "Created event invitation")))]
+async fn create_direct(
     claims: Claims,
     State(pool): State<PgPool>,
-    Json(invitation): Json<EventInvitation>,
+    Json(invitation): Json<CreateDirectInvitation>,
 ) -> Result<(), InvitationError> {
-    try_create_event_invitation(&pool, invitation).await?;
+    create_direct_invitation(
+        &pool,
+        DirectInvitation {
+            event_id: invitation.event_id,
+            sender_id: claims.user_id,
+            receiver_id: invitation.receiver_id,
+            can_edit: invitation.can_edit,
+        },
+    )
+    .await?;
     debug!(
         "Created event invitation from user: {} to user: {}",
-        claims.user_id, invitation.user_id
+        claims.user_id, invitation.receiver_id
     );
     Ok(())
 }
 
 /// Fetch all invitations
 #[debug_handler]
-#[utoipa::path(get, path = "/events/invitations/fetch", tag = "invitations", responses((status = 200, description = "Fetched event invitations")))]
-async fn fetch_invitations(
+#[utoipa::path(get, path = "/events/invitations/fetch", tag = "invitations", responses((status = 200, body = [DirectInvitation], description = "Fetched event invitations")))]
+async fn fetch_direct(
     claims: Claims,
     State(pool): State<PgPool>,
-) -> Result<Json<Vec<EventPayload>>, InvitationError> {
-    let invitations = fetch_event_invitations(&pool, claims.user_id).await?;
+) -> Result<Json<Vec<DirectInvitation>>, InvitationError> {
+    let invitations = get_all_direct_invitations(&pool, &claims.user_id).await?;
     debug!(
         "Fetched {} event(s) for user: {}",
         invitations.len(),
@@ -63,34 +68,19 @@ async fn fetch_invitations(
     Ok(Json(invitations))
 }
 
-/// Accept invitation
+/// Respond to direct invitation
 #[debug_handler]
-#[utoipa::path(patch, path = "/events/invitations/accept/{id}", tag = "invitations", request_body = Uuid, responses((status = 200, description = "Accepted event invitation")))]
-async fn accept_invitation(
+#[utoipa::path(patch, path = "/events/invitations/respond/{id}", tag = "invitations", request_body = RespondDirectInvitation, responses((status = 200, description = "Responded to direct event invitation")))]
+async fn respond_direct(
     claims: Claims,
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
+    Json(response): Json<RespondDirectInvitation>,
 ) -> Result<(), InvitationError> {
-    accept_event_invitation(&pool, claims.user_id, id).await?;
+    respond_to_direct_invitation(&pool, response).await?;
     debug!(
-        "User: {} accepted invitation for event: {}",
-        claims.user_id, id
-    );
-    Ok(())
-}
-
-/// Reject invitation
-#[debug_handler]
-#[utoipa::path(delete, path = "/events/invitations/reject/{id}", tag = "invitations", request_body = Uuid, responses((status = 200, description = "Rejected event invitation")))]
-async fn reject_invitation(
-    claims: Claims,
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-) -> Result<(), InvitationError> {
-    reject_event_invitation(&pool, claims.user_id, id).await?;
-    debug!(
-        "User: {} rejected invitation for event: {}",
-        claims.user_id, id
+        "User: {} responded ({}) invitation for event: {}",
+        claims.user_id, response.is_accepted, id
     );
     Ok(())
 }

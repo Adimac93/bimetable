@@ -41,8 +41,29 @@ CREATE TABLE user_events
     user_id     UUID NOT NULL,
     event_id    UUID NOT NULL,
     can_edit    BOOL NOT NULL,
-    is_accepted BOOL NOT NULL DEFAULT FALSE,
     PRIMARY KEY (user_id, event_id),
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (event_id) REFERENCES events (id) ON DELETE CASCADE
+);
+
+CREATE TABLE user_event_invitations
+(
+    event_id UUID NOT NULL,
+    sender_id UUID NOT NULL,
+    receiver_id UUID NOT NULL,
+    can_edit BOOL NOT NULL,
+    PRIMARY KEY (event_id, sender_id, receiver_id),
+    FOREIGN KEY (sender_id) REFERENCES users(id),
+    FOREIGN KEY (receiver_id) REFERENCES users(id),
+    FOREIGN KEY (event_id) REFERENCES events(id)
+);
+
+CREATE TABLE event_tokens (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL,
+  expiration_date timestamptz,
+  uses_left int,
+  PRIMARY KEY (id),
+  FOREIGN KEY (event_id) REFERENCES events(id)
+
 );

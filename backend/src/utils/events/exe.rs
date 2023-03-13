@@ -145,7 +145,7 @@ pub async fn set_event_ownership(
     if q.is_owner(event_id).await? && user_id != target_user_id {
         q.update_event_owner(target_user_id, event_id).await?;
         q.delete_user_event(target_user_id, event_id).await?;
-        q.create_user_event(UserEvent::new(user_id, event_id, true, true))
+        q.create_user_event(UserEvent::new(user_id, event_id, true))
             .await?;
 
         return Ok(transaction.commit().await?);

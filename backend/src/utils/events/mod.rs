@@ -150,14 +150,13 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create_user_event(&mut self, user_event: UserEvent) -> Result<(), EventError> {
         query!(
             r#"
-                INSERT INTO user_events (user_id, event_id, can_edit, is_accepted)
+                INSERT INTO user_events (user_id, event_id, can_edit)
                 VALUES
-                ($1, $2, $3, $4)
+                ($1, $2, $3)
             "#,
             self.payload.user_id,
             user_event.event_id,
             user_event.can_edit,
-            user_event.is_accepted,
         )
         .execute(&mut *self.conn)
         .await?;
