@@ -276,12 +276,12 @@ impl<'c> PgQuery<'c, EventQuery> {
                 SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
                 FROM events
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
-                WHERE owner_id = $1 AND starts_at >= $2 AND ends_at < $3 AND deleted_at IS NULL
+                WHERE owner_id = $1 AND starts_at < $2 AND (until >= $3 OR (recurrence IS NULL AND until IS NULL AND ends_at >= $3) OR (recurrence IS NOT NULL AND until IS NULL)) AND deleted_at IS NULL
                 ORDER BY starts_at ASC
             "#,
             self.payload.user_id,
+            search_range.end,
             search_range.start,
-            search_range.end
         )
         .fetch_all(&mut *self.conn)
         .await?;
@@ -323,12 +323,12 @@ impl<'c> PgQuery<'c, EventQuery> {
                 FROM user_events
                 JOIN events ON user_events.event_id = events.id
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
-                WHERE user_id = $1 AND starts_at >= $2 AND ends_at < $3 AND deleted_at IS NULL AND owner_id <> $1
+                WHERE user_id = $1 AND starts_at < $2 AND (until >= $3 OR (recurrence IS NULL AND until IS NULL AND ends_at >= $3) OR (recurrence IS NOT NULL AND until IS NULL)) AND deleted_at IS NULL AND owner_id <> $1
                 ORDER BY events.starts_at ASC
             "#,
             self.payload.user_id,
+            search_range.end,
             search_range.start,
-            search_range.end
         )
             .fetch_all(&mut *self.conn)
             .await?;
