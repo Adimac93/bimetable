@@ -5,6 +5,7 @@ use crate::routes::events::models::{
 use crate::utils::events::errors::EventError;
 use crate::utils::events::models::TimeRange;
 use crate::utils::events::{get_owned, get_shared, EventQuery};
+use crate::validation::ValidateContent;
 use sqlx::{Acquire, PgPool, Postgres};
 use uuid::Uuid;
 
@@ -35,6 +36,8 @@ pub async fn create_new_event(
     user_id: Uuid,
     body: CreateEvent,
 ) -> Result<Uuid, EventError> {
+    body.validate_content()?;
+
     let mut transaction = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut transaction);
     let event_id = q.create_event(body).await?;
@@ -61,6 +64,8 @@ pub async fn update_one_event(
     body: UpdateEvent,
     event_id: Uuid,
 ) -> Result<(), EventError> {
+    body.validate_content()?;
+
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
     if q.is_owner(event_id).await? || q.can_edit(event_id).await? {
@@ -86,6 +91,8 @@ pub async fn create_one_event_override(
     body: OverrideEvent,
     event_id: Uuid,
 ) -> Result<(), EventError> {
+    body.validate_content()?;
+
     let mut transaction = pool.begin().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut transaction);
     let is_owned = q.is_owner(event_id).await?;
@@ -113,15 +120,14 @@ pub async fn delete_one_event_permanently(
 pub async fn update_user_editing_privileges(
     pool: &PgPool,
     user_id: Uuid,
-    target_user_id: Uuid,
-    can_edit: bool,
+    body: UpdateEditPrivilege,
     event_id: Uuid,
 ) -> Result<(), EventError> {
     let mut conn = pool.acquire().await?;
     let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
-    if q.is_owner(event_id).await? && user_id != target_user_id {
+    if q.is_owner(event_id).await? && user_id != body.user_id {
         return q
-            .update_edit_privileges(target_user_id, event_id, can_edit)
+            .update_edit_privileges(body.user_id, event_id, body.can_edit)
             .await;
     }
     Err(EventError::MismatchedPrivileges)

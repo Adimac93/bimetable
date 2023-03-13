@@ -149,7 +149,7 @@ async fn update_edit_privileges(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateEditPrivilege>,
 ) -> Result<(), EventError> {
-    update_user_editing_privileges(&pool, claims.user_id, body.user_id, body.can_edit, id).await?;
+    update_user_editing_privileges(&pool, claims.user_id, body, id).await?;
     debug!(
         "Updated editing privileges for user {} and event {id} to {}",
         body.user_id, body.can_edit

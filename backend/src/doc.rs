@@ -1,5 +1,6 @@
 use crate::routes::{
     auth::models::*, auth::*, events::models::*, events::*, invitations::models::*, invitations::*,
+    search::models::*, search::*,
 };
 use crate::utils::{auth::models::*, events::models::*};
 use utoipa::openapi::security::{
@@ -33,6 +34,7 @@ create_invitation,
 fetch_invitations,
 accept_invitation,
 reject_invitation,
+search_users,
 ),
 components(schemas(
 CreateEvent,
@@ -57,7 +59,9 @@ CreateEventResult,
 UpdateEditPrivilege,
 UpdateEventOwner,
 NewEventOwner,
+SearchUsers,
+SearchUsersResult,
 )),
-tags((name = "auth"),(name = "events"),(name = "event-ownership"),(name = "invitations"))
+tags((name = "auth"),(name = "events"),(name = "event-ownership"),(name = "invitations"),(name = "search"))
 )]
 pub struct ApiDoc;
