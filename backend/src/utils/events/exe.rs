@@ -35,9 +35,10 @@ pub async fn create_new_event(
     user_id: Uuid,
     body: CreateEvent,
 ) -> Result<Uuid, EventError> {
-    let mut conn = pool.acquire().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
+    let mut transaction = pool.begin().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut transaction);
     let event_id = q.create_event(body).await?;
+    transaction.commit().await?;
 
     Ok(event_id)
 }
@@ -85,15 +86,15 @@ pub async fn create_one_event_override(
     body: OverrideEvent,
     event_id: Uuid,
 ) -> Result<(), EventError> {
-    let mut conn = pool.begin().await?;
-    let mut q = PgQuery::new(EventQuery::new(user_id), &mut conn);
+    let mut transaction = pool.begin().await?;
+    let mut q = PgQuery::new(EventQuery::new(user_id), &mut transaction);
     let is_owned = q.is_owner(event_id).await?;
     if !is_owned {
         return Err(EventError::MismatchedPrivileges);
     }
 
     q.create_override(event_id, body).await?;
-    Ok(())
+    Ok(transaction.commit().await?)
 }
 
 pub async fn delete_one_event_permanently(

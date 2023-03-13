@@ -141,6 +141,10 @@ impl Events {
 pub struct Event {
     pub payload: EventPayload,
     pub recurrence_rule: Option<RecurrenceRule>,
+    #[serde(with = "iso8601")]
+    pub entries_start: OffsetDateTime,
+    #[serde(with = "iso8601::option")]
+    pub entries_end: Option<OffsetDateTime>,
     pub is_owned: bool,
     pub can_edit: bool,
 }
@@ -156,17 +160,23 @@ impl Event {
         privileges: EventPrivileges,
         payload: EventPayload,
         recurrence_rule: Option<RecurrenceRule>,
+        entries_start: OffsetDateTime,
+        entries_end: Option<OffsetDateTime>,
     ) -> Self {
         match privileges {
             EventPrivileges::Owned => Self {
                 payload,
                 recurrence_rule,
+                entries_start,
+                entries_end,
                 is_owned: true,
                 can_edit: true,
             },
             EventPrivileges::Shared { can_edit } => Self {
                 payload,
                 recurrence_rule,
+                entries_start,
+                entries_end,
                 is_owned: false,
                 can_edit,
             },
@@ -261,6 +271,8 @@ fn merge_events_1() {
                 EventPrivileges::Owned,
                 EventPayload::new(String::from("A"), None),
                 None,
+                datetime!(2023-02-18 10:00 UTC),
+                Some(datetime!(2023-02-20 12:00 UTC)),
             ),
         )]),
         entries,
@@ -294,6 +306,8 @@ fn merge_events_1() {
                 EventPrivileges::Owned,
                 EventPayload::new(String::from("A"), None),
                 None,
+                datetime!(2023-02-17 10:00 UTC),
+                Some(datetime!(2023-02-21 12:00 UTC)),
             ),
         )]),
         other_entries,

@@ -436,6 +436,8 @@ mod validation_tests {
                 },
                 kind: RecurrenceRuleKind::Daily,
             }),
+            entries_start: datetime!(2023-03-01 12:00 UTC),
+            entries_end: Some(datetime!(2023-03-03 13:00 UTC)),
             is_owned: true,
             can_edit: true,
         };
@@ -451,6 +453,8 @@ mod validation_tests {
                 description: Some("test_desc".to_string()),
             },
             recurrence_rule: None,
+            entries_start: datetime!(2023-03-01 12:00 UTC),
+            entries_end: Some(datetime!(2023-03-01 11:59 UTC)),
             is_owned: true,
             can_edit: false,
         };

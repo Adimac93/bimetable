@@ -7,11 +7,18 @@ CREATE TABLE events
     starts_at       TIMESTAMPTZ NOT NULL,
     ends_at         TIMESTAMPTZ NOT NULL,
     deleted_at      TIMESTAMPTZ,
-    recurrence_rule JSONB,
     PRIMARY KEY (id),
     FOREIGN KEY (owner_id) REFERENCES users (id)
 );
 
+CREATE TABLE recurrence_rules
+(
+    event_id UUID NOT NULL,
+    recurrence JSONB NOT NULL,
+    until TIMESTAMPTZ,
+    PRIMARY KEY (event_id),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+);
 
 CREATE TABLE event_overrides
 (

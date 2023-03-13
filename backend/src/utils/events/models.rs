@@ -1,7 +1,9 @@
+use crate::utils::events::RecurrenceJSON;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::types::time::OffsetDateTime;
 use std::fmt::{Display, Formatter};
-use time::macros::format_description;
+use time::macros::{datetime, format_description};
 use time::{serde::iso8601, Duration};
 use tracing::trace;
 use utoipa::ToSchema;
@@ -209,6 +211,47 @@ impl RecurrenceRule {
 
         Ok(res)
     }
+
+    pub fn to_json_rule(
+        self,
+        starts_at: OffsetDateTime,
+        ends_at: OffsetDateTime,
+    ) -> (RecurrenceJSON, Option<OffsetDateTime>) {
+        if let Some(rec) = &self.time_rules.ends_at {
+            match rec {
+                RecurrenceEndsAt::Until(until) => (
+                    RecurrenceJSON {
+                        count: None,
+                        interval: self.time_rules.interval,
+                        kind: RecurrenceRuleKind::Daily,
+                    },
+                    Some(*until),
+                ),
+                RecurrenceEndsAt::Count(c) => {
+                    let until = self
+                        .count_to_until(starts_at, *c, &TimeRange::new(starts_at, ends_at))
+                        .unwrap();
+                    (
+                        RecurrenceJSON {
+                            count: Some(*c),
+                            interval: self.time_rules.interval,
+                            kind: self.kind,
+                        },
+                        Some(until),
+                    )
+                }
+            }
+        } else {
+            (
+                RecurrenceJSON {
+                    count: None,
+                    interval: self.time_rules.interval,
+                    kind: self.kind,
+                },
+                None,
+            )
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema, PartialEq)]
@@ -314,4 +357,50 @@ impl UserEvent {
             is_accepted,
         }
     }
+}
+
+#[test]
+fn AAA() {
+    let a = json!({"kind": {"monthly": {"isByDay": true}}, "timeRules": {"endsAt": {"count": 10}, "interval": 1}});
+    let b = json!({"kind": {"weekly": {"weekMap": 24}}, "timeRules": {"endsAt": {"count": 15}, "interval": 1}});
+    let c = json!({"kind": {"weekly": {"weekMap": 40}}, "timeRules": {"endsAt": {"count": 15}, "interval": 1}});
+
+    // datetime!(2023-03-07 08:00) datetime!(2023-03-07 09:35)
+    let a = serde_json::from_value::<RecurrenceRule>(a).unwrap();
+    let a = a.count_to_until(
+        datetime!(2023-03-07 08:00 UTC),
+        10,
+        &TimeRange::new(
+            datetime!(2023-03-07 08:00 UTC),
+            datetime!(2023-03-07 09:35 UTC),
+        ),
+    );
+
+    println!("{a:?}");
+
+    // datetime!(2023-03-08 09:45) datetime!(2023-03-08 10:30)
+    let b = serde_json::from_value::<RecurrenceRule>(b).unwrap();
+    let b = b.count_to_until(
+        datetime!(2023-03-08 09:45 UTC),
+        15,
+        &TimeRange::new(
+            datetime!(2023-03-08 09:45 UTC),
+            datetime!(2023-03-08 10:30 UTC),
+        ),
+    );
+
+    println!("{b:?}");
+
+    // datetime!(2023-03-07 11:40) datetime!(2023-03-07 13:15)
+    let c = serde_json::from_value::<RecurrenceRule>(c).unwrap();
+    let c = c.count_to_until(
+        datetime!(2023-03-07 11:40 UTC),
+        15,
+        &TimeRange::new(
+            datetime!(2023-03-07 11:40 UTC),
+            datetime!(2023-03-07 13:15 UTC),
+        ),
+    );
+
+    println!("{c:?}");
 }
