@@ -20,7 +20,8 @@ use http::StatusCode;
 use serde_json::json;
 use sqlx::{query, query_as, PgPool};
 
-use bimetable::utils::events::exe::{get_one_event, update_one_event};
+use bimetable::routes::events::create_event;
+use bimetable::utils::events::exe::{create_new_event, get_one_event, update_one_event};
 use bimetable::utils::events::models::RecurrenceEndsAt::Until;
 use bimetable::utils::events::models::RecurrenceRuleKind;
 use time::{macros::datetime, OffsetDateTime};
@@ -94,10 +95,7 @@ async fn does_not_create_event_with_wrong_time(pool: PgPool) {
         recurrence_rule: None,
     };
 
-    let mut conn = pool.acquire().await.unwrap();
-    let mut query = PgQuery::new(EventQuery::new(ADIMAC_ID), &mut conn);
-
-    assert!(query.create_event(event).await.is_err())
+    assert!(create_new_event(&pool, ADIMAC_ID, event).await.is_err())
 }
 
 #[traced_test]
@@ -394,8 +392,10 @@ async fn update_edit_privileges_test(pool: PgPool) {
     update_user_editing_privileges(
         &pool,
         PKBPMJ_ID,
-        ADIMAC_ID,
-        true,
+        UpdateEditPrivilege {
+            user_id: ADIMAC_ID,
+            can_edit: true,
+        },
         uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
     )
     .await
@@ -418,8 +418,10 @@ async fn cannot_update_privileges_without_ownership(pool: PgPool) {
     assert!(update_user_editing_privileges(
         &pool,
         ADIMAC_ID,
-        PKBPMJ_ID,
-        false,
+        UpdateEditPrivilege {
+            user_id: PKBPMJ_ID,
+            can_edit: false,
+        },
         uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
     )
     .await
@@ -432,8 +434,10 @@ async fn cannot_self_update_privileges(pool: PgPool) {
     assert!(update_user_editing_privileges(
         &pool,
         PKBPMJ_ID,
-        PKBPMJ_ID,
-        false,
+        UpdateEditPrivilege {
+            user_id: PKBPMJ_ID,
+            can_edit: false,
+        },
         uuid!("6d185de5-ddec-462a-aeea-7628f03d417b"),
     )
     .await
