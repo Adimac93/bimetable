@@ -20,3 +20,20 @@ async fn search_users_test(pool: PgPool) {
         }]
     )
 }
+
+#[sqlx::test(fixtures("users"))]
+#[traced_test]
+async fn search_users_test_case_insensitive(pool: PgPool) {
+    let mut conn = pool.acquire().await.unwrap();
+    let mut q = PgQuery::new(Search::new("hU".to_string()), &mut conn);
+    let res = q.search_users().await.unwrap();
+
+    assert_eq!(
+        res,
+        vec![QueryUser {
+            id: uuid!("a9c5900e-a445-4888-8612-4a5c8cadbd9e"),
+            username: "hubertk".to_string(),
+            tag: 0000,
+        }]
+    )
+}

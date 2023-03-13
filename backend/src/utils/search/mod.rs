@@ -30,9 +30,9 @@ impl<'c> PgQuery<'c, Search> {
             QueryUser,
             r#"
                 SELECT id, username, tag FROM users
-                WHERE username LIKE CONCAT(CAST($1 AS TEXT), '%')
+                WHERE username LIKE CONCAT(LOWER(CAST($1 AS TEXT)), '%')
             "#,
-            self.payload.text
+            self.payload.text.to_lowercase()
         )
         .fetch_all(&mut *self.conn)
         .await
