@@ -70,7 +70,7 @@ pub struct RecurrenceJSON {
 }
 
 impl RecurrenceJSON {
-    fn to_compute_rule(self, until: Option<OffsetDateTime>) -> RecurrenceRule {
+    pub fn to_compute_rule(self, until: Option<OffsetDateTime>) -> RecurrenceRule {
         RecurrenceRule {
             time_rules: TimeRules {
                 ends_at: until.and_then(|x| Some(RecurrenceEndsAt::Until(x))),
@@ -172,7 +172,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {
         let event = query!(
             r#"
-                SELECT id, owner_id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
+                SELECT id, owner_id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
                 FROM events
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
                 WHERE id = $1 AND deleted_at IS NULL
@@ -189,12 +189,6 @@ impl<'c> PgQuery<'c, EventQuery> {
                 .recurrence
                 .and_then(|Json(x)| Some(x.to_compute_rule(event.until)));
 
-            let entries_end = if rec_rule.is_some() {
-                event.until
-            } else {
-                Some(event.ends_at)
-            };
-
             if event.owner_id == self.payload.user_id {
                 trace!("Got owned event {}", event.id);
 
@@ -203,7 +197,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                     payload,
                     rec_rule,
                     event.starts_at,
-                    entries_end,
+                    event.entries_end,
                 )));
             }
 
@@ -228,7 +222,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                     payload,
                     rec_rule,
                     event.starts_at,
-                    entries_end,
+                    event.entries_end,
                 )));
             }
         }
@@ -236,6 +230,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(None)
     }
 
+    // FIXME
     pub async fn get_owned_event(&mut self, event_id: Uuid) -> Result<QOwnedEvent, EventError> {
         let event = query!(
             r#"
@@ -266,6 +261,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(res)
     }
 
+    // FIXME
     pub async fn get_owned_events(
         &mut self,
         search_range: TimeRange,
@@ -312,6 +308,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(events)
     }
 
+    // FIXME
     pub async fn get_shared_events(
         &mut self,
         search_range: TimeRange,
@@ -358,7 +355,10 @@ impl<'c> PgQuery<'c, EventQuery> {
         Ok(shared_events)
     }
 
-    async fn get_overrides(&mut self, event_ids: Vec<Uuid>) -> Result<Vec<QOverride>, EventError> {
+    pub async fn get_overrides(
+        &mut self,
+        event_ids: Vec<Uuid>,
+    ) -> Result<Vec<QOverride>, EventError> {
         let overrides = query_as!(
             QOverride,
             r#"
@@ -627,7 +627,11 @@ async fn get_shared(
     ))
 }
 
-fn map_events(overrides: Vec<QOverride>, events: Vec<QEvent>, search_range: TimeRange) -> Events {
+pub fn map_events(
+    overrides: Vec<QOverride>,
+    events: Vec<QEvent>,
+    search_range: TimeRange,
+) -> Events {
     let mut ovrs = group_overrides(overrides);
     let mut entries: Vec<Entry> = vec![];
 

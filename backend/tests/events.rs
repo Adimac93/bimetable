@@ -156,9 +156,29 @@ async fn get_many_events_test(pool: PgPool) {
                             description: Some("fizyka kwantowa :O".to_string()),
                         }
                     }
+                ),
+                (
+                    uuid!("374ae0ab-d473-4752-b77f-cae55c69245c"),
+                    Event {
+                        can_edit: true,
+                        is_owned: false,
+                        recurrence_rule: None,
+                        entries_start: datetime!(2023-03-07 11:30:00.0 +00:00:00),
+                        entries_end: Some(datetime!(2023-03-07 13:15:00.0 +00:00:00)),
+                        payload: EventPayload {
+                            name: "Infa".to_string(),
+                            description: None,
+                        }
+                    }
                 )
             ]),
             entries: vec![
+                // Entry {
+                //     event_id: uuid!("374ae0ab-d473-4752-b77f-cae55c69245c"),
+                //     starts_at: datetime!(2023-03-07 11:30 UTC),
+                //     ends_at: datetime!(2023-03-07 13:15 UTC),
+                //     recurrence_override: None,
+                // },
                 Entry {
                     event_id: uuid!("d63a1036-e59d-4b7c-a009-9b90a0e703d1"),
                     starts_at: datetime!(2023-03-07 11:40 UTC),
@@ -262,27 +282,49 @@ async fn get_shared_test(pool: PgPool) {
     assert_eq!(
         res,
         Events {
-            events: HashMap::from([(
-                uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
-                Event {
-                    can_edit: true,
-                    is_owned: false,
-                    recurrence_rule: Some(RecurrenceRule {
-                        kind: RecurrenceRuleKind::Weekly { week_map: 24 },
-                        time_rules: TimeRules {
-                            ends_at: Some(Until(datetime!(2023-04-27 10:30:00.0 +00:00:00))),
-                            interval: 1,
-                        },
-                    }),
-                    entries_start: datetime!(2023-03-08 09:45 +00:00:00),
-                    entries_end: Some(datetime!(2023-04-27 10:30:00.0 +00:00:00)),
-                    payload: EventPayload {
-                        name: "Fizyka".to_string(),
-                        description: Some("fizyka kwantowa :O".to_string()),
+            events: HashMap::from([
+                (
+                    uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
+                    Event {
+                        can_edit: true,
+                        is_owned: false,
+                        recurrence_rule: Some(RecurrenceRule {
+                            kind: RecurrenceRuleKind::Weekly { week_map: 24 },
+                            time_rules: TimeRules {
+                                ends_at: Some(Until(datetime!(2023-04-27 10:30:00.0 +00:00:00))),
+                                interval: 1,
+                            },
+                        }),
+                        entries_start: datetime!(2023-03-08 09:45 +00:00:00),
+                        entries_end: Some(datetime!(2023-04-27 10:30:00.0 +00:00:00)),
+                        payload: EventPayload {
+                            name: "Fizyka".to_string(),
+                            description: Some("fizyka kwantowa :O".to_string()),
+                        }
                     }
-                }
-            )]),
+                ),
+                (
+                    uuid!("374ae0ab-d473-4752-b77f-cae55c69245c"),
+                    Event {
+                        can_edit: true,
+                        is_owned: false,
+                        recurrence_rule: None,
+                        entries_start: datetime!(2023-03-07 11:30:00.0 +00:00:00),
+                        entries_end: Some(datetime!(2023-03-07 13:15:00.0 +00:00:00)),
+                        payload: EventPayload {
+                            name: "Infa".to_string(),
+                            description: None,
+                        }
+                    }
+                )
+            ]),
             entries: vec![
+                // Entry {
+                //     event_id: uuid!("374ae0ab-d473-4752-b77f-cae55c69245c"),
+                //     starts_at: datetime!(2023-03-07 11:30 UTC),
+                //     ends_at: datetime!(2023-03-07 13:15 UTC),
+                //     recurrence_override: None,
+                // },
                 Entry {
                     event_id: uuid!("fd1dcdf7-de06-4aad-ba6e-f2097217a5b1"),
                     starts_at: datetime!(2023-03-08 09:45 UTC),
