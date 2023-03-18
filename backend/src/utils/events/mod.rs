@@ -11,9 +11,7 @@ use crate::routes::events::models::{
     CreateEvent, Entry, Event, EventFilter, EventPayload, EventPrivileges, Events,
     OptionalEventData, Override, OverrideEvent, UpdateEvent,
 };
-use crate::utils::events::models::{
-    RecurrenceEndsAt, RecurrenceRule, RecurrenceRuleKind, TimeRange, TimeRules,
-};
+use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange, TimeRules};
 
 use self::errors::EventError;
 use self::models::UserEvent;
@@ -62,25 +60,6 @@ pub struct QSharedEvent {
     can_edit: bool,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct RecurrenceJSON {
-    pub count: Option<u32>,
-    pub interval: u32,
-    pub kind: RecurrenceRuleKind,
-}
-
-impl RecurrenceJSON {
-    pub fn to_compute_rule(self, until: Option<OffsetDateTime>) -> RecurrenceRule {
-        RecurrenceRule {
-            time_rules: TimeRules {
-                ends_at: until.and_then(|x| Some(RecurrenceEndsAt::Until(x))),
-                interval: self.interval,
-            },
-            kind: self.kind,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct QEvent {
     id: Uuid,
@@ -105,7 +84,7 @@ impl EventQuery {
 impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create_event(&mut self, event: CreateEvent) -> Result<Uuid, EventError> {
         let (rule, until) = if let Some(rule) = event.recurrence_rule {
-            let (rule, until) = rule.to_json_rule(event.data.starts_at, event.data.ends_at);
+            let (rule, until) = unimplemented!()
             (Some(rule), until.unwrap_or(event.data.ends_at))
         } else {
             (None, event.data.ends_at)
@@ -172,7 +151,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn get_event(&mut self, event_id: Uuid) -> Result<Option<Event>, EventError> {
         let event = query!(
             r#"
-                SELECT id, owner_id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
+                SELECT id, owner_id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceRule>>", until
                 FROM events
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
                 WHERE id = $1 AND deleted_at IS NULL
@@ -197,7 +176,6 @@ impl<'c> PgQuery<'c, EventQuery> {
                     payload,
                     rec_rule,
                     event.starts_at,
-                    event.entries_end,
                 )));
             }
 
@@ -222,7 +200,6 @@ impl<'c> PgQuery<'c, EventQuery> {
                     payload,
                     rec_rule,
                     event.starts_at,
-                    event.entries_end,
                 )));
             }
         }
@@ -234,7 +211,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     pub async fn get_owned_event(&mut self, event_id: Uuid) -> Result<QOwnedEvent, EventError> {
         let event = query!(
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceRule>>", until
                 FROM events
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
                 WHERE owner_id = $1 AND id = $2
@@ -268,7 +245,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     ) -> Result<Vec<QEvent>, EventError> {
         let events = query!(
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceRule>>", until
                 FROM events
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
                 WHERE owner_id = $1 AND starts_at < $2 AND (until >= $3 OR (recurrence IS NULL AND until IS NULL AND ends_at >= $3) OR (recurrence IS NOT NULL AND until IS NULL)) AND deleted_at IS NULL
@@ -315,7 +292,7 @@ impl<'c> PgQuery<'c, EventQuery> {
     ) -> Result<Vec<QEvent>, EventError> {
         let shared_events = query!(
             r#"
-                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until, can_edit 
+                SELECT id, name, description, starts_at, ends_at, deleted_at, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceRule>>", until, can_edit 
                 FROM user_events
                 JOIN events ON user_events.event_id = events.id
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
@@ -390,8 +367,8 @@ impl<'c> PgQuery<'c, EventQuery> {
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
             "#,
             event_id,
-            ovr.override_starts_at,
-            ovr.override_ends_at,
+            ovr.time_range.start,
+            ovr.time_range.end,
             ovr.data.name,
             ovr.data.description,
             ovr.data.starts_at,
@@ -638,7 +615,7 @@ pub fn map_events(
     let events: HashMap<Uuid, Event> = events
         .into_iter()
         .map(|event| {
-            if let Some(rule) = event.recurrence_rule {
+            if let Some(rule) = &event.recurrence_rule {
                 let mut entry_ranges = rule
                     .get_event_range(search_range, event.time_range)
                     .unwrap();
@@ -646,46 +623,18 @@ pub fn map_events(
                 let new_entries = get_entries(event.id, &mut entry_ranges, &mut ovrs);
                 entries.extend(new_entries);
 
-                if let Some(rea) = &rule.time_rules.ends_at {
-                    let until = match rea {
-                        RecurrenceEndsAt::Until(u) => *u,
-                        RecurrenceEndsAt::Count(c) => rule
-                            .count_to_until(event.time_range.start, *c, &event.time_range)
-                            .unwrap(),
-                    };
-                    return (
-                        event.id,
-                        Event::new(
-                            event.privileges,
-                            EventPayload::new(event.name, event.description),
-                            Some(rule),
-                            event.time_range.start,
-                            Some(until),
-                        ),
-                    );
-                }
-                return (
-                    event.id,
-                    Event::new(
-                        event.privileges,
-                        EventPayload::new(event.name, event.description),
-                        Some(rule),
-                        event.time_range.start,
-                        None,
-                    ),
-                );
-            }
 
-            (
+            }
+            return (
                 event.id,
                 Event::new(
                     event.privileges,
                     EventPayload::new(event.name, event.description),
-                    None,
+                    event.recurrence_rule,
                     event.time_range.start,
-                    Some(event.time_range.end),
                 ),
-            )
+            );
+
         })
         .collect();
 
@@ -731,7 +680,7 @@ fn get_entries(
     trace!("Got {} entries for event {event_id}", entry_ranges.len());
     entry_ranges
         .iter_mut()
-        .map(|range| Entry::new(event_id, range.start, range.end, None))
+        .map(|range| Entry::new(event_id, TimeRange::new(range.start, range.end), None))
         .collect()
 }
 
@@ -746,16 +695,14 @@ fn apply_event_overrides(
             if entry_range.is_contained(entry_range) {
                 entries.push(Entry::new(
                     event_id,
-                    ovr_range.start,
-                    ovr_range.end,
+                    TimeRange::new(ovr_range.start, ovr_range.end),
                     Some(ovr_payload.clone()),
                 ));
                 entry_ranges.pop();
             } else if entry_range.is_before(&ovr_range) {
                 entries.push(Entry::new(
                     event_id,
-                    entry_range.start,
-                    entry_range.end,
+                    TimeRange::new(entry_range.start, entry_range.end),
                     None,
                 ));
                 entry_ranges.pop();
