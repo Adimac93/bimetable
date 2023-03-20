@@ -29,8 +29,8 @@ CREATE TABLE event_overrides
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     name               TEXT,
     description        TEXT,
-    starts_at          TIMESTAMPTZ,
-    ends_at            TIMESTAMPTZ,
+    starts_at          INTERVAL,
+    ends_at            INTERVAL,
     deleted_at         TIMESTAMPTZ,
     PRIMARY KEY (id),
     FOREIGN KEY (event_id) REFERENCES events (id)

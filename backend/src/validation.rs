@@ -138,8 +138,7 @@ impl ValidateContent for UpdateEvent {
 
 impl ValidateContent for OverrideEvent {
     fn validate_content(&self) -> Result<(), ValidateContentError> {
-        TimeRange::new(self.override_starts_at, self.override_ends_at).validate_content()?;
-        self.data.validate_content()
+        TimeRange::new(self.override_starts_at, self.override_ends_at).validate_content()
     }
 }
 

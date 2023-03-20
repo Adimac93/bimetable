@@ -1,8 +1,11 @@
+use anyhow::anyhow;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::types::PgInterval;
 use sqlx::types::{time::OffsetDateTime, Json};
 use sqlx::{query, query_as, Acquire};
+use time::Duration;
 use tracing::log::trace;
 use uuid::Uuid;
 
@@ -34,8 +37,8 @@ pub struct QOverride {
     created_at: OffsetDateTime,
     name: Option<String>,
     description: Option<String>,
-    starts_at: Option<OffsetDateTime>,
-    ends_at: Option<OffsetDateTime>,
+    starts_at: Option<Duration>,
+    ends_at: Option<Duration>,
     deleted_at: Option<OffsetDateTime>,
 }
 
@@ -359,8 +362,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         &mut self,
         event_ids: Vec<Uuid>,
     ) -> Result<Vec<QOverride>, EventError> {
-        let overrides = query_as!(
-            QOverride,
+        let overrides = query!(
             r#"
                 SELECT event_id, override_starts_at, override_ends_at, created_at, name, description, starts_at, ends_at, deleted_at
                 FROM event_overrides
@@ -376,7 +378,31 @@ impl<'c> PgQuery<'c, EventQuery> {
             trace!("Got events' overrides for {overrides:#?}");
         }
 
-        Ok(overrides)
+        let mut res = Vec::new();
+        for ovr in overrides.into_iter() {
+            let starts_at = match ovr.starts_at {
+                Some(start) => Some(to_time_duration(start)?),
+                None => None,
+            };
+            let ends_at = match ovr.ends_at {
+                Some(end) => Some(to_time_duration(end)?),
+                None => None,
+            };
+
+            res.push(QOverride {
+                event_id: ovr.event_id,
+                override_starts_at: ovr.override_starts_at,
+                override_ends_at: ovr.override_ends_at,
+                created_at: ovr.created_at,
+                name: ovr.name,
+                description: ovr.description,
+                starts_at,
+                ends_at,
+                deleted_at: None,
+            });
+        }
+
+        Ok(res)
     }
 
     pub async fn create_override(
@@ -394,8 +420,8 @@ impl<'c> PgQuery<'c, EventQuery> {
             ovr.override_ends_at,
             ovr.data.name,
             ovr.data.description,
-            ovr.data.starts_at,
-            ovr.data.ends_at
+            ovr.data.starts_at as _,
+            ovr.data.ends_at as _,
         ).execute(&mut *self.conn).await?;
 
         trace!("Created event override for event {event_id}");
@@ -639,11 +665,11 @@ pub fn map_events(
         .into_iter()
         .map(|event| {
             if let Some(rule) = event.recurrence_rule {
-                let mut entry_ranges = rule
+                let entry_ranges = rule
                     .get_event_range(search_range, event.time_range)
                     .unwrap();
 
-                let new_entries = get_entries(event.id, &mut entry_ranges, &mut ovrs);
+                let new_entries = get_entries(event.id, entry_ranges, &mut ovrs);
                 entries.extend(new_entries);
 
                 if let Some(rea) = &rule.time_rules.ends_at {
@@ -699,6 +725,8 @@ fn group_overrides(overrides: Vec<QOverride>) -> HashMap<Uuid, Vec<(TimeRange, O
         let entry_override = Override {
             name: ovr.name,
             description: ovr.description,
+            starts_at: ovr.starts_at,
+            ends_at: ovr.ends_at,
             deleted_at: ovr.deleted_at,
             created_at: ovr.created_at,
         };
@@ -716,7 +744,7 @@ fn group_overrides(overrides: Vec<QOverride>) -> HashMap<Uuid, Vec<(TimeRange, O
 
 fn get_entries(
     event_id: Uuid,
-    entry_ranges: &mut Vec<TimeRange>,
+    entry_ranges: Vec<TimeRange>,
     overrides: &mut HashMap<Uuid, Vec<(TimeRange, Override)>>,
 ) -> impl IntoIterator<Item = Entry> {
     if let Some(range_overrides) = overrides.remove(&event_id) {
@@ -730,39 +758,36 @@ fn get_entries(
 
     trace!("Got {} entries for event {event_id}", entry_ranges.len());
     entry_ranges
-        .iter_mut()
+        .into_iter()
         .map(|range| Entry::new(event_id, range.start, range.end, None))
         .collect()
 }
 
 fn apply_event_overrides(
     event_id: Uuid,
-    entry_ranges: &mut Vec<TimeRange>,
+    entry_ranges: Vec<TimeRange>,
     overrides: Vec<(TimeRange, Override)>,
 ) -> Vec<Entry> {
-    let mut entries: Vec<Entry> = vec![];
+    let mut entries: Vec<Entry> = entry_ranges
+        .into_iter()
+        .map(|entry| Entry::new(event_id, entry.start, entry.end, None))
+        .collect();
     for (ovr_range, ovr_payload) in overrides {
-        while let Some(entry_range) = entry_ranges.last() {
-            if entry_range.is_contained(entry_range) {
-                entries.push(Entry::new(
-                    event_id,
-                    ovr_range.start,
-                    ovr_range.end,
-                    Some(ovr_payload.clone()),
-                ));
-                entry_ranges.pop();
-            } else if entry_range.is_before(&ovr_range) {
-                entries.push(Entry::new(
-                    event_id,
-                    entry_range.start,
-                    entry_range.end,
-                    None,
-                ));
-                entry_ranges.pop();
-            } else {
-                break;
-            }
+        let entry_start = entries.partition_point(|x| x.starts_at < ovr_range.start);
+        let entry_end = entries.partition_point(|x| x.ends_at <= ovr_range.end);
+        for i in entry_start..entry_end {
+            entries[i].recurrence_override = Some(ovr_payload.clone());
         }
     }
     entries
+}
+
+fn to_time_duration(val: PgInterval) -> Result<Duration, EventError> {
+    if val.days != 0 || val.months != 0 {
+        Err(EventError::Unexpected(anyhow!(
+            "Invalid interval data format in database type"
+        )))
+    } else {
+        Ok(Duration::microseconds(val.microseconds))
+    }
 }
