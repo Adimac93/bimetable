@@ -12,7 +12,7 @@ use super::{
     errors::EventError,
 };
 
-pub fn daily_conv(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+pub fn daily_c_to_u(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     Ok(conv_data
         .part_starts_at
         .add_days(conv_data.count.checked_mul(conv_data.interval).dc()? as i64)?
@@ -20,7 +20,7 @@ pub fn daily_conv(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventEr
         .dc()?)
 }
 
-pub fn weekly_conv(
+pub fn weekly_c_to_u(
     conv_data: CountToUntilData,
     week_map: &str,
 ) -> Result<OffsetDateTime, EventError> {
@@ -52,7 +52,7 @@ pub fn weekly_conv(
         .dc()?)
 }
 
-pub fn monthly_conv_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+pub fn monthly_c_to_u_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     let base_date = conv_data.part_starts_at;
 
     let target_date = if conv_data.part_starts_at.day() <= 28 {
@@ -64,15 +64,19 @@ pub fn monthly_conv_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime
     Ok(target_date.checked_add(conv_data.event_duration).dc()?)
 }
 
-pub fn monthly_conv_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+pub fn monthly_c_to_u_by_weekday(
+    conv_data: CountToUntilData,
+) -> Result<OffsetDateTime, EventError> {
     if conv_data.part_starts_at.day() <= 28 {
-        monthly_conv_for_other_days(conv_data)
+        monthly_c_to_u_for_other_days(conv_data)
     } else {
-        monthly_conv_for_last_days(conv_data)
+        monthly_c_to_u_for_last_days(conv_data)
     }
 }
 
-fn monthly_conv_for_other_days(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+fn monthly_c_to_u_for_other_days(
+    conv_data: CountToUntilData,
+) -> Result<OffsetDateTime, EventError> {
     let week_number = (conv_data.part_starts_at.day() - 1) / 7;
 
     let first_target_month_day = conv_data
@@ -92,7 +96,7 @@ fn monthly_conv_for_other_days(conv_data: CountToUntilData) -> Result<OffsetDate
         .dc()?)
 }
 
-fn monthly_conv_for_last_days(
+fn monthly_c_to_u_for_last_days(
     mut conv_data: CountToUntilData,
 ) -> Result<OffsetDateTime, EventError> {
     let mut monthly_step = conv_data.part_starts_at;
@@ -104,7 +108,7 @@ fn monthly_conv_for_last_days(
     Ok(monthly_step.checked_add(conv_data.event_duration).dc()?)
 }
 
-pub fn yearly_conv_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+pub fn yearly_c_to_u_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     let base_date = conv_data.part_starts_at;
 
     let target_date = if (
@@ -120,7 +124,7 @@ pub fn yearly_conv_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTime,
     Ok(target_date.checked_add(conv_data.event_duration).dc()?)
 }
 
-pub fn yearly_conv_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
+pub fn yearly_c_to_u_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     let (base_year, target_week, target_weekday) = conv_data.part_starts_at.to_iso_week_date();
 
     let target_year = if conv_data.part_starts_at.iso_week() == 53 {

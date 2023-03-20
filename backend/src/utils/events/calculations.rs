@@ -9,6 +9,12 @@ pub struct CountToUntilData {
     pub event_duration: Duration,
 }
 
+pub struct UntilToCountData {
+    pub part_starts_at: OffsetDateTime,
+    pub until: OffsetDateTime,
+    pub interval: u32,
+}
+
 pub struct EventRangeData {
     pub range: TimeRange,
     pub event_range: TimeRange,

@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::validation::ValidateContent;
 
 use super::{
-    calculations::{CountToUntilData, EventRangeData},
+    calculations::EventRangeData,
     count_to_until::{
         daily_conv, monthly_conv_by_day, monthly_conv_by_weekday, weekly_conv, yearly_conv_by_day,
         yearly_conv_by_weekday,
