@@ -7,7 +7,7 @@ use crate::utils::events::errors::EventError;
 use time::Month;
 
 pub fn daily_u_to_c(data: UntilToCountData) -> Result<u32, EventError> {
-    Ok(((data.until - data.part_starts_at) / data.interval).whole_days() as u32 + 1)
+    Ok(((data.until - data.part_starts_at) / data.interval).whole_days() as u32)
 }
 
 pub fn weekly_u_to_c(data: UntilToCountData, week_map: &str) -> Result<u32, EventError> {
@@ -156,5 +156,337 @@ pub fn yearly_u_to_c_by_weekday(data: UntilToCountData) -> Result<u32, EventErro
         } else {
             Ok(base_res + 1)
         }
+    }
+}
+
+#[cfg(test)]
+mod until_to_count_tests {
+    use crate::routes::events::models::{RecurrenceEndsAt, RecurrenceRuleSchema, TimeRules};
+    use crate::utils::events::models::{RecurrenceRuleKind, TimeRange};
+    use time::macros::datetime;
+
+    #[test]
+    fn daily_until_to_count_test_1() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-31 20:00 UTC))),
+                interval: 3,
+            },
+            kind: RecurrenceRuleKind::Daily,
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2023-03-30 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            3
+        )
+    }
+
+    #[test]
+    fn daily_until_to_count_test_2() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-31 20:00 UTC))),
+                interval: 3,
+            },
+            kind: RecurrenceRuleKind::Daily,
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2023-03-30 19:59 UTC),
+                    &event
+                )
+                .unwrap(),
+            2
+        )
+    }
+
+    #[test]
+    fn weekly_until_to_count_test_1() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-04-15 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Weekly { week_map: 103 },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2023-04-15 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            17
+        )
+    }
+
+    #[test]
+    fn weekly_until_to_count_test_2() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-04-15 20:00 UTC))),
+                interval: 2,
+            },
+            kind: RecurrenceRuleKind::Weekly { week_map: 103 },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2023-04-15 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            8
+        )
+    }
+
+    #[test]
+    fn weekly_until_to_count_test_3() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-03-24 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Weekly { week_map: 103 },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2023-03-24 19:59 UTC),
+                    &event
+                )
+                .unwrap(),
+            0
+        )
+    }
+
+    #[test]
+    fn monthly_until_to_count_test_by_day_1() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2024-06-21 20:00 UTC))),
+                interval: 3,
+            },
+            kind: RecurrenceRuleKind::Monthly { is_by_day: true },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2024-06-21 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            5
+        )
+    }
+
+    #[test]
+    fn monthly_until_to_count_test_by_day_2() {
+        let event = TimeRange::new(
+            datetime!(2023-03-31 18:30 UTC),
+            datetime!(2023-03-31 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-12-31 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Monthly { is_by_day: true },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-31 18:30 UTC),
+                    datetime!(2023-12-31 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            5
+        )
+    }
+
+    #[test]
+    fn monthly_until_to_count_test_by_weekday_1() {
+        let event = TimeRange::new(
+            datetime!(2023-03-19 18:30 UTC),
+            datetime!(2023-03-19 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-06-17 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Monthly { is_by_day: false },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-19 18:30 UTC),
+                    datetime!(2023-06-17 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            2
+        )
+    }
+
+    #[test]
+    fn monthly_until_to_count_test_by_weekday_2() {
+        let event = TimeRange::new(
+            datetime!(2023-03-31 18:30 UTC),
+            datetime!(2023-03-31 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2023-12-29 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Monthly { is_by_day: false },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-31 18:30 UTC),
+                    datetime!(2023-12-29 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            3
+        )
+    }
+
+    #[test]
+    fn yearly_until_to_count_test_by_day_1() {
+        let event = TimeRange::new(
+            datetime!(2023-03-21 18:30 UTC),
+            datetime!(2023-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2026-03-21 20:00 UTC))),
+                interval: 2,
+            },
+            kind: RecurrenceRuleKind::Yearly { is_by_day: true },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2023-03-21 18:30 UTC),
+                    datetime!(2026-03-21 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            1
+        )
+    }
+
+    #[test]
+    fn yearly_until_to_count_test_by_day_2() {
+        let event = TimeRange::new(
+            datetime!(2020-02-29 18:30 UTC),
+            datetime!(2020-02-29 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2028-02-29 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Yearly { is_by_day: true },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2020-02-29 18:30 UTC),
+                    datetime!(2028-02-29 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            2
+        )
+    }
+
+    #[test]
+    fn yearly_until_to_count_test_by_weekday_1() {
+        let event = TimeRange::new(
+            datetime!(2021-03-21 18:30 UTC),
+            datetime!(2021-03-21 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2026-03-21 20:00 UTC))),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Yearly { is_by_day: false },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2021-03-21 18:30 UTC),
+                    datetime!(2026-03-21 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            4
+        )
+    }
+
+    #[test]
+    fn yearly_until_to_count_test_by_weekday_2() {
+        let event = TimeRange::new(
+            datetime!(2020-12-31 18:30 UTC),
+            datetime!(2027-12-31 20:00 UTC),
+        );
+        let rec_rules = RecurrenceRuleSchema {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Until(datetime!(2027-12-31 20:00 UTC))),
+                interval: 2,
+            },
+            kind: RecurrenceRuleKind::Yearly { is_by_day: false },
+        };
+        assert_eq!(
+            rec_rules
+                .until_to_count(
+                    datetime!(2021-12-31 18:30 UTC),
+                    datetime!(2027-12-31 20:00 UTC),
+                    &event
+                )
+                .unwrap(),
+            1
+        )
     }
 }
