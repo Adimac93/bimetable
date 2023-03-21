@@ -12,6 +12,7 @@ use crate::utils::events::until_to_count::{
     daily_u_to_c, monthly_u_to_c_by_day, monthly_u_to_c_by_weekday, weekly_u_to_c,
     yearly_u_to_c_by_day, yearly_u_to_c_by_weekday,
 };
+use crate::validation::ValidateContent;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
 use std::collections::HashMap;
@@ -155,19 +156,19 @@ pub struct RecurrenceRuleSchema {
 
 impl RecurrenceRuleSchema {
     pub fn to_compute(self, event_time_range: &TimeRange) -> RecurrenceRule {
-        if let Some(ends_at) = self.time_rules.ends_at {
+        if let Some(ends_at) = &self.time_rules.ends_at {
             let (count, until) = match ends_at {
                 RecurrenceEndsAt::Until(until) => {
                     let count = self
-                        .until_to_count(event_time_range.start, until, event_time_range)
+                        .until_to_count(event_time_range.start, *until, event_time_range)
                         .unwrap();
-                    (count, until)
+                    (count, *until)
                 }
                 RecurrenceEndsAt::Count(count) => {
                     let until = self
-                        .count_to_until(event_time_range.start, count, event_time_range)
+                        .count_to_until(event_time_range.start, *count, event_time_range)
                         .unwrap();
-                    (count, until)
+                    (*count, until)
                 }
             };
 
@@ -194,10 +195,8 @@ impl RecurrenceRuleSchema {
     ///
     /// ```rust
     /// use bimetable::utils::events::models::RecurrenceRuleKind;
-    /// use bimetable::utils::events::models::TimeRules;
     /// use bimetable::utils::events::models::RecurrenceRule;
     /// use bimetable::utils::events::models::TimeRange;
-    /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use time::macros::datetime;
     /// use bimetable::routes::events::models::{RecurrenceEndsAt, RecurrenceRuleSchema, TimeRules};
     ///
@@ -224,7 +223,7 @@ impl RecurrenceRuleSchema {
         count: u32,
         event: &TimeRange,
     ) -> Result<OffsetDateTime, EventError> {
-        // self.time_rules.validate_content()?;
+        self.time_rules.validate_content()?;
 
         let conv_data = CountToUntilData {
             part_starts_at,
@@ -254,7 +253,7 @@ impl RecurrenceRuleSchema {
         until: OffsetDateTime,
         event: &TimeRange,
     ) -> Result<u32, EventError> {
-        // self.time_rules.validate_content()?;
+        self.time_rules.validate_content()?;
 
         let conv_data = UntilToCountData {
             part_starts_at,

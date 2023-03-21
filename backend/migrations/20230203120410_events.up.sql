@@ -16,6 +16,8 @@ CREATE TABLE recurrence_rules
     event_id UUID NOT NULL,
     recurrence JSONB NOT NULL,
     until TIMESTAMPTZ,
+    count INT,
+    interval INT NOT NULL,
     PRIMARY KEY (event_id),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );

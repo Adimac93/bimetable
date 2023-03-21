@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::types::time::OffsetDateTime;
+use sqlx::types::Json;
 use std::fmt::{Display, Formatter};
 use time::macros::{datetime, format_description};
 use time::{serde::iso8601, Duration};
@@ -41,17 +42,37 @@ pub struct EntriesSpan {
 }
 
 impl RecurrenceRule {
+    pub fn from_db_data(
+        kind: Option<Json<RecurrenceRuleKind>>,
+        until: Option<OffsetDateTime>,
+        count: Option<i32>,
+        interval: Option<i32>,
+    ) -> Option<Self> {
+        kind.and_then(|Json(rec_kind)| {
+            Some(Self {
+                span: if let (Some(u), Some(c)) = (until, count) {
+                    Some(EntriesSpan {
+                        end: u,
+                        repetitions: c as u32,
+                    })
+                } else {
+                    None
+                },
+                interval: interval? as u32,
+                kind: rec_kind,
+            })
+        })
+    }
+
     /// Returns all event occurences in a given range.
     ///
     /// For an event occurrence to be included in the result, it must overlap with the given range,
     /// which means that the occurrence must end strictly after the range, and vice versa.
     ///
     /// ```rust
-    /// use bimetable::utils::events::models::RecurrenceRuleKind;
-    /// use bimetable::utils::events::models::TimeRules;
+    /// use bimetable::utils::events::models::{EntriesSpan, RecurrenceRuleKind};
     /// use bimetable::utils::events::models::RecurrenceRule;
     /// use bimetable::utils::events::models::TimeRange;
-    /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use time::macros::datetime;
     /// use bimetable::routes::events::models::{RecurrenceEndsAt, RecurrenceRuleSchema, TimeRules};
     ///
@@ -59,12 +80,13 @@ impl RecurrenceRule {
     ///     datetime!(2023-02-17 22:45 UTC),
     ///     datetime!(2023-02-18 0:00 UTC),
     /// );
-    /// let rec_rules = RecurrenceRuleSchema {
+    /// let rec_rules = RecurrenceRule {
+    ///     span: Some(EntriesSpan {
+    ///         end: datetime!(2100-12-31 23:59 UTC),
+    ///         repetitions: 50
+    ///     }),
+    ///     interval: 2,
     ///     kind: RecurrenceRuleKind::Daily,
-    ///     time_rules: TimeRules {
-    ///         ends_at: Some(RecurrenceEndsAt::Count(50)),
-    ///         interval: 2,
-    ///     },
     /// };
     /// let part = TimeRange {
     ///     start: datetime!(2023-02-21 0:00 UTC),
@@ -94,12 +116,12 @@ impl RecurrenceRule {
         part: TimeRange,
         event: TimeRange,
     ) -> Result<Vec<TimeRange>, EventError> {
-        // self.time_rules.validate_content()?;
+        // self.validate_content()?;
 
         let mut range_data = EventRangeData {
             range: part,
             event_range: event,
-            rec_ends_at: None,
+            rec_ends_at: self.span.map(|x| x.end),
             interval: self.interval,
         };
 
