@@ -59,7 +59,6 @@ impl From<QueryEvent> for Event {
             },
             recurrence_rule: val.recurrence_rule,
             entries_start: val.entries_start,
-            entries_end: val.entries_end,
             is_owned,
             can_edit,
         }

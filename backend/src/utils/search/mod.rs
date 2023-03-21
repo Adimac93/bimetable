@@ -6,8 +6,8 @@ use crate::routes::events::models::{
     Event, EventFilter, EventPayload, EventPrivileges, Events, Override,
 };
 use crate::routes::search::models::{SearchEvents, SearchUsers};
-use crate::utils::events::models::{RecurrenceRule, TimeRange};
-use crate::utils::events::{map_events, EventQuery, QOverride, RecurrenceJSON};
+use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange};
+use crate::utils::events::{map_events, EventQuery, QOverride};
 use crate::utils::search::errors::SearchError;
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
@@ -65,7 +65,7 @@ impl<'c> PgQuery<'c, Search> {
     ) -> Result<Vec<QueryEvent>, SearchError> {
         let events = query!(
             r#"
-                SELECT id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", until
+                SELECT id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceRuleKind>>", until
                 FROM events
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
                 WHERE owner_id = $1
@@ -100,7 +100,7 @@ impl<'c> PgQuery<'c, Search> {
                 entries_end: event.entries_end,
                 recurrence_rule: event
                     .recurrence
-                    .and_then(|Json(x)| Some(x.to_compute_rule(event.until))),
+                    .and_then(|Json(x)| Some(x /*.to_compute_rule(event.until)*/)),
                 privileges: EventPrivileges::Owned,
             })
             .collect();
@@ -114,7 +114,7 @@ impl<'c> PgQuery<'c, Search> {
     ) -> Result<Vec<QueryEvent>, SearchError> {
         let events = query!(
             r#"
-                SELECT id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceJSON>>", can_edit, until 
+                SELECT id, name, description, starts_at, COALESCE(until, ends_at) AS entries_end, recurrence AS "recurrence: Option<sqlx::types::Json<RecurrenceRuleKind>>", can_edit, until 
                 FROM user_events
                 JOIN events ON user_events.event_id = events.id
                 LEFT JOIN recurrence_rules ON recurrence_rules.event_id = id
@@ -153,7 +153,7 @@ impl<'c> PgQuery<'c, Search> {
                 entries_end: event.entries_end,
                 recurrence_rule: event
                     .recurrence
-                    .and_then(|Json(x)| Some(x.to_compute_rule(event.until))),
+                    .and_then(|Json(x)| Some(x /*.to_compute_rule(event.until)*/)),
                 privileges: EventPrivileges::Shared {
                     can_edit: event.can_edit,
                 },

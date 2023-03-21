@@ -11,7 +11,7 @@ use crate::routes::events::models::{
     CreateEvent, Entry, Event, EventFilter, EventPayload, EventPrivileges, Events,
     OptionalEventData, Override, OverrideEvent, UpdateEvent,
 };
-use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange, TimeRules};
+use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange};
 
 use self::errors::EventError;
 use self::models::UserEvent;
@@ -85,8 +85,9 @@ impl EventQuery {
 impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create_event(&mut self, event: CreateEvent) -> Result<Uuid, EventError> {
         let (rule, until) = if let Some(rule) = event.recurrence_rule {
-            let (rule, until) = unimplemented!()
-            (Some(rule), until.unwrap_or(event.data.ends_at))
+            let rule = rule.to_compute(&TimeRange::new(event.data.starts_at, event.data.ends_at));
+            let until = rule.span.map_or(event.data.ends_at, |x| x.end);
+            (Some(rule), until)
         } else {
             (None, event.data.ends_at)
         };
@@ -165,9 +166,7 @@ impl<'c> PgQuery<'c, EventQuery> {
         if let Some(event) = event {
             let payload = EventPayload::new(event.name, event.description);
 
-            let rec_rule = event
-                .recurrence
-                .and_then(|Json(x)| Some(x.to_compute_rule(event.until)));
+            let rec_rule = event.recurrence.and_then(|Json(x)| Some(x));
 
             if event.owner_id == self.payload.user_id {
                 trace!("Got owned event {}", event.id);
@@ -234,7 +233,7 @@ impl<'c> PgQuery<'c, EventQuery> {
             deleted_at: event.deleted_at,
             recurrence_rule: event
                 .recurrence
-                .and_then(|Json(x)| Some(x.to_compute_rule(event.until))),
+                .and_then(|Json(x)| Some(x /*.to_compute_rule(event.until)*/)),
         };
         Ok(res)
     }
@@ -278,7 +277,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 deleted_at: event.deleted_at,
                 recurrence_rule: event
                     .recurrence
-                    .and_then(|Json(x)| Some(x.to_compute_rule(event.until))),
+                    .and_then(|Json(x)| Some(x /*.to_compute_rule(event.until)*/)),
                 privileges: EventPrivileges::Owned,
             })
             .collect();
@@ -323,7 +322,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                 deleted_at: event.deleted_at,
                 recurrence_rule: event
                     .recurrence
-                    .and_then(|Json(x)| Some(x.to_compute_rule(event.until))),
+                    .and_then(|Json(x)| Some(x /*.to_compute_rule(event.until)*/)),
                 privileges: EventPrivileges::Shared {
                     can_edit: event.can_edit,
                 },
@@ -623,8 +622,6 @@ pub fn map_events(
 
                 let new_entries = get_entries(event.id, &mut entry_ranges, &mut ovrs);
                 entries.extend(new_entries);
-
-
             }
             return (
                 event.id,
@@ -635,7 +632,6 @@ pub fn map_events(
                     event.time_range.start,
                 ),
             );
-
         })
         .collect();
 

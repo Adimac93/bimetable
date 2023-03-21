@@ -1,4 +1,3 @@
-use crate::utils::events::RecurrenceJSON;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::types::time::OffsetDateTime;
@@ -13,10 +12,6 @@ use crate::validation::ValidateContent;
 
 use super::{
     calculations::EventRangeData,
-    count_to_until::{
-        daily_conv, monthly_conv_by_day, monthly_conv_by_weekday, weekly_conv, yearly_conv_by_day,
-        yearly_conv_by_weekday,
-    },
     errors::EventError,
     event_range::{
         get_daily_events, get_monthly_events_by_day, get_weekly_events,
@@ -29,6 +24,9 @@ pub struct EventPart {
     pub length: Option<EntriesSpan>,
 }
 
+/// Computational struct.
+///
+/// Used for generating event entries and to be stored in the db.
 #[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct RecurrenceRule {
     pub span: Option<EntriesSpan>,
@@ -36,10 +34,98 @@ pub struct RecurrenceRule {
     pub kind: RecurrenceRuleKind,
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq, Clone, Copy)]
 pub struct EntriesSpan {
     pub end: OffsetDateTime,
     pub repetitions: u32,
+}
+
+impl RecurrenceRule {
+    /// Returns all event occurences in a given range.
+    ///
+    /// For an event occurrence to be included in the result, it must overlap with the given range,
+    /// which means that the occurrence must end strictly after the range, and vice versa.
+    ///
+    /// ```rust
+    /// use bimetable::utils::events::models::RecurrenceRuleKind;
+    /// use bimetable::utils::events::models::TimeRules;
+    /// use bimetable::utils::events::models::RecurrenceRule;
+    /// use bimetable::utils::events::models::TimeRange;
+    /// use bimetable::utils::events::models::RecurrenceEndsAt;
+    /// use time::macros::datetime;
+    /// use bimetable::routes::events::models::{RecurrenceEndsAt, RecurrenceRuleSchema, TimeRules};
+    ///
+    /// let event = TimeRange::new(
+    ///     datetime!(2023-02-17 22:45 UTC),
+    ///     datetime!(2023-02-18 0:00 UTC),
+    /// );
+    /// let rec_rules = RecurrenceRuleSchema {
+    ///     kind: RecurrenceRuleKind::Daily,
+    ///     time_rules: TimeRules {
+    ///         ends_at: Some(RecurrenceEndsAt::Count(50)),
+    ///         interval: 2,
+    ///     },
+    /// };
+    /// let part = TimeRange {
+    ///     start: datetime!(2023-02-21 0:00 UTC),
+    ///     end: datetime!(2023-02-27 22:45 UTC),
+    /// };
+    ///
+    /// assert_eq!(
+    ///     rec_rules.get_event_range(part, event).unwrap(),
+    ///     vec![
+    ///         TimeRange::new(
+    ///             datetime!(2023-02-21 22:45 UTC),
+    ///             datetime!(2023-02-22 0:00 UTC)
+    ///         ),
+    ///         TimeRange::new(
+    ///             datetime!(2023-02-23 22:45 UTC),
+    ///             datetime!(2023-02-24 0:00 UTC)
+    ///         ),
+    ///         TimeRange::new(
+    ///             datetime!(2023-02-25 22:45 UTC),
+    ///             datetime!(2023-02-26 0:00 UTC)
+    ///         ),
+    ///     ]
+    /// )
+    /// ```
+    pub fn get_event_range(
+        &self,
+        part: TimeRange,
+        event: TimeRange,
+    ) -> Result<Vec<TimeRange>, EventError> {
+        // self.time_rules.validate_content()?;
+
+        let mut range_data = EventRangeData {
+            range: part,
+            event_range: event,
+            rec_ends_at: None,
+            interval: self.interval,
+        };
+
+        let res = match self.kind {
+            RecurrenceRuleKind::Yearly { is_by_day: true } => {
+                // year and 12 months are the same
+                range_data.interval *= 12;
+                get_monthly_events_by_day(range_data, true)
+            }
+            RecurrenceRuleKind::Yearly { is_by_day: false } => {
+                get_yearly_events_by_weekday(range_data)
+            }
+            RecurrenceRuleKind::Monthly { is_by_day } => {
+                get_monthly_events_by_day(range_data, is_by_day)
+            }
+            RecurrenceRuleKind::Weekly { week_map } => {
+                let string_week_map = format!("{:0>7b}", week_map % 128);
+                get_weekly_events(range_data, &string_week_map)
+            }
+            RecurrenceRuleKind::Daily => get_daily_events(range_data),
+        }?;
+
+        trace!("Got {} event entries using a time range search", res.len());
+
+        Ok(res)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]

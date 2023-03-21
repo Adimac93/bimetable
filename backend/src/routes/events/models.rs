@@ -142,7 +142,7 @@ impl Events {
     pub fn merge(mut self, other: Self) -> Self {
         self.events.extend(other.events);
         self.entries.extend(other.entries);
-        self.entries.sort_by_key(|entry| entry.starts_at);
+        self.entries.sort_by_key(|entry| entry.time_range.start);
         self
     }
 }
@@ -156,33 +156,29 @@ pub struct RecurrenceRuleSchema {
 impl RecurrenceRuleSchema {
     pub fn to_compute(self, event_time_range: &TimeRange) -> RecurrenceRule {
         if let Some(ends_at) = self.time_rules.ends_at {
-            match ends_at {
+            let (count, until) = match ends_at {
                 RecurrenceEndsAt::Until(until) => {
-                    return RecurrenceRule {
-                        span: Some(EntriesSpan {
-                            end: until,
-                            repetitions: 1,
-                        }),
-                        interval: self.time_rules.interval,
-                        kind: self.kind,
-                    };
-                    unimplemented!()
+                    let count = self
+                        .until_to_count(event_time_range.start, until, event_time_range)
+                        .unwrap();
+                    (count, until)
                 }
                 RecurrenceEndsAt::Count(count) => {
                     let until = self
                         .count_to_until(event_time_range.start, count, event_time_range)
                         .unwrap();
-
-                    return RecurrenceRule {
-                        span: Some(EntriesSpan {
-                            end: until,
-                            repetitions: 1,
-                        }),
-                        interval: self.time_rules.interval,
-                        kind: self.kind,
-                    };
+                    (count, until)
                 }
-            }
+            };
+
+            return RecurrenceRule {
+                span: Some(EntriesSpan {
+                    end: until,
+                    repetitions: count,
+                }),
+                interval: self.time_rules.interval,
+                kind: self.kind,
+            };
         }
         RecurrenceRule {
             span: None,
@@ -203,12 +199,13 @@ impl RecurrenceRuleSchema {
     /// use bimetable::utils::events::models::TimeRange;
     /// use bimetable::utils::events::models::RecurrenceEndsAt;
     /// use time::macros::datetime;
+    /// use bimetable::routes::events::models::{RecurrenceEndsAt, RecurrenceRuleSchema, TimeRules};
     ///
     /// let event = TimeRange::new(
     ///     datetime!(2023-02-18 10:00 UTC),
     ///     datetime!(2023-02-18 12:15 UTC),
     /// );
-    /// let rec_rules = RecurrenceRule {
+    /// let rec_rules = RecurrenceRuleSchema {
     ///     kind: RecurrenceRuleKind::Daily,
     ///     time_rules: TimeRules {
     ///         ends_at: Some(RecurrenceEndsAt::Count(15)),
@@ -237,19 +234,11 @@ impl RecurrenceRuleSchema {
         };
 
         match self.kind {
-            RecurrenceRuleKind::Yearly { is_by_day } => {
-                if is_by_day {
-                    yearly_c_to_u_by_day(conv_data)
-                } else {
-                    yearly_c_to_u_by_weekday(conv_data)
-                }
-            }
-            RecurrenceRuleKind::Monthly { is_by_day } => {
-                if is_by_day {
-                    monthly_c_to_u_by_day(conv_data)
-                } else {
-                    monthly_c_to_u_by_weekday(conv_data)
-                }
+            RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_c_to_u_by_day(conv_data),
+            RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_c_to_u_by_weekday(conv_data),
+            RecurrenceRuleKind::Monthly { is_by_day: true } => monthly_c_to_u_by_day(conv_data),
+            RecurrenceRuleKind::Monthly { is_by_day: false } => {
+                monthly_c_to_u_by_weekday(conv_data)
             }
             RecurrenceRuleKind::Weekly { week_map } => {
                 let string_week_map = format!("{:0>7b}", week_map % 128);
@@ -274,19 +263,11 @@ impl RecurrenceRuleSchema {
         };
 
         match self.kind {
-            RecurrenceRuleKind::Yearly { is_by_day } => {
-                if is_by_day {
-                    yearly_u_to_c_by_day(conv_data)
-                } else {
-                    yearly_u_to_c_by_weekday(conv_data)
-                }
-            }
-            RecurrenceRuleKind::Monthly { is_by_day } => {
-                if is_by_day {
-                    monthly_u_to_c_by_day(conv_data)
-                } else {
-                    monthly_u_to_c_by_weekday(conv_data)
-                }
+            RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_u_to_c_by_day(conv_data),
+            RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_u_to_c_by_weekday(conv_data),
+            RecurrenceRuleKind::Monthly { is_by_day: true } => monthly_u_to_c_by_day(conv_data),
+            RecurrenceRuleKind::Monthly { is_by_day: false } => {
+                monthly_u_to_c_by_weekday(conv_data)
             }
             RecurrenceRuleKind::Weekly { week_map } => {
                 let string_week_map = format!("{:0>7b}", week_map % 128);
@@ -294,97 +275,6 @@ impl RecurrenceRuleSchema {
             }
             RecurrenceRuleKind::Daily => daily_u_to_c(conv_data),
         }
-    }
-
-    /// Returns all event occurences in a given range.
-    ///
-    /// For an event occurrence to be included in the result, it must overlap with the given range,
-    /// which means that the occurrence must end strictly after the range, and vice versa.
-    ///
-    /// ```rust
-    /// use bimetable::utils::events::models::RecurrenceRuleKind;
-    /// use bimetable::utils::events::models::TimeRules;
-    /// use bimetable::utils::events::models::RecurrenceRule;
-    /// use bimetable::utils::events::models::TimeRange;
-    /// use bimetable::utils::events::models::RecurrenceEndsAt;
-    /// use time::macros::datetime;
-    ///
-    /// let event = TimeRange::new(
-    ///     datetime!(2023-02-17 22:45 UTC),
-    ///     datetime!(2023-02-18 0:00 UTC),
-    /// );
-    /// let rec_rules = RecurrenceRule {
-    ///     kind: RecurrenceRuleKind::Daily,
-    ///     time_rules: TimeRules {
-    ///         ends_at: Some(RecurrenceEndsAt::Count(50)),
-    ///         interval: 2,
-    ///     },
-    /// };
-    /// let part = TimeRange {
-    ///     start: datetime!(2023-02-21 0:00 UTC),
-    ///     end: datetime!(2023-02-27 22:45 UTC),
-    /// };
-    ///
-    /// assert_eq!(
-    ///     rec_rules.get_event_range(part, event).unwrap(),
-    ///     vec![
-    ///         TimeRange::new(
-    ///             datetime!(2023-02-21 22:45 UTC),
-    ///             datetime!(2023-02-22 0:00 UTC)
-    ///         ),
-    ///         TimeRange::new(
-    ///             datetime!(2023-02-23 22:45 UTC),
-    ///             datetime!(2023-02-24 0:00 UTC)
-    ///         ),
-    ///         TimeRange::new(
-    ///             datetime!(2023-02-25 22:45 UTC),
-    ///             datetime!(2023-02-26 0:00 UTC)
-    ///         ),
-    ///     ]
-    /// )
-    /// ```
-    pub fn get_event_range(
-        &self,
-        part: TimeRange,
-        event: TimeRange,
-    ) -> Result<Vec<TimeRange>, EventError> {
-        self.time_rules.validate_content()?;
-
-        let mut range_data = EventRangeData {
-            range: part,
-            event_range: event,
-            rec_ends_at: None,
-            interval: self.time_rules.interval,
-        };
-
-        range_data.rec_ends_at = self.time_rules.ends_at.as_ref().and_then(|x| match x {
-            RecurrenceEndsAt::Count(n) => Some(self.count_to_until(event.start, *n, &event).ok()?),
-            RecurrenceEndsAt::Until(t) => Some(*t),
-        });
-
-        let res = match self.kind {
-            RecurrenceRuleKind::Yearly { is_by_day } => {
-                if is_by_day {
-                    // year and 12 months are the same
-                    range_data.interval *= 12;
-                    get_monthly_events_by_day(range_data, is_by_day)
-                } else {
-                    get_yearly_events_by_weekday(range_data)
-                }
-            }
-            RecurrenceRuleKind::Monthly { is_by_day } => {
-                get_monthly_events_by_day(range_data, is_by_day)
-            }
-            RecurrenceRuleKind::Weekly { week_map } => {
-                let string_week_map = format!("{:0>7b}", week_map % 128);
-                get_weekly_events(range_data, &string_week_map)
-            }
-            RecurrenceRuleKind::Daily => get_daily_events(range_data),
-        }?;
-
-        trace!("Got {} event entries using a time range search", res.len());
-
-        Ok(res)
     }
 }
 
@@ -507,20 +397,26 @@ fn merge_events_1() {
     let id = Uuid::new_v4();
     entries.push(Entry::new(
         id,
-        datetime!(2023-02-18 10:00 UTC),
-        datetime!(2023-02-18 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:00 UTC),
+        ),
         None,
     ));
     entries.push(Entry::new(
         id,
-        datetime!(2023-02-19 10:00 UTC),
-        datetime!(2023-02-19 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-19 10:00 UTC),
+            datetime!(2023-02-19 12:00 UTC),
+        ),
         None,
     ));
     entries.push(Entry::new(
         id,
-        datetime!(2023-02-20 10:00 UTC),
-        datetime!(2023-02-20 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-20 10:00 UTC),
+            datetime!(2023-02-20 12:00 UTC),
+        ),
         None,
     ));
     let events = Events::new(
@@ -531,7 +427,6 @@ fn merge_events_1() {
                 EventPayload::new(String::from("A"), None),
                 None,
                 datetime!(2023-02-18 10:00 UTC),
-                Some(datetime!(2023-02-20 12:00 UTC)),
             ),
         )]),
         entries,
@@ -541,20 +436,26 @@ fn merge_events_1() {
     let other_id = Uuid::new_v4();
     other_entries.push(Entry::new(
         other_id,
-        datetime!(2023-02-17 10:00 UTC),
-        datetime!(2023-02-17 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-17 10:00 UTC),
+            datetime!(2023-02-17 12:00 UTC),
+        ),
         None,
     ));
     other_entries.push(Entry::new(
         other_id,
-        datetime!(2023-02-20 10:00 UTC),
-        datetime!(2023-02-20 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-20 10:00 UTC),
+            datetime!(2023-02-20 12:00 UTC),
+        ),
         None,
     ));
     other_entries.push(Entry::new(
         other_id,
-        datetime!(2023-02-21 10:00 UTC),
-        datetime!(2023-02-21 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-21 10:00 UTC),
+            datetime!(2023-02-21 12:00 UTC),
+        ),
         None,
     ));
 
@@ -566,7 +467,6 @@ fn merge_events_1() {
                 EventPayload::new(String::from("A"), None),
                 None,
                 datetime!(2023-02-17 10:00 UTC),
-                Some(datetime!(2023-02-21 12:00 UTC)),
             ),
         )]),
         other_entries,
@@ -577,44 +477,56 @@ fn merge_events_1() {
 
     expected.push(Entry::new(
         other_id,
-        datetime!(2023-02-17 10:00 UTC),
-        datetime!(2023-02-17 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-17 10:00 UTC),
+            datetime!(2023-02-17 12:00 UTC),
+        ),
         None,
     ));
     expected.push(Entry::new(
         id,
-        datetime!(2023-02-18 10:00 UTC),
-        datetime!(2023-02-18 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-18 10:00 UTC),
+            datetime!(2023-02-18 12:00 UTC),
+        ),
         None,
     ));
     expected.push(Entry::new(
         id,
-        datetime!(2023-02-19 10:00 UTC),
-        datetime!(2023-02-19 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-19 10:00 UTC),
+            datetime!(2023-02-19 12:00 UTC),
+        ),
         None,
     ));
     expected.push(Entry::new(
         id,
-        datetime!(2023-02-20 10:00 UTC),
-        datetime!(2023-02-20 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-20 10:00 UTC),
+            datetime!(2023-02-20 12:00 UTC),
+        ),
         None,
     ));
 
     expected.push(Entry::new(
         other_id,
-        datetime!(2023-02-20 10:00 UTC),
-        datetime!(2023-02-20 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-20 10:00 UTC),
+            datetime!(2023-02-20 12:00 UTC),
+        ),
         None,
     ));
     expected.push(Entry::new(
         other_id,
-        datetime!(2023-02-21 10:00 UTC),
-        datetime!(2023-02-21 12:00 UTC),
+        TimeRange::new(
+            datetime!(2023-02-21 10:00 UTC),
+            datetime!(2023-02-21 12:00 UTC),
+        ),
         None,
     ));
 
     println!("{:#?}", merged);
     for (a, b) in merged.entries.iter().zip(expected.iter()) {
-        assert_eq!(a.starts_at, b.starts_at)
+        assert_eq!(a.time_range.start, b.time_range.start)
     }
 }
