@@ -261,6 +261,8 @@ impl RecurrenceRuleSchema {
             interval: self.time_rules.interval,
         };
 
+        conv_data.validate_content()?;
+
         match self.kind {
             RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_u_to_c_by_day(conv_data),
             RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_u_to_c_by_weekday(conv_data),

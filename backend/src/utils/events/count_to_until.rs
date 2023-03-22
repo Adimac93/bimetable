@@ -1,4 +1,4 @@
-use time::{Month, OffsetDateTime, Weekday};
+use time::{Date, Month, OffsetDateTime, Weekday};
 
 use crate::app_errors::DefaultContext;
 
@@ -127,20 +127,29 @@ pub fn yearly_c_to_u_by_day(conv_data: CountToUntilData) -> Result<OffsetDateTim
 pub fn yearly_c_to_u_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     let (base_year, target_week, target_weekday) = conv_data.part_starts_at.to_iso_week_date();
 
-    let target_year = if conv_data.part_starts_at.iso_week() == 53 {
-        nth_53_week_year_by_weekday(base_year, conv_data.count, conv_data.interval)?
+    let target_date = if conv_data.part_starts_at.iso_week() == 53 {
+        nth_53_week_year_by_weekday(
+            conv_data.part_starts_at,
+            conv_data.count,
+            conv_data.interval,
+        )?
     } else {
-        base_year
-            .checked_add(i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?).dc()?)
-            .dc()?
+        conv_data.part_starts_at.replace_date(
+            Date::from_iso_week_date(
+                base_year
+                    .checked_add(
+                        i32::try_from(conv_data.count.checked_mul(conv_data.interval).dc()?)
+                            .dc()?,
+                    )
+                    .dc()?,
+                target_week,
+                target_weekday,
+            )
+            .dc()?,
+        )
     };
 
-    Ok(iso_year_start(target_year)
-        .replace_time(conv_data.part_starts_at.time())
-        .add_weeks(target_week as i64 - 1)?
-        .add_days(Weekday::Monday.cyclic_time_to(target_weekday) as i64)?
-        .checked_add(conv_data.event_duration)
-        .dc()?)
+    Ok(target_date.checked_add(conv_data.event_duration).dc()?)
 }
 
 #[cfg(test)]

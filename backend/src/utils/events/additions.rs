@@ -1,8 +1,8 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 use time::{
-    ext::NumericalDuration, macros::datetime, util::weeks_in_year, Duration, Month, OffsetDateTime,
-    Weekday,
+    ext::NumericalDuration, macros::datetime, util::weeks_in_year, Date, Duration, Month,
+    OffsetDateTime, Weekday,
 };
 
 use crate::app_errors::DefaultContext;
@@ -23,6 +23,10 @@ pub fn get_offset_from_the_map(week_map: &str, mut event_number: u8, start_at: u
         }
     }
     7
+}
+
+pub fn get_char(week_map: &str, idx: usize) -> char {
+    week_map[idx..=idx].chars().next().unwrap()
 }
 
 pub trait AddTime
@@ -220,18 +224,21 @@ pub fn next_good_month_by_weekday(
 }
 
 pub fn nth_53_week_year_by_weekday(
-    mut yearly_step: i32,
+    yearly_step: OffsetDateTime,
     mut count: u32,
     chg: u32,
-) -> Result<i32, EventError> {
+) -> Result<OffsetDateTime, EventError> {
+    let mut year_number = yearly_step.year();
     while count > 0 {
-        yearly_step = yearly_step.checked_add(i32::try_from(chg).dc()?).dc()?;
-        if weeks_in_year(yearly_step) == 53 {
+        year_number = year_number.checked_add(i32::try_from(chg).dc()?).dc()?;
+        if weeks_in_year(year_number) == 53 {
             count -= 1;
         }
     }
 
-    Ok(yearly_step)
+    let (_target_year, target_week, target_weekday) = yearly_step.to_iso_week_date();
+    Ok(yearly_step
+        .replace_date(Date::from_iso_week_date(year_number, target_week, target_weekday).dc()?))
 }
 
 pub fn iso_year_start(year: i32) -> OffsetDateTime {
@@ -250,6 +257,14 @@ pub fn iso_year_start(year: i32) -> OffsetDateTime {
 
 pub fn max_date_time() -> OffsetDateTime {
     datetime!(9999-12-31 23:59:59.999999999 UTC)
+}
+
+pub fn day_from_week_and_weekday(
+    date: OffsetDateTime,
+    week_number: u8,
+    target_weekday: Weekday,
+) -> u8 {
+    date.month_start().weekday().cyclic_time_to(target_weekday) as u8 + week_number * 7 + 1
 }
 
 #[cfg(test)]
