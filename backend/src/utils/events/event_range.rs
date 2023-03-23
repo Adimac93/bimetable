@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use time::{ext::NumericalDuration, util::weeks_in_year, Weekday};
+use time::{ext::NumericalDuration, util::weeks_in_year, OffsetDateTime, Weekday};
 
 use crate::app_errors::DefaultContext;
 
@@ -9,10 +9,16 @@ use super::{
         iso_year_start, max_date_time, next_good_month, next_good_month_by_weekday, AddTime,
         CyclicTimeTo, TimeStart, TimeTo,
     },
-    calculations::EventRangeData,
     errors::EventError,
     models::TimeRange,
 };
+
+pub struct EventRangeData {
+    pub range: TimeRange,
+    pub event_range: TimeRange,
+    pub rec_ends_at: Option<OffsetDateTime>,
+    pub interval: u32,
+}
 
 pub fn get_daily_events(range_data: EventRangeData) -> Result<Vec<TimeRange>, EventError> {
     let day_amount = (range_data.range.start - range_data.event_range.end).whole_days();

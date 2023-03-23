@@ -1,3 +1,4 @@
+use crate::utils::events::event_range::EventRangeData;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::types::time::OffsetDateTime;
@@ -12,7 +13,6 @@ use uuid::Uuid;
 use crate::validation::ValidateContent;
 
 use super::{
-    calculations::EventRangeData,
     errors::EventError,
     event_range::{
         get_daily_events, get_monthly_events_by_day, get_weekly_events,

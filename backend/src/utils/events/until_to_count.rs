@@ -3,9 +3,56 @@ use crate::utils::events::additions::{
     day_from_week_and_weekday, get_amount_from_week_map, get_char, next_good_month,
     next_good_month_by_weekday, nth_53_week_year_by_weekday, TimeStart, TimeTo,
 };
-use crate::utils::events::calculations::UntilToCountData;
 use crate::utils::events::errors::EventError;
-use time::{Date, Month};
+use crate::utils::events::models::{RecurrenceRuleKind, TimeRange};
+use crate::validation::{ValidateContent, ValidateContentError};
+use time::{Date, Duration, Month, OffsetDateTime};
+
+pub struct UntilToCountData {
+    pub part_starts_at: OffsetDateTime,
+    pub until: OffsetDateTime,
+    pub interval: u32,
+}
+
+impl ValidateContent for UntilToCountData {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        TimeRange::new(self.part_starts_at, self.until).validate_content()?;
+        if self.interval == 0 {
+            return Err(ValidateContentError::Expected(
+                "Interval is equal to 0".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+pub fn until_to_count(
+    until: OffsetDateTime,
+    start: OffsetDateTime,
+    interval: u32,
+    event_duration: Duration,
+    kind: &RecurrenceRuleKind,
+) -> Result<u32, EventError> {
+    let conv_data = UntilToCountData {
+        part_starts_at: start,
+        until: until - event_duration,
+        interval,
+    };
+
+    conv_data.validate_content()?;
+
+    match kind {
+        RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_u_to_c_by_day(conv_data),
+        RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_u_to_c_by_weekday(conv_data),
+        RecurrenceRuleKind::Monthly { is_by_day: true } => monthly_u_to_c_by_day(conv_data),
+        RecurrenceRuleKind::Monthly { is_by_day: false } => monthly_u_to_c_by_weekday(conv_data),
+        RecurrenceRuleKind::Weekly { week_map } => {
+            let string_week_map = format!("{:0>7b}", week_map % 128);
+            weekly_u_to_c(conv_data, &string_week_map)
+        }
+        RecurrenceRuleKind::Daily => daily_u_to_c(conv_data),
+    }
+}
 
 pub fn daily_u_to_c(data: UntilToCountData) -> Result<u32, EventError> {
     Ok(((data.until - data.part_starts_at) / data.interval).whole_days() as u32)

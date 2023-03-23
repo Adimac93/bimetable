@@ -1,6 +1,5 @@
-use crate::utils::events::calculations::{CountToUntilData, EventRangeData, UntilToCountData};
 use crate::utils::events::count_to_until::{
-    daily_c_to_u, monthly_c_to_u_by_day, monthly_c_to_u_by_weekday, weekly_c_to_u,
+    count_to_until, daily_c_to_u, monthly_c_to_u_by_day, monthly_c_to_u_by_weekday, weekly_c_to_u,
     yearly_c_to_u_by_day, yearly_c_to_u_by_weekday,
 };
 use crate::utils::events::errors::EventError;
@@ -9,7 +8,7 @@ use crate::utils::events::event_range::{
 };
 use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
 use crate::utils::events::until_to_count::{
-    daily_u_to_c, monthly_u_to_c_by_day, monthly_u_to_c_by_weekday, weekly_u_to_c,
+    daily_u_to_c, monthly_u_to_c_by_day, monthly_u_to_c_by_weekday, until_to_count, weekly_u_to_c,
     yearly_u_to_c_by_day, yearly_u_to_c_by_weekday,
 };
 use crate::validation::ValidateContent;
@@ -18,6 +17,7 @@ use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
 use std::collections::HashMap;
 use time::macros::datetime;
 use time::serde::iso8601;
+use tokio::time::interval;
 use tracing::trace;
 use utoipa::{IntoParams, ToResponse, ToSchema};
 use uuid::uuid;
@@ -224,27 +224,13 @@ impl RecurrenceRuleSchema {
         event: &TimeRange,
     ) -> Result<OffsetDateTime, EventError> {
         self.time_rules.validate_content()?;
-
-        let conv_data = CountToUntilData {
-            part_starts_at,
+        count_to_until(
             count,
-            interval: self.time_rules.interval,
-            event_duration: event.duration(),
-        };
-
-        match self.kind {
-            RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_c_to_u_by_day(conv_data),
-            RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_c_to_u_by_weekday(conv_data),
-            RecurrenceRuleKind::Monthly { is_by_day: true } => monthly_c_to_u_by_day(conv_data),
-            RecurrenceRuleKind::Monthly { is_by_day: false } => {
-                monthly_c_to_u_by_weekday(conv_data)
-            }
-            RecurrenceRuleKind::Weekly { week_map } => {
-                let string_week_map = format!("{:0>7b}", week_map % 128);
-                weekly_c_to_u(conv_data, &string_week_map)
-            }
-            RecurrenceRuleKind::Daily => daily_c_to_u(conv_data),
-        }
+            self.time_rules.interval,
+            part_starts_at,
+            event,
+            &self.kind,
+        )
     }
 
     pub fn until_to_count(
@@ -254,28 +240,13 @@ impl RecurrenceRuleSchema {
         event: &TimeRange,
     ) -> Result<u32, EventError> {
         self.time_rules.validate_content()?;
-
-        let conv_data = UntilToCountData {
+        until_to_count(
+            until,
             part_starts_at,
-            until: until - event.duration(),
-            interval: self.time_rules.interval,
-        };
-
-        conv_data.validate_content()?;
-
-        match self.kind {
-            RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_u_to_c_by_day(conv_data),
-            RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_u_to_c_by_weekday(conv_data),
-            RecurrenceRuleKind::Monthly { is_by_day: true } => monthly_u_to_c_by_day(conv_data),
-            RecurrenceRuleKind::Monthly { is_by_day: false } => {
-                monthly_u_to_c_by_weekday(conv_data)
-            }
-            RecurrenceRuleKind::Weekly { week_map } => {
-                let string_week_map = format!("{:0>7b}", week_map % 128);
-                weekly_u_to_c(conv_data, &string_week_map)
-            }
-            RecurrenceRuleKind::Daily => daily_u_to_c(conv_data),
-        }
+            self.time_rules.interval,
+            event.duration(),
+            &self.kind,
+        )
     }
 }
 

@@ -17,7 +17,6 @@ use self::errors::EventError;
 use self::models::UserEvent;
 
 pub mod additions;
-pub mod calculations;
 pub mod count_to_until;
 pub mod errors;
 pub mod event_range;

@@ -1,6 +1,8 @@
-use time::{Date, Month, OffsetDateTime, Weekday};
+use time::{Date, Duration, Month, OffsetDateTime, Weekday};
 
 use crate::app_errors::DefaultContext;
+use crate::utils::events::models::{RecurrenceRuleKind, TimeRange};
+use crate::validation::{ValidateContent, ValidateContentError};
 
 use super::{
     additions::{
@@ -8,9 +10,60 @@ use super::{
         next_good_month_by_weekday, nth_53_week_year_by_weekday, nth_good_month, AddTime,
         CyclicTimeTo,
     },
-    calculations::CountToUntilData,
     errors::EventError,
 };
+
+pub struct CountToUntilData {
+    pub part_starts_at: OffsetDateTime,
+    pub count: u32,
+    pub interval: u32,
+    pub event_duration: Duration,
+}
+
+impl ValidateContent for CountToUntilData {
+    fn validate_content(&self) -> Result<(), ValidateContentError> {
+        if self.event_duration < Duration::ZERO {
+            return Err(ValidateContentError::Expected(
+                "Event starts after it ends".to_string(),
+            ));
+        }
+        if self.interval == 0 {
+            return Err(ValidateContentError::Expected(
+                "Interval is equal to 0".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+pub fn count_to_until(
+    count: u32,
+    interval: u32,
+    start: OffsetDateTime,
+    event: &TimeRange,
+    kind: &RecurrenceRuleKind,
+) -> Result<OffsetDateTime, EventError> {
+    let conv_data = CountToUntilData {
+        part_starts_at: start,
+        count,
+        interval,
+        event_duration: event.duration(),
+    };
+
+    conv_data.validate_content()?;
+
+    match kind {
+        RecurrenceRuleKind::Yearly { is_by_day: true } => yearly_c_to_u_by_day(conv_data),
+        RecurrenceRuleKind::Yearly { is_by_day: false } => yearly_c_to_u_by_weekday(conv_data),
+        RecurrenceRuleKind::Monthly { is_by_day: true } => monthly_c_to_u_by_day(conv_data),
+        RecurrenceRuleKind::Monthly { is_by_day: false } => monthly_c_to_u_by_weekday(conv_data),
+        RecurrenceRuleKind::Weekly { week_map } => {
+            let string_week_map = format!("{:0>7b}", week_map % 128);
+            weekly_c_to_u(conv_data, &string_week_map)
+        }
+        RecurrenceRuleKind::Daily => daily_c_to_u(conv_data),
+    }
+}
 
 pub fn daily_c_to_u(conv_data: CountToUntilData) -> Result<OffsetDateTime, EventError> {
     Ok(conv_data
