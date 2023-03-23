@@ -22,6 +22,7 @@ pub mod errors;
 pub mod event_range;
 pub mod exe;
 pub mod models;
+pub mod near_entriies;
 pub mod until_to_count;
 
 #[derive(Debug)]
