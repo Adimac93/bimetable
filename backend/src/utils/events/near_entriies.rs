@@ -1,6 +1,6 @@
 use crate::utils::events::count_to_until::count_to_until;
 use crate::utils::events::errors::EventError;
-use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange};
+use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
 use crate::utils::events::until_to_count::until_to_count;
 use time::macros::datetime;
 use time::OffsetDateTime;
@@ -101,4 +101,110 @@ pub fn next_entry(
     }
 
     Ok(Some(next_entry))
+}
+
+#[cfg(test)]
+mod entry_tests {
+    use super::*;
+
+    const TEST_RULE: RecurrenceRule = RecurrenceRule {
+        span: Some(EntriesSpan {
+            end: datetime!(2023-04-01 13:00:00 +0000),
+            repetitions: 5,
+        }),
+        interval: 1,
+        kind: RecurrenceRuleKind::Monthly { is_by_day: true },
+    };
+
+    const TEST_FIRST_ENTRY: TimeRange = TimeRange {
+        start: datetime!(2022-12-01 12:00:00 +0000),
+        end: datetime!(2022-12-01 13:00:00 +0000),
+    };
+
+    #[test]
+    fn prev_entry_test_time_before_recurrence() {
+        let provided_time = datetime!(2022-12-01 11:59:59 +0000);
+        assert_eq!(
+            prev_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn prev_entry_test_time_on_entry() {
+        let provided_time = datetime!(2023-02-01 12:00:00 +0000);
+        assert_eq!(
+            prev_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            Some(TimeRange {
+                start: datetime!(2023-02-01 12:00:00 +0000),
+                end: datetime!(2023-02-01 13:00:00 +0000),
+            })
+        );
+    }
+
+    #[test]
+    fn prev_entry_test_time_not_on_entry() {
+        let provided_time = datetime!(2023-02-28 12:00:00 +0000);
+        assert_eq!(
+            prev_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            Some(TimeRange {
+                start: datetime!(2023-02-01 12:00:00 +0000),
+                end: datetime!(2023-02-01 13:00:00 +0000),
+            })
+        );
+    }
+
+    #[test]
+    fn prev_entry_test_time_after_recurrence() {
+        let provided_time = datetime!(2023-05-01 14:00:00 +0000);
+        assert_eq!(
+            prev_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            Some(TimeRange {
+                start: datetime!(2023-04-01 12:00:00 +0000),
+                end: datetime!(2023-04-01 13:00:00 +0000),
+            })
+        );
+    }
+
+    #[test]
+    fn next_entry_test_time_before_recurrence() {
+        let provided_time = datetime!(2022-12-01 11:59:59 +0000);
+        assert_eq!(
+            next_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            Some(TEST_FIRST_ENTRY),
+        );
+    }
+
+    #[test]
+    fn next_entry_test_time_on_entry() {
+        let provided_time = datetime!(2023-02-01 12:00:00 +0000);
+        assert_eq!(
+            next_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            Some(TimeRange {
+                start: datetime!(2023-02-01 12:00:00 +0000),
+                end: datetime!(2023-02-01 13:00:00 +0000),
+            })
+        );
+    }
+
+    #[test]
+    fn next_entry_test_time_not_on_entry() {
+        let provided_time = datetime!(2023-02-01 13:00:00 +0000);
+        assert_eq!(
+            next_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            Some(TimeRange {
+                start: datetime!(2023-03-01 12:00:00 +0000),
+                end: datetime!(2023-03-01 13:00:00 +0000),
+            })
+        );
+    }
+
+    #[test]
+    fn next_entry_test_time_after_recurrence() {
+        let provided_time = datetime!(2023-05-01 14:00:00 +0000);
+        assert_eq!(
+            next_entry(provided_time, TEST_FIRST_ENTRY, &TEST_RULE).unwrap(),
+            None,
+        );
+    }
 }
