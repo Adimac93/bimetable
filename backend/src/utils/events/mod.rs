@@ -15,6 +15,7 @@ use crate::routes::events::models::{
     OptionalEventData, Override, OverrideEvent, UpdateEvent,
 };
 use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
+use crate::utils::events::near_entriies::{next_entry, prev_entry};
 
 use self::errors::EventError;
 use self::models::UserEvent;
@@ -664,11 +665,39 @@ pub fn map_events(
         .into_iter()
         .map(|event| {
             let entries_end = if let Some(rule) = &event.recurrence_rule {
-                let entry_ranges = rule
+                let mut entry_ranges = rule
                     .get_event_range(search_range, event.time_range)
                     .unwrap();
 
-                let new_entries = get_entries(event.id, entry_ranges, &mut ovrs);
+                if let Some(prev) = prev_entry(
+                    search_range.start - Duration::nanoseconds(1),
+                    event.time_range,
+                    rule,
+                )
+                .unwrap()
+                {
+                    entry_ranges.insert(0, prev);
+                };
+                if let Some(next) = next_entry(search_range.end, event.time_range, rule).unwrap() {
+                    entry_ranges.push(next);
+                };
+
+                let mut new_entries: Vec<Entry> = get_entries(event.id, entry_ranges, &mut ovrs);
+                if let Some(entry) = new_entries.get(0) {
+                    if let Some(range) = entry.range_with_time_override() {
+                        if !range.is_overlapping(&search_range) {
+                            new_entries.remove(0);
+                        }
+                    }
+                };
+                if let Some(entry) = new_entries.last() {
+                    if let Some(range) = entry.range_with_time_override() {
+                        if !range.is_overlapping(&search_range) {
+                            new_entries.pop();
+                        }
+                    }
+                };
+
                 entries.extend(new_entries);
                 rule.span.map(|sp| sp.end)
             } else {
@@ -719,7 +748,7 @@ fn get_entries(
     event_id: Uuid,
     entry_ranges: Vec<TimeRange>,
     overrides: &mut HashMap<Uuid, Vec<(TimeRange, Override)>>,
-) -> impl IntoIterator<Item = Entry> {
+) -> Vec<Entry> {
     if let Some(range_overrides) = overrides.remove(&event_id) {
         let event_entries = apply_event_overrides(event_id, entry_ranges, range_overrides);
         trace!(

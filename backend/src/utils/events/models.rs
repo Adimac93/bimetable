@@ -208,6 +208,15 @@ impl TimeRange {
     pub fn duration(&self) -> Duration {
         self.end - self.start
     }
+
+    pub fn shift(self, left: Duration, right: Duration) -> Option<Self> {
+        let res = Self::new(self.start.checked_add(left)?, self.end.checked_add(right)?);
+        if res.duration() >= Duration::seconds(0) {
+            Some(res)
+        } else {
+            None
+        }
+    }
 }
 
 impl Display for TimeRange {

@@ -352,6 +352,19 @@ impl Entry {
             recurrence_override,
         }
     }
+
+    pub fn range_with_time_override(&self) -> Option<TimeRange> {
+        self.time_range.shift(
+            self.recurrence_override
+                .as_ref()
+                .and_then(|x| Some(x.starts_at?))
+                .unwrap_or(Duration::seconds(0)),
+            self.recurrence_override
+                .as_ref()
+                .and_then(|x| Some(x.ends_at?))
+                .unwrap_or(Duration::seconds(0)),
+        )
+    }
 }
 
 #[derive(Debug, Serialize, Clone, ToSchema, PartialEq)]
