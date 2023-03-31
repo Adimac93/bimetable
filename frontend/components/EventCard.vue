@@ -9,7 +9,7 @@
                     {{ event.startTime.format("HH:MM") }} - {{ event.endTime.format("HH:MM") }}
                 </div>
             </div>
-            <div class="notes">There are supposed to be notes here. However, they are not in the test data I made.</div>
+            <div class="notes" v-if="event.description">{{ event.description }}</div>
         </div>
     </div>
 </template>
