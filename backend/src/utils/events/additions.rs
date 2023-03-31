@@ -14,7 +14,7 @@ pub fn get_amount_from_week_map(week_map: &str) -> u8 {
 }
 
 pub fn get_offset_from_the_map(week_map: &str, mut event_number: u8, start_at: u8) -> u8 {
-    for i in 1..8 {
+    for i in 0..7 {
         if &week_map[(start_at + i) as usize % 7..=(start_at + i) as usize % 7] == "1" {
             event_number -= 1;
         }

@@ -17,6 +17,7 @@ use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
 use std::collections::HashMap;
 use time::macros::datetime;
 use time::serde::iso8601;
+use time::Duration;
 use tokio::time::interval;
 use tracing::trace;
 use utoipa::{IntoParams, ToResponse, ToSchema};
@@ -35,6 +36,19 @@ pub struct OptionalEventData {
     pub starts_at: Option<OffsetDateTime>,
     #[serde(with = "iso8601::option", skip_serializing_if = "Option::is_none")]
     pub ends_at: Option<OffsetDateTime>,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OverrideEventData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starts_at: Option<Duration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ends_at: Option<Duration>,
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
@@ -110,8 +124,11 @@ pub struct UpdateEvent {
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OverrideEvent {
-    pub time_range: TimeRange,
-    pub data: OptionalEventData,
+    #[serde(with = "iso8601")]
+    pub override_starts_at: OffsetDateTime,
+    #[serde(with = "iso8601")]
+    pub override_ends_at: OffsetDateTime,
+    pub data: OverrideEventData,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -339,6 +356,10 @@ pub struct Override {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starts_at: Option<Duration>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ends_at: Option<Duration>,
     #[serde(with = "iso8601::option", skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,

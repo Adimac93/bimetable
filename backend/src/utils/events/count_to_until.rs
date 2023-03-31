@@ -88,7 +88,7 @@ pub fn weekly_c_to_u(
     // calculate the amount of days passed in the last interval
     let bonus_days_passed = get_offset_from_the_map(
         week_map,
-        ((conv_data.count - 1) % week_event_num as u32) as u8 + 1,
+        (conv_data.count % week_event_num as u32) as u8 + 1,
         conv_data.part_starts_at.weekday().number_days_from_monday(),
     );
 
@@ -99,8 +99,8 @@ pub fn weekly_c_to_u(
 
     Ok(conv_data
         .part_starts_at
-        .add_weeks(weeks_passed as i64)?
-        .add_days(bonus_days_passed as i64)?
+        .add_weeks(dbg!(weeks_passed) as i64)?
+        .add_days(dbg!(bonus_days_passed) as i64)?
         .checked_add(conv_data.event_duration)
         .dc()?)
 }
@@ -274,6 +274,28 @@ mod recurrence_tests {
                 .count_to_until(datetime!(2023-03-01 10:00 UTC), 7, &event)
                 .unwrap(),
             datetime!(2023-03-27 12:15 UTC)
+        )
+    }
+
+    #[test]
+    fn bonus_weekly_recurrence_test() {
+        let event = TimeRange::new(
+            datetime!(2023-03-08 10:00 UTC),
+            datetime!(2023-03-08 12:15 UTC),
+        );
+        let rec_rules = RecurrenceRule {
+            time_rules: TimeRules {
+                ends_at: Some(RecurrenceEndsAt::Count(10)),
+                interval: 1,
+            },
+            kind: RecurrenceRuleKind::Weekly { week_map: 24 },
+        };
+
+        assert_eq!(
+            rec_rules
+                .count_to_until(datetime!(2023-03-08 10:00 UTC), 10, &event)
+                .unwrap(),
+            datetime!(2023-04-12 12:15 UTC)
         )
     }
 
