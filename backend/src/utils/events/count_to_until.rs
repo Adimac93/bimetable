@@ -283,7 +283,7 @@ mod recurrence_tests {
             datetime!(2023-03-08 10:00 UTC),
             datetime!(2023-03-08 12:15 UTC),
         );
-        let rec_rules = RecurrenceRule {
+        let rec_rules = RecurrenceRuleSchema {
             time_rules: TimeRules {
                 ends_at: Some(RecurrenceEndsAt::Count(10)),
                 interval: 1,

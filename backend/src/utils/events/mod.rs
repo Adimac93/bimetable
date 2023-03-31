@@ -378,11 +378,11 @@ impl<'c> PgQuery<'c, EventQuery> {
         let mut res = Vec::new();
         for ovr in overrides.into_iter() {
             let starts_at = match ovr.starts_at {
-                Some(start) => Some(to_time_duration(start)?),
+                Some(entry_offset) => Some(to_time_duration(entry_offset)?),
                 None => None,
             };
             let ends_at = match ovr.ends_at {
-                Some(end) => Some(to_time_duration(end)?),
+                Some(entry_offset) => Some(to_time_duration(entry_offset)?),
                 None => None,
             };
 
@@ -413,8 +413,8 @@ impl<'c> PgQuery<'c, EventQuery> {
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
             "#,
             event_id,
-            ovr.time_range.start,
-            ovr.time_range.end,
+            ovr.override_starts_at,
+            ovr.override_ends_at,
             ovr.data.name,
             ovr.data.description,
             ovr.data.starts_at as _,
@@ -661,7 +661,7 @@ pub fn map_events(
     let events: HashMap<Uuid, Event> = events
         .into_iter()
         .map(|event| {
-            if let Some(rule) = event.recurrence_rule {
+            if let Some(rule) = &event.recurrence_rule {
                 let entry_ranges = rule
                     .get_event_range(search_range, event.time_range)
                     .unwrap();
@@ -725,7 +725,7 @@ fn get_entries(
     trace!("Got {} entries for event {event_id}", entry_ranges.len());
     entry_ranges
         .into_iter()
-        .map(|range| Entry::new(event_id, range.start, range.end, None))
+        .map(|entry| Entry::new(event_id, TimeRange::new(entry.start, entry.end), None))
         .collect()
 }
 
@@ -736,11 +736,11 @@ fn apply_event_overrides(
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = entry_ranges
         .into_iter()
-        .map(|entry| Entry::new(event_id, entry.start, entry.end, None))
+        .map(|entry| Entry::new(event_id, TimeRange::new(entry.start, entry.end), None))
         .collect();
     for (ovr_range, ovr_payload) in overrides {
-        let entry_start = entries.partition_point(|x| x.starts_at < ovr_range.start);
-        let entry_end = entries.partition_point(|x| x.ends_at <= ovr_range.end);
+        let entry_start = entries.partition_point(|x| x.time_range.start < ovr_range.start);
+        let entry_end = entries.partition_point(|x| x.time_range.end <= ovr_range.end);
         for i in entry_start..entry_end {
             entries[i].recurrence_override = Some(ovr_payload.clone());
         }
