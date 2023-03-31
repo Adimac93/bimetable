@@ -38,6 +38,7 @@
 
 <script setup lang="ts">
 import dayjs from "@/utils/dayjs";
+import { EventStore } from "@/utils/EventStore";
 import { CalendarEvent } from "@/utils/CalendarEvent";
 
 type CalendarSpace =
@@ -50,14 +51,8 @@ function getDateString(date: dayjs.Dayjs) {
     return date.format("YYYY-MM-DD");
 }
 
-interface Event {
-    name: string;
-    startTime: number;
-    endTime: number;
-}
-
 const props = defineProps<{
-    events: Event[];
+    events: EventStore;
 }>();
 
 const emit = defineEmits<{
@@ -75,14 +70,13 @@ function selectCell(date: dayjs.Dayjs, events: CalendarEvent[]) {
 const eventMap = computed(() => {
     const eventMap = new Map<string, CalendarEvent[]>();
 
-    for (const event of props.events) {
-        const newEvent = new CalendarEvent(event.name, dayjs(event.startTime), dayjs(event.endTime));
+    for (const event of props.events.iter()) {
 
-        const dateString = getDateString(newEvent.day);
+        const dateString = getDateString(event.day);
         if (eventMap.has(dateString)) {
-            eventMap.get(dateString)!.push(newEvent);
+            eventMap.get(dateString)!.push(event);
         } else {
-            eventMap.set(dateString, [newEvent]);
+            eventMap.set(dateString, [event]);
         }
     }
     return eventMap;

@@ -1,13 +1,13 @@
 <template>
     <div>
-        <h1>Bimetable</h1>
+        <h1>Bimetable playground</h1>
         <div class="wrapper">
             <div>
                 <Calendar :events="events" @select="selectDay" />
             </div>
             <div class="side-view">
                 <template v-if="selected">
-                    <h2>{{ selected.date.format('DD MMM YYYY') }}</h2>
+                    <h2>{{ selected.date.format("DD MMM YYYY") }}</h2>
                     <EventCard v-for="event in selected.events" :event="event" />
                 </template>
                 <template v-else> select a day with events please </template>
@@ -17,26 +17,58 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from '@/utils/dayjs';
-import type { CalendarEvent } from '@/utils/CalendarEvent';
+import dayjs from "@/utils/dayjs";
+import type { CalendarEvent } from "@/utils/CalendarEvent";
 
-const events = [
-    {
-        name: 'Bibruspotkanie',
-        startTime: 1675004400000, // 2023-01-29 15:00:00
-        endTime: 1675008000000, // 2023-01-29 16:00:00
+const events = makeEventStore({
+    entries: [
+        {
+            eventID: "a",
+            startTime: "2023-03-05T16:00:00Z",
+            endTime: "2023-03-05T17:00:00Z",
+        },
+        {
+            eventID: "b",
+            startTime: "2023-03-06T13:00:00Z",
+            endTime: "2023-03-06T14:00:00Z",
+        },
+        {
+            eventID: "a",
+            startTime: "2023-03-07T16:00:00Z",
+            endTime: "2023-03-07T17:00:00Z",
+        },
+        {
+            eventID: "c",
+            startTime: "2023-03-09T08:00:00Z",
+            endTime: "2023-03-09T10:00:00Z",
+        },
+        {
+            eventID: "b",
+            startTime: "2023-03-13T13:00:00Z",
+            endTime: "2023-03-13T14:00:00Z",
+        },
+    ],
+    data: {
+        a: {
+            name: "A",
+            description: "Zdarzenie A",
+            startTime: "2023-03-05T16:00:00Z",
+            endTime: "2023-03-05T17:00:00Z",
+        },
+        b: {
+            name: "B",
+            description: "Zdarzenie B",
+            startTime: "2023-03-06T13:00:00Z",
+            endTime: "2023-03-06T14:00:00Z",
+        },
+        c: {
+            name: "C",
+            description: "Zdarzenie C (nie powtarza się)",
+            startTime: "2023-03-09T08:00:00Z",
+            endTime: "2023-03-09T10:00:00Z",
+        },
     },
-    {
-        name: 'Coś na pewno',
-        startTime: 1675072800000,
-        endTime: 1675101600000,
-    },
-    {
-        name: 'Podróż w czasie',
-        startTime: 1673082000000,
-        endTime: 1673082000001,
-    },
-];
+});
 
 const selected = ref<{ date: dayjs.Dayjs; events: CalendarEvent[] } | null>(null);
 
