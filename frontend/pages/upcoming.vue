@@ -12,7 +12,6 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from "@/utils/dayjs";
 import { makeEventStore } from "@/utils/EventStore";
 
 const events = makeEventStore({
