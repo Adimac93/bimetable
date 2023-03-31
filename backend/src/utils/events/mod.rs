@@ -190,6 +190,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                     payload,
                     rec_rule,
                     event.starts_at,
+                    event.entries_end,
                 )));
             }
 
@@ -214,6 +215,7 @@ impl<'c> PgQuery<'c, EventQuery> {
                     payload,
                     rec_rule,
                     event.starts_at,
+                    event.entries_end,
                 )));
             }
         }
@@ -661,14 +663,18 @@ pub fn map_events(
     let events: HashMap<Uuid, Event> = events
         .into_iter()
         .map(|event| {
-            if let Some(rule) = &event.recurrence_rule {
+            let entries_end = if let Some(rule) = &event.recurrence_rule {
                 let entry_ranges = rule
                     .get_event_range(search_range, event.time_range)
                     .unwrap();
 
                 let new_entries = get_entries(event.id, entry_ranges, &mut ovrs);
                 entries.extend(new_entries);
-            }
+                rule.span.map(|sp| sp.end)
+            } else {
+                Some(event.time_range.end)
+            };
+
             return (
                 event.id,
                 Event::new(
@@ -676,6 +682,7 @@ pub fn map_events(
                     EventPayload::new(event.name, event.description),
                     event.recurrence_rule,
                     event.time_range.start,
+                    entries_end,
                 ),
             );
         })

@@ -74,6 +74,7 @@ async fn create_event_test(pool: PgPool) {
             },
             recurrence_rule: None,
             entries_start: datetime!(2023-03-07 19:00 UTC),
+            entries_end: Some(datetime!(2023-03-07 20:00 UTC)),
         })
     )
 }
@@ -129,6 +130,7 @@ async fn get_many_events_test(pool: PgPool) {
                             kind: RecurrenceRuleKind::Weekly { week_map: 40 },
                         }),
                         entries_start: datetime!(2023-03-07 11:40 UTC),
+                        entries_end: Some(datetime!(2023-04-27 13:15 UTC)),
                         payload: EventPayload {
                             name: "Informatyka".to_string(),
                             description: None,
@@ -149,6 +151,7 @@ async fn get_many_events_test(pool: PgPool) {
                             kind: RecurrenceRuleKind::Weekly { week_map: 24 },
                         }),
                         entries_start: datetime!(2023-03-08 09:45 +00:00:00),
+                        entries_end: Some(datetime!(2023-04-27 10:30 UTC)),
                         payload: EventPayload {
                             name: "Fizyka".to_string(),
                             description: Some("fizyka kwantowa :O".to_string()),
@@ -162,7 +165,7 @@ async fn get_many_events_test(pool: PgPool) {
                         is_owned: false,
                         recurrence_rule: None,
                         entries_start: datetime!(2023-03-07 11:30:00.0 +00:00:00),
-                        // entries_end: Some(datetime!(2023-03-07 13:15:00.0 +00:00:00)),
+                        entries_end: Some(datetime!(2023-03-07 13:15:00.0 +00:00:00)),
                         payload: EventPayload {
                             name: "Infa".to_string(),
                             description: None,
@@ -246,6 +249,7 @@ async fn get_owned_test(pool: PgPool) {
                         kind: RecurrenceRuleKind::Weekly { week_map: 40 },
                     }),
                     entries_start: datetime!(2023-03-07 11:40 +00:00:00),
+                    entries_end: Some(datetime!(2023-04-27 13:15 UTC)),
                     payload: EventPayload {
                         name: "Informatyka".to_string(),
                         description: None,
@@ -307,6 +311,7 @@ async fn get_shared_test(pool: PgPool) {
                             kind: RecurrenceRuleKind::Weekly { week_map: 24 },
                         }),
                         entries_start: datetime!(2023-03-08 09:45 +00:00:00),
+                        entries_end: Some(datetime!(2023-04-27 10:30 UTC)),
                         payload: EventPayload {
                             name: "Fizyka".to_string(),
                             description: Some("fizyka kwantowa :O".to_string()),
@@ -320,6 +325,7 @@ async fn get_shared_test(pool: PgPool) {
                         is_owned: false,
                         recurrence_rule: None,
                         entries_start: datetime!(2023-03-07 11:30:00.0 +00:00:00),
+                        entries_end: Some(datetime!(2023-03-07 13:15:00.0 +00:00:00)),
                         payload: EventPayload {
                             name: "Infa".to_string(),
                             description: None,
@@ -386,6 +392,7 @@ async fn update_event_test(pool: PgPool) {
                 kind: RecurrenceRuleKind::Monthly { is_by_day: true },
             }),
             entries_start: datetime!(2023-03-07 08:00 +00:00:00),
+            entries_end: Some(datetime!(2024-01-07 9:35:00.0 +00:00:00)),
             payload: EventPayload {
                 name: "Polski".to_string(),
                 description: Some("niespodzianka!!".to_string()),

@@ -144,9 +144,12 @@ impl ValidateContent for OverrideEvent {
 impl ValidateContent for Event {
     fn validate_content(&self) -> Result<(), ValidateContentError> {
         if self.is_owned && !self.can_edit {
-            Err(ValidateContentError::new(
+            return Err(ValidateContentError::new(
                 "The event owner must have editing privileges for it",
-            ))
+            ));
+        };
+        if let Some(end) = self.entries_end {
+            TimeRange::new(self.entries_start, end).validate_content()
         } else {
             Ok(())
         }
@@ -437,6 +440,7 @@ mod validation_tests {
                 interval: 2,
             }),
             entries_start: datetime!(2023-03-01 12:00 UTC),
+            entries_end: Some(datetime!(2023-03-03 13:00 UTC)),
             is_owned: true,
             can_edit: true,
         };
@@ -453,6 +457,7 @@ mod validation_tests {
             },
             recurrence_rule: None,
             entries_start: datetime!(2023-03-01 12:00 UTC),
+            entries_end: Some(datetime!(2023-03-01 13:00 UTC)),
             is_owned: true,
             can_edit: false,
         };
