@@ -56,6 +56,14 @@ class EventIteratorContext {
         return this;
     }
 
+    collect(): ProcessedEvent[] {
+        const result = [];
+        for (const event of this) {
+            result.push(event);
+        }
+        return result;
+    }
+
     *[Symbol.iterator]() {
         let startIndex = this.startAt;
 

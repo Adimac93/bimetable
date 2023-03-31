@@ -1,6 +1,6 @@
 <template>
     <div class="wrapper">
-        <TimelineEvent v-for="event in $props.events" :event="event" />
+        <TimelineEvent v-for="event in events" :event="event" />
     </div>
 </template>
 
