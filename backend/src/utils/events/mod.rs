@@ -1,11 +1,12 @@
 use anyhow::anyhow;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::types::PgInterval;
 use sqlx::types::{time::OffsetDateTime, Json};
 use sqlx::{query, query_as, Acquire};
 use time::Duration;
+use tracing::debug;
 use tracing::log::trace;
 use uuid::Uuid;
 
@@ -634,7 +635,7 @@ async fn get_owned(
         owned_events_overrides,
         owned_events,
         search_range,
-    ))
+    )?)
 }
 
 async fn get_shared(
@@ -650,51 +651,48 @@ async fn get_shared(
         shared_events_overrides,
         shared_events,
         search_range,
-    ))
+    )?)
 }
 
 pub fn map_events(
     overrides: Vec<QOverride>,
     events: Vec<QEvent>,
     search_range: TimeRange,
-) -> Events {
-    let mut ovrs = group_overrides(overrides);
+) -> Result<Events, EventError> {
+    let ovrs = group_overrides(overrides);
     let mut entries: Vec<Entry> = vec![];
 
     let events: HashMap<Uuid, Event> = events
         .into_iter()
         .map(|event| {
             let entries_end = if let Some(rule) = &event.recurrence_rule {
-                let mut entry_ranges = rule
-                    .get_event_range(search_range, event.time_range)
-                    .unwrap();
+                let entry_ranges = rule.get_event_range(search_range, event.time_range)?;
 
-                if let Some(prev) = prev_entry(
+                let mut new_entries: VecDeque<Entry> = get_entries(event.id, entry_ranges, &ovrs);
+
+                if let Some(entry_range) = prev_entry(
                     search_range.start - Duration::nanoseconds(1),
                     event.time_range,
                     rule,
-                )
-                .unwrap()
-                {
-                    entry_ranges.insert(0, prev);
-                };
-                if let Some(next) = next_entry(search_range.end, event.time_range, rule).unwrap() {
-                    entry_ranges.push(next);
-                };
-
-                let mut new_entries: Vec<Entry> = get_entries(event.id, entry_ranges, &mut ovrs);
-                if let Some(entry) = new_entries.get(0) {
-                    if let Some(range) = entry.range_with_time_override() {
-                        if !range.is_overlapping(&search_range) {
-                            new_entries.remove(0);
-                        }
+                )? {
+                    if let Some(entry) = check_edge_entry(
+                        event.id,
+                        entry_range,
+                        search_range,
+                        ovrs.get(&event.id).unwrap_or(&vec![]),
+                    ) {
+                        new_entries.push_front(entry);
                     }
                 };
-                if let Some(entry) = new_entries.last() {
-                    if let Some(range) = entry.range_with_time_override() {
-                        if !range.is_overlapping(&search_range) {
-                            new_entries.pop();
-                        }
+
+                if let Some(entry_range) = next_entry(search_range.end, event.time_range, rule)? {
+                    if let Some(entry) = check_edge_entry(
+                        event.id,
+                        entry_range,
+                        search_range,
+                        ovrs.get(&event.id).unwrap_or(&vec![]),
+                    ) {
+                        new_entries.push_back(entry);
                     }
                 };
 
@@ -704,7 +702,7 @@ pub fn map_events(
                 Some(event.time_range.end)
             };
 
-            return (
+            return Ok((
                 event.id,
                 Event::new(
                     event.privileges,
@@ -713,11 +711,11 @@ pub fn map_events(
                     event.time_range.start,
                     entries_end,
                 ),
-            );
+            ));
         })
-        .collect();
+        .collect::<Result<HashMap<Uuid, Event>, EventError>>()?;
 
-    Events::new(events, entries)
+    Ok(Events::new(events, entries))
 }
 
 fn group_overrides(overrides: Vec<QOverride>) -> HashMap<Uuid, Vec<(TimeRange, Override)>> {
@@ -744,31 +742,48 @@ fn group_overrides(overrides: Vec<QOverride>) -> HashMap<Uuid, Vec<(TimeRange, O
     ovrs
 }
 
+fn get_one_entry(
+    event_id: Uuid,
+    entry_range: TimeRange,
+    overrides: &Vec<(TimeRange, Override)>,
+) -> Entry {
+    Entry {
+        event_id,
+        time_range: entry_range,
+        recurrence_override: overrides
+            .iter()
+            .filter(|ovr| entry_range.is_contained(&ovr.0))
+            .max_by_key(|ovr| ovr.1.created_at)
+            .cloned()
+            .map(|ovr| ovr.1),
+    }
+}
+
 fn get_entries(
     event_id: Uuid,
     entry_ranges: Vec<TimeRange>,
-    overrides: &mut HashMap<Uuid, Vec<(TimeRange, Override)>>,
-) -> Vec<Entry> {
-    if let Some(range_overrides) = overrides.remove(&event_id) {
+    overrides: &HashMap<Uuid, Vec<(TimeRange, Override)>>,
+) -> VecDeque<Entry> {
+    if let Some(range_overrides) = overrides.get(&event_id) {
         let event_entries = apply_event_overrides(event_id, entry_ranges, range_overrides);
         trace!(
             "Got {} entries with overrides for event {event_id}",
             event_entries.len()
         );
-        return event_entries;
+        return event_entries.into();
     }
 
     trace!("Got {} entries for event {event_id}", entry_ranges.len());
     entry_ranges
         .into_iter()
         .map(|entry| Entry::new(event_id, TimeRange::new(entry.start, entry.end), None))
-        .collect()
+        .collect::<VecDeque<Entry>>()
 }
 
 fn apply_event_overrides(
     event_id: Uuid,
     entry_ranges: Vec<TimeRange>,
-    overrides: Vec<(TimeRange, Override)>,
+    overrides: &Vec<(TimeRange, Override)>,
 ) -> Vec<Entry> {
     let mut entries: Vec<Entry> = entry_ranges
         .into_iter()
@@ -792,4 +807,22 @@ fn to_time_duration(val: PgInterval) -> Result<Duration, EventError> {
     } else {
         Ok(Duration::microseconds(val.microseconds))
     }
+}
+
+fn check_edge_entry(
+    event_id: Uuid,
+    entry_range: TimeRange,
+    search_range: TimeRange,
+    ovrs: &Vec<(TimeRange, Override)>,
+) -> Option<Entry> {
+    let entry = get_one_entry(event_id, entry_range, ovrs);
+    entry.range_with_time_override().and_then(|modified_range| {
+        if !entry_range.is_overlapping(&search_range)
+            && modified_range.is_overlapping(&search_range)
+        {
+            Some(entry)
+        } else {
+            None
+        }
+    })
 }
