@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use bimetable::{
     modules::database::PgQuery,
     routes::events::models::{
-        CreateEvent, Entry, Event, EventData, EventFilter, EventPayload, Events, GetEventsQuery,
+        CreateEvent, Entry, Event, EventData, EventFilter, EventPayload, Events,
         OptionalEventData, UpdateEditPrivilege, UpdateEvent,
     },
     utils::events::{
-        errors::EventError,
         exe::{
             delete_one_event_permanently, delete_owner_from_event, delete_user_event,
             get_many_events, set_event_ownership, update_user_editing_privileges,
@@ -16,19 +15,14 @@ use bimetable::{
         EventQuery,
     },
 };
-use http::StatusCode;
-use serde_json::json;
-use sqlx::{query, query_as, PgPool};
+use sqlx::{query, PgPool};
 
-use bimetable::routes::events::create_event;
 use bimetable::utils::events::exe::{create_new_event, get_one_event, update_one_event};
 use bimetable::utils::events::models::{EntriesSpan, RecurrenceRuleKind};
-use time::{macros::datetime, OffsetDateTime};
-use tracing::{debug, trace};
+use time::macros::datetime;
+use tracing::trace;
 use tracing_test::traced_test;
 use uuid::{uuid, Uuid};
-
-use crate::tools::AppData;
 
 mod tools;
 

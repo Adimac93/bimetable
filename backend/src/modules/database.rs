@@ -1,6 +1,6 @@
-use crate::config::database::{ConnectionPrep, PostgresSettings};
+use crate::config::database::PostgresSettings;
 pub use sqlx::PgPool;
-use sqlx::{migrate, Acquire, Connection, Executor, PgConnection, Postgres};
+use sqlx::{migrate, PgConnection};
 use tracing::info;
 
 pub async fn get_postgres_pool(config: PostgresSettings) -> PgPool {

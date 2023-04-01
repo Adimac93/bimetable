@@ -1,28 +1,14 @@
-use crate::utils::events::count_to_until::{
-    count_to_until, daily_c_to_u, monthly_c_to_u_by_day, monthly_c_to_u_by_weekday, weekly_c_to_u,
-    yearly_c_to_u_by_day, yearly_c_to_u_by_weekday,
-};
+use crate::utils::events::count_to_until::count_to_until;
 use crate::utils::events::errors::EventError;
-use crate::utils::events::event_range::{
-    get_daily_events, get_monthly_events_by_day, get_weekly_events, get_yearly_events_by_weekday,
-};
 use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
-use crate::utils::events::until_to_count::{
-    daily_u_to_c, monthly_u_to_c_by_day, monthly_u_to_c_by_weekday, until_to_count, weekly_u_to_c,
-    yearly_u_to_c_by_day, yearly_u_to_c_by_weekday,
-};
+use crate::utils::events::until_to_count::until_to_count;
 use crate::validation::ValidateContent;
 use serde::{Deserialize, Serialize};
 use sqlx::types::{time::OffsetDateTime, uuid::Uuid};
 use std::collections::HashMap;
-use time::macros::datetime;
 use time::serde::iso8601;
 use time::Duration;
-use tokio::time::interval;
-use tracing::trace;
 use utoipa::{IntoParams, ToResponse, ToSchema};
-use uuid::uuid;
-use validator::{Validate, ValidationError};
 
 // Core data models
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -172,37 +158,37 @@ pub struct RecurrenceRuleSchema {
 }
 
 impl RecurrenceRuleSchema {
-    pub fn to_compute(self, event_time_range: &TimeRange) -> RecurrenceRule {
-        if let Some(ends_at) = &self.time_rules.ends_at {
-            let (count, until) = match ends_at {
-                RecurrenceEndsAt::Until(until) => {
-                    let count = self
-                        .until_to_count(event_time_range.start, *until, event_time_range)
-                        .unwrap();
-                    (count, *until)
-                }
-                RecurrenceEndsAt::Count(count) => {
-                    let until = self
-                        .count_to_until(event_time_range.start, *count, event_time_range)
-                        .unwrap();
-                    (*count, until)
-                }
-            };
+    pub fn to_compute(self, event_time_range: &TimeRange) -> Result<RecurrenceRule, EventError> {
+        let span = self
+            .time_rules
+            .ends_at
+            .as_ref()
+            .map(|ends_at| {
+                let (count, until) = match ends_at {
+                    RecurrenceEndsAt::Until(until) => {
+                        let count =
+                            self.until_to_count(event_time_range.start, *until, event_time_range)?;
+                        (count, *until)
+                    }
+                    RecurrenceEndsAt::Count(count) => {
+                        let until =
+                            self.count_to_until(event_time_range.start, *count, event_time_range)?;
+                        (*count, until)
+                    }
+                };
 
-            return RecurrenceRule {
-                span: Some(EntriesSpan {
+                <Result<_, EventError>>::Ok(EntriesSpan {
                     end: until,
                     repetitions: count,
-                }),
-                interval: self.time_rules.interval,
-                kind: self.kind,
-            };
-        }
-        RecurrenceRule {
-            span: None,
+                })
+            })
+            .transpose()?;
+
+        Ok(RecurrenceRule {
+            span,
             interval: self.time_rules.interval,
             kind: self.kind,
-        }
+        })
     }
     /// Returns the end of the nth occurrence of the event, starting from a specified point in time.
     ///
@@ -402,144 +388,157 @@ pub struct NewEventOwner {
     pub user_id: Uuid,
 }
 
-#[test]
-fn merge_events_1() {
-    let mut entries = vec![];
-    let id = Uuid::new_v4();
-    entries.push(Entry::new(
-        id,
-        TimeRange::new(
-            datetime!(2023-02-18 10:00 UTC),
-            datetime!(2023-02-18 12:00 UTC),
-        ),
-        None,
-    ));
-    entries.push(Entry::new(
-        id,
-        TimeRange::new(
-            datetime!(2023-02-19 10:00 UTC),
-            datetime!(2023-02-19 12:00 UTC),
-        ),
-        None,
-    ));
-    entries.push(Entry::new(
-        id,
-        TimeRange::new(
-            datetime!(2023-02-20 10:00 UTC),
-            datetime!(2023-02-20 12:00 UTC),
-        ),
-        None,
-    ));
-    let events = Events::new(
-        HashMap::from([(
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use time::macros::datetime;
+    use uuid::Uuid;
+
+    use crate::{
+        routes::events::models::{Entry, Event, EventPayload, EventPrivileges, Events},
+        utils::events::models::TimeRange,
+    };
+
+    #[test]
+    fn merge_events_1() {
+        let mut entries = vec![];
+        let id = Uuid::new_v4();
+        entries.push(Entry::new(
             id,
-            Event::new(
-                EventPrivileges::Owned,
-                EventPayload::new(String::from("A"), None),
-                None,
+            TimeRange::new(
                 datetime!(2023-02-18 10:00 UTC),
-                Some(datetime!(2023-02-20 12:00 UTC)),
+                datetime!(2023-02-18 12:00 UTC),
             ),
-        )]),
-        entries,
-    );
-
-    let mut other_entries = vec![];
-    let other_id = Uuid::new_v4();
-    other_entries.push(Entry::new(
-        other_id,
-        TimeRange::new(
-            datetime!(2023-02-17 10:00 UTC),
-            datetime!(2023-02-17 12:00 UTC),
-        ),
-        None,
-    ));
-    other_entries.push(Entry::new(
-        other_id,
-        TimeRange::new(
-            datetime!(2023-02-20 10:00 UTC),
-            datetime!(2023-02-20 12:00 UTC),
-        ),
-        None,
-    ));
-    other_entries.push(Entry::new(
-        other_id,
-        TimeRange::new(
-            datetime!(2023-02-21 10:00 UTC),
-            datetime!(2023-02-21 12:00 UTC),
-        ),
-        None,
-    ));
-
-    let other_events = Events::new(
-        HashMap::from([(
+            None,
+        ));
+        entries.push(Entry::new(
             id,
-            Event::new(
-                EventPrivileges::Owned,
-                EventPayload::new(String::from("A"), None),
-                None,
-                datetime!(2023-02-17 10:00 UTC),
-                Some(datetime!(2023-02-21 12:00 UTC)),
+            TimeRange::new(
+                datetime!(2023-02-19 10:00 UTC),
+                datetime!(2023-02-19 12:00 UTC),
             ),
-        )]),
-        other_entries,
-    );
+            None,
+        ));
+        entries.push(Entry::new(
+            id,
+            TimeRange::new(
+                datetime!(2023-02-20 10:00 UTC),
+                datetime!(2023-02-20 12:00 UTC),
+            ),
+            None,
+        ));
+        let events = Events::new(
+            HashMap::from([(
+                id,
+                Event::new(
+                    EventPrivileges::Owned,
+                    EventPayload::new(String::from("A"), None),
+                    None,
+                    datetime!(2023-02-18 10:00 UTC),
+                    Some(datetime!(2023-02-20 12:00 UTC)),
+                ),
+            )]),
+            entries,
+        );
 
-    let merged = events.merge(other_events);
-    let mut expected = vec![];
+        let mut other_entries = vec![];
+        let other_id = Uuid::new_v4();
+        other_entries.push(Entry::new(
+            other_id,
+            TimeRange::new(
+                datetime!(2023-02-17 10:00 UTC),
+                datetime!(2023-02-17 12:00 UTC),
+            ),
+            None,
+        ));
+        other_entries.push(Entry::new(
+            other_id,
+            TimeRange::new(
+                datetime!(2023-02-20 10:00 UTC),
+                datetime!(2023-02-20 12:00 UTC),
+            ),
+            None,
+        ));
+        other_entries.push(Entry::new(
+            other_id,
+            TimeRange::new(
+                datetime!(2023-02-21 10:00 UTC),
+                datetime!(2023-02-21 12:00 UTC),
+            ),
+            None,
+        ));
 
-    expected.push(Entry::new(
-        other_id,
-        TimeRange::new(
-            datetime!(2023-02-17 10:00 UTC),
-            datetime!(2023-02-17 12:00 UTC),
-        ),
-        None,
-    ));
-    expected.push(Entry::new(
-        id,
-        TimeRange::new(
-            datetime!(2023-02-18 10:00 UTC),
-            datetime!(2023-02-18 12:00 UTC),
-        ),
-        None,
-    ));
-    expected.push(Entry::new(
-        id,
-        TimeRange::new(
-            datetime!(2023-02-19 10:00 UTC),
-            datetime!(2023-02-19 12:00 UTC),
-        ),
-        None,
-    ));
-    expected.push(Entry::new(
-        id,
-        TimeRange::new(
-            datetime!(2023-02-20 10:00 UTC),
-            datetime!(2023-02-20 12:00 UTC),
-        ),
-        None,
-    ));
+        let other_events = Events::new(
+            HashMap::from([(
+                id,
+                Event::new(
+                    EventPrivileges::Owned,
+                    EventPayload::new(String::from("A"), None),
+                    None,
+                    datetime!(2023-02-17 10:00 UTC),
+                    Some(datetime!(2023-02-21 12:00 UTC)),
+                ),
+            )]),
+            other_entries,
+        );
 
-    expected.push(Entry::new(
-        other_id,
-        TimeRange::new(
-            datetime!(2023-02-20 10:00 UTC),
-            datetime!(2023-02-20 12:00 UTC),
-        ),
-        None,
-    ));
-    expected.push(Entry::new(
-        other_id,
-        TimeRange::new(
-            datetime!(2023-02-21 10:00 UTC),
-            datetime!(2023-02-21 12:00 UTC),
-        ),
-        None,
-    ));
+        let merged = events.merge(other_events);
+        let mut expected = vec![];
 
-    println!("{:#?}", merged);
-    for (a, b) in merged.entries.iter().zip(expected.iter()) {
-        assert_eq!(a.time_range.start, b.time_range.start)
+        expected.push(Entry::new(
+            other_id,
+            TimeRange::new(
+                datetime!(2023-02-17 10:00 UTC),
+                datetime!(2023-02-17 12:00 UTC),
+            ),
+            None,
+        ));
+        expected.push(Entry::new(
+            id,
+            TimeRange::new(
+                datetime!(2023-02-18 10:00 UTC),
+                datetime!(2023-02-18 12:00 UTC),
+            ),
+            None,
+        ));
+        expected.push(Entry::new(
+            id,
+            TimeRange::new(
+                datetime!(2023-02-19 10:00 UTC),
+                datetime!(2023-02-19 12:00 UTC),
+            ),
+            None,
+        ));
+        expected.push(Entry::new(
+            id,
+            TimeRange::new(
+                datetime!(2023-02-20 10:00 UTC),
+                datetime!(2023-02-20 12:00 UTC),
+            ),
+            None,
+        ));
+
+        expected.push(Entry::new(
+            other_id,
+            TimeRange::new(
+                datetime!(2023-02-20 10:00 UTC),
+                datetime!(2023-02-20 12:00 UTC),
+            ),
+            None,
+        ));
+        expected.push(Entry::new(
+            other_id,
+            TimeRange::new(
+                datetime!(2023-02-21 10:00 UTC),
+                datetime!(2023-02-21 12:00 UTC),
+            ),
+            None,
+        ));
+
+        println!("{:#?}", merged);
+        for (a, b) in merged.entries.iter().zip(expected.iter()) {
+            assert_eq!(a.time_range.start, b.time_range.start)
+        }
     }
 }

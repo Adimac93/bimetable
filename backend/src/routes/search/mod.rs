@@ -4,7 +4,6 @@ use crate::modules::AppState;
 use crate::routes::events::models::Event;
 use crate::routes::search::models::{SearchEvents, SearchUsers, SearchUsersResult};
 use crate::utils::auth::models::Claims;
-use crate::utils::events::exe::get_many_events;
 use crate::utils::search::errors::SearchError;
 use crate::utils::search::{get_users, search_many_events};
 use axum::extract::{Query, State};

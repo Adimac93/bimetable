@@ -1,8 +1,6 @@
 use crate::routes::events::models::{Event, EventFilter, EventPayload, EventPrivileges};
-use crate::utils::events::models::RecurrenceRule;
 use crate::utils::search::{QueryEvent, QueryUser};
 use serde::{Deserialize, Serialize};
-use time::{serde::iso8601, OffsetDateTime};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
@@ -37,14 +35,6 @@ pub struct SearchEvents {
     pub filter: EventFilter,
 }
 
-// #[derive(Serialize, Deserialize, ToSchema)]
-// pub struct SearchEventsResult {
-//     payload: EventPayload,
-//     recurrence_rule: Option<RecurrenceRule>,
-//     is_owned: bool,
-//     can_edit: bool,
-// }
-//
 impl From<QueryEvent> for Event {
     fn from(val: QueryEvent) -> Self {
         let (is_owned, can_edit) = match val.privileges {

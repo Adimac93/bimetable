@@ -1,4 +1,4 @@
-use time::{Date, Duration, Month, OffsetDateTime, Weekday};
+use time::{Date, Duration, Month, OffsetDateTime};
 
 use crate::app_errors::DefaultContext;
 use crate::utils::events::models::{RecurrenceRuleKind, TimeRange};
@@ -6,7 +6,7 @@ use crate::validation::{ValidateContent, ValidateContentError};
 
 use super::{
     additions::{
-        get_amount_from_week_map, get_offset_from_the_map, iso_year_start,
+        get_amount_from_week_map, get_offset_from_the_map,
         next_good_month_by_weekday, nth_53_week_year_by_weekday, nth_good_month, AddTime,
         CyclicTimeTo,
     },
@@ -99,8 +99,8 @@ pub fn weekly_c_to_u(
 
     Ok(conv_data
         .part_starts_at
-        .add_weeks(dbg!(weeks_passed) as i64)?
-        .add_days(dbg!(bonus_days_passed) as i64)?
+        .add_weeks(weeks_passed as i64)?
+        .add_days(bonus_days_passed as i64)?
         .checked_add(conv_data.event_duration)
         .dc()?)
 }
@@ -208,7 +208,7 @@ pub fn yearly_c_to_u_by_weekday(conv_data: CountToUntilData) -> Result<OffsetDat
 #[cfg(test)]
 mod recurrence_tests {
     use crate::routes::events::models::{RecurrenceEndsAt, RecurrenceRuleSchema, TimeRules};
-    use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange};
+    use crate::utils::events::models::{RecurrenceRuleKind, TimeRange};
     use time::macros::datetime;
 
     #[test]

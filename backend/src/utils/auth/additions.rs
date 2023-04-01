@@ -10,7 +10,7 @@ use validator::{Validate, ValidationError, ValidationErrors};
 use super::models::ValidatedUserData;
 
 pub fn hash_pass(password: String) -> anyhow::Result<String> {
-    let salt = SaltString::generate(rand::thread_rng());
+    let salt = SaltString::generate(thread_rng());
     Ok(Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| anyhow!(e).context("failed to hash password"))?

@@ -1,8 +1,7 @@
 use crate::utils::events::count_to_until::count_to_until;
 use crate::utils::events::errors::EventError;
-use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
+use crate::utils::events::models::{RecurrenceRule, TimeRange};
 use crate::utils::events::until_to_count::until_to_count;
-use time::macros::datetime;
 use time::OffsetDateTime;
 
 pub fn raw_prev_entry(
@@ -105,6 +104,10 @@ pub fn next_entry(
 
 #[cfg(test)]
 mod entry_tests {
+    use time::macros::datetime;
+
+    use crate::utils::events::models::{EntriesSpan, RecurrenceRuleKind};
+
     use super::*;
 
     const TEST_RULE: RecurrenceRule = RecurrenceRule {

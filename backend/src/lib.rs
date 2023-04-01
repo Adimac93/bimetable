@@ -7,9 +7,9 @@ pub mod utils;
 pub mod validation;
 
 use crate::config::environment::Environment;
-use crate::modules::{AppState, Modules};
+use crate::modules::Modules;
 use axum::extract::State;
-use axum::response::{IntoResponse, Redirect};
+use axum::response::Redirect;
 use axum::{Extension, Router};
 use http::{StatusCode, Uri};
 use tracing::info;

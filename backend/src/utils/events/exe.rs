@@ -6,7 +6,7 @@ use crate::utils::events::errors::EventError;
 use crate::utils::events::models::TimeRange;
 use crate::utils::events::{get_owned, get_shared, EventQuery};
 use crate::validation::ValidateContent;
-use sqlx::{Acquire, PgPool, Postgres};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::models::UserEvent;

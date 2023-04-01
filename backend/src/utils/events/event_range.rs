@@ -60,8 +60,7 @@ pub fn get_weekly_events(
     )
     .weeks();
     let offset_from_week_start =
-        (time::Weekday::Monday.cyclic_time_to(range_data.event_range.start.weekday()) as i64)
-            .days();
+        (Weekday::Monday.cyclic_time_to(range_data.event_range.start.weekday()) as i64).days();
 
     let mut res = Vec::new();
 

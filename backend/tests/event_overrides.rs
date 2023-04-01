@@ -1,17 +1,16 @@
 use bimetable::modules::database::PgQuery;
 use bimetable::routes::events::models::{
-    Entry, EventFilter, Events, Override, OverrideEvent, OverrideEventData,
+    Entry, EventFilter, Override, OverrideEvent, OverrideEventData,
 };
 use bimetable::utils::events::exe::{create_one_event_override, get_many_events};
 use bimetable::utils::events::models::TimeRange;
-use bimetable::utils::events::{EventQuery, QOverride};
+use bimetable::utils::events::EventQuery;
 use sqlx::PgPool;
 use time::macros::datetime;
 use time::Duration;
 use tracing_test::traced_test;
 use uuid::{uuid, Uuid};
 
-const ADIMAC_ID: Uuid = uuid!("910e81a9-56df-4c24-965a-13eff739f469");
 const PKBPMJ_ID: Uuid = uuid!("29e40c2a-7595-42d3-98e8-9fe93ce99972");
 const MABI19_ID: Uuid = uuid!("32190025-7c15-4adb-82fd-9acc3dc8e7b6");
 const HUBERT_ID: Uuid = uuid!("a9c5900e-a445-4888-8612-4a5c8cadbd9e");

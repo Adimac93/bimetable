@@ -1,16 +1,13 @@
 use crate::utils::events::event_range::EventRangeData;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use sqlx::types::time::OffsetDateTime;
 use sqlx::types::Json;
 use std::fmt::{Display, Formatter};
-use time::macros::{datetime, format_description};
-use time::{serde::iso8601, Duration};
+use time::macros::format_description;
+use time::Duration;
 use tracing::trace;
 use utoipa::ToSchema;
 use uuid::Uuid;
-
-use crate::validation::ValidateContent;
 
 use super::{
     errors::EventError,

@@ -2,14 +2,8 @@ use crate::routes::{
     auth::models::*, auth::*, events::models::*, events::*, invitations::models::*, invitations::*,
     search::models::*, search::*,
 };
-use crate::utils::{auth::models::*, events::models::*};
-use utoipa::openapi::security::{
-    AuthorizationCode, Flow, HttpAuthScheme, HttpBuilder, OAuth2, Password, Scopes,
-};
-use utoipa::{
-    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
-    Modify, OpenApi,
-};
+use crate::utils::events::models::*;
+use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(

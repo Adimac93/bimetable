@@ -1,10 +1,8 @@
 use bimetable::modules::database::PgQuery;
 use bimetable::routes::events::models::EventFilter;
 use bimetable::routes::search::models::SearchEvents;
-use bimetable::utils::events::models::{RecurrenceRule, TimeRange};
 use bimetable::utils::search::{search_many_events, QueryEvent, QueryUser, Search};
 use sqlx::PgPool;
-use time::macros::datetime;
 use tracing_test::traced_test;
 use uuid::{uuid, Uuid};
 

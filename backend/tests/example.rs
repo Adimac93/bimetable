@@ -2,7 +2,7 @@ mod tools;
 
 use sqlx::PgPool;
 use tools::AppData;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, trace};
 use tracing_test::traced_test;
 
 #[test]

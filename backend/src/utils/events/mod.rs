@@ -1,21 +1,19 @@
 use anyhow::anyhow;
 use std::collections::{HashMap, VecDeque};
 
-use serde::{Deserialize, Serialize};
 use sqlx::postgres::types::PgInterval;
-use sqlx::types::{time::OffsetDateTime, Json};
-use sqlx::{query, query_as, Acquire};
+use sqlx::query;
+use sqlx::types::time::OffsetDateTime;
 use time::Duration;
-use tracing::debug;
 use tracing::log::trace;
 use uuid::Uuid;
 
-use crate::modules::database::{PgPool, PgQuery};
+use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
-    CreateEvent, Entry, Event, EventFilter, EventPayload, EventPrivileges, Events,
-    OptionalEventData, Override, OverrideEvent, UpdateEvent,
+    CreateEvent, Entry, Event, EventPayload, EventPrivileges, Events, OptionalEventData, Override,
+    OverrideEvent,
 };
-use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
+use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange};
 use crate::utils::events::near_entriies::{next_entry, prev_entry};
 
 use self::errors::EventError;
@@ -44,6 +42,7 @@ pub struct QOverride {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct QOwnedEvent {
     id: Uuid,
     name: String,
@@ -55,6 +54,7 @@ pub struct QOwnedEvent {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct QSharedEvent {
     id: Uuid,
     name: String,
@@ -72,6 +72,7 @@ pub struct QEvent {
     name: String,
     description: Option<String>,
     time_range: TimeRange,
+    #[allow(unused)]
     deleted_at: Option<OffsetDateTime>,
     recurrence_rule: Option<RecurrenceRule>,
     privileges: EventPrivileges,
@@ -90,7 +91,8 @@ impl EventQuery {
 impl<'c> PgQuery<'c, EventQuery> {
     pub async fn create_event(&mut self, event: CreateEvent) -> Result<Uuid, EventError> {
         let rule = if let Some(rule) = event.recurrence_rule {
-            let rule = rule.to_compute(&TimeRange::new(event.data.starts_at, event.data.ends_at));
+            let rule =
+                rule.to_compute(&TimeRange::new(event.data.starts_at, event.data.ends_at))?;
             Some(rule)
         } else {
             None

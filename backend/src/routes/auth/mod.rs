@@ -6,12 +6,12 @@ use crate::utils::auth::errors::AuthError;
 use crate::utils::auth::models::*;
 use crate::utils::auth::*;
 use axum::extract::State;
-use axum::{debug_handler, extract, http::StatusCode, Extension, Json};
+use axum::{debug_handler, http::StatusCode, Extension, Json};
 use axum::{routing::post, Router};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
-use jsonwebtoken::{decode, DecodingKey, Validation};
-use secrecy::{ExposeSecret, SecretString};
+use jsonwebtoken::{DecodingKey, Validation};
+use secrecy::SecretString;
 use serde_json::{json, Value};
 use sqlx::PgPool;
 

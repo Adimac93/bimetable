@@ -1,5 +1,5 @@
 use crate::utils::auth::errors::*;
-use crate::{modules::AppState, utils::auth::additions::is_ascii_or_latin_extended};
+use crate::utils::auth::additions::is_ascii_or_latin_extended;
 use anyhow::Context;
 use axum::{async_trait, extract::FromRequestParts, RequestPartsExt};
 use axum_extra::extract::{

@@ -3,14 +3,11 @@ pub mod errors;
 use crate::app_errors::DefaultContext;
 use crate::modules::database::PgQuery;
 use crate::routes::events::models::{
-    Event, EventFilter, EventPayload, EventPrivileges, Events, Override,
+    EventFilter, EventPrivileges,
 };
 use crate::routes::search::models::{SearchEvents, SearchUsers};
-use crate::utils::events::models::{EntriesSpan, RecurrenceRule, RecurrenceRuleKind, TimeRange};
-use crate::utils::events::{map_events, EventQuery, QOverride};
+use crate::utils::events::models::{RecurrenceRule, RecurrenceRuleKind};
 use crate::utils::search::errors::SearchError;
-use serde::{Deserialize, Serialize};
-use sqlx::types::Json;
 use sqlx::{query, query_as, PgPool};
 use time::OffsetDateTime;
 use tracing::trace;
@@ -130,8 +127,6 @@ impl<'c> PgQuery<'c, Search> {
         )
             .fetch_all(&mut *self.conn)
             .await.dc()?;
-
-        dbg!(&events);
 
         if !events.is_empty() {
             trace!(

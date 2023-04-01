@@ -2,7 +2,7 @@ pub mod models;
 use axum::{
     debug_handler,
     extract::{Path, State},
-    routing::{delete, get, patch, post, put},
+    routing::{get, patch, put},
     Json, Router,
 };
 use sqlx::PgPool;

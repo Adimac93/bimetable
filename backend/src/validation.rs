@@ -10,7 +10,7 @@ use crate::{
         CreateEvent, Event, EventData, GetEventsQuery, OptionalEventData, OverrideEvent,
         UpdateEvent,
     },
-    utils::events::models::{RecurrenceRule, RecurrenceRuleKind, TimeRange},
+    utils::events::models::{RecurrenceRuleKind, TimeRange},
 };
 
 #[derive(Debug, Error)]
@@ -161,7 +161,7 @@ mod validation_tests {
     use time::macros::datetime;
 
     use crate::routes::events::models::EventPayload;
-    use crate::utils::events::models::EntriesSpan;
+    use crate::utils::events::models::{EntriesSpan, RecurrenceRule};
 
     use super::*;
 
@@ -381,10 +381,7 @@ mod validation_tests {
             starts_at: Some(datetime!(2023-03-01 12:00 UTC)),
             ends_at: None,
         };
-        println!(
-            "{:?}",
-            Some(datetime!(2023-03-01 12:00 UTC)).partial_cmp(&None)
-        );
+
         assert!(data.validate_content().is_ok())
     }
 

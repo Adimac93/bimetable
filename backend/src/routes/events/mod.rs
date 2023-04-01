@@ -2,11 +2,10 @@ pub mod models;
 use crate::utils::auth::models::Claims;
 use crate::utils::events::errors::EventError;
 use crate::{modules::AppState, validation::ValidateContent};
-use axum::debug_handler;
 use axum::routing::delete;
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, patch, post},
+    routing::{get, patch},
     Json, Router,
 };
 use http::StatusCode;
@@ -34,6 +33,7 @@ pub fn router() -> Router<AppState> {
                 .patch(update_event)
                 .delete(delete_event_permanently),
         )
+        .route("/temp-delete/:id", patch(delete_event_temporarily))
         .route("/override/:id", patch(create_event_override))
         .route("/set-edit/:id", patch(update_edit_privileges))
         .route("/set-owner/:id", patch(update_event_owner))

@@ -1,13 +1,12 @@
 pub mod errors;
 
 use crate::modules::database::PgQuery;
-use sqlx::{query, query_as, Acquire, PgPool};
+use sqlx::{query, query_as, PgPool};
 use tracing::trace;
 use uuid::Uuid;
 
-use crate::routes::events::models::EventPayload;
 use crate::routes::invitations::models::{
-    CreateDirectInvitation, DirectInvitation, RespondDirectInvitation,
+    DirectInvitation, RespondDirectInvitation,
 };
 
 use self::errors::InvitationError;
@@ -136,7 +135,7 @@ impl<'c> PgQuery<'c, Invitation> {
         receiver_id: &Uuid,
         can_edit: bool,
     ) -> Result<(), InvitationError> {
-        let res = query!(
+        let _res = query!(
             r#"
                 INSERT INTO user_event_invitations (event_id, sender_id, receiver_id, can_edit)
                 VALUES ($1, $2, $3, $4)
@@ -239,7 +238,7 @@ pub async fn respond_to_direct_invitation(
     let mut transaction = pool.begin().await?;
     let mut q = PgQuery::new(Invitation, &mut transaction);
 
-    if let Some(inv) = q
+    if let Some(_inv) = q
         .get_one_direct(
             &response.event_id,
             &response.sender_id,
