@@ -6,5 +6,5 @@ export default defineNuxtConfig({
     runtimeConfig: {
         apiURL: settings.apiURL ?? "http://127.0.0.1:3001",
     },
-    css: ["assets/global.scss"],
+    css: ["assets/global.scss", "assets/forms.scss"],
 });

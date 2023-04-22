@@ -1,0 +1,7 @@
+.row *:not(:last-child) {
+    margin-right: 8px;
+}
+
+.row textarea {
+    display: block;
+}
